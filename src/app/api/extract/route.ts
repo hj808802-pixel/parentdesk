@@ -2,7 +2,7 @@ import Anthropic from "@anthropic-ai/sdk";
 import { extractNotice, ExtractError, type ImageMediaType, type InputFile } from "@/lib/extract";
 import { todayIn } from "@/lib/dates";
 import { allowRequest, clientIp } from "@/lib/ratelimit";
-import { SAMPLE_NOTICE } from "@/lib/sample";
+import { sampleNotice } from "@/lib/sample";
 import { addExtraction, createFamily, familyCookie, familyFromRequest, isHttps, saveFamily, toView, type SourceKind } from "@/lib/store";
 
 export const runtime = "nodejs";
@@ -36,12 +36,14 @@ export async function POST(req: Request) {
 
   const useSample = form.get("sample") === "1";
   const files = useSample ? [] : form.getAll("files").filter((f): f is File => f instanceof File && f.size > 0);
-  const pastedText = useSample ? SAMPLE_NOTICE : String(form.get("text") ?? "").trim();
+  const pastedText = useSample ? "" : String(form.get("text") ?? "").trim();
 
-  if (files.length === 0 && !pastedText) return Response.json({ ok: false, error: "no_files", request_id: requestId }, { status: 400 });
-  if (files.length === 0 && pastedText.length < MIN_TEXT_CHARS) return Response.json({ ok: false, error: "text_too_short", request_id: requestId }, { status: 400 });
-  if (files.length === 0 && pastedText.length > MAX_TEXT_CHARS) return Response.json({ ok: false, error: "too_large", request_id: requestId }, { status: 413 });
-  if (files.length > MAX_FILES) return Response.json({ ok: false, error: "too_many_files", request_id: requestId }, { status: 400 });
+  if (!useSample) {
+    if (files.length === 0 && !pastedText) return Response.json({ ok: false, error: "no_files", request_id: requestId }, { status: 400 });
+    if (files.length === 0 && pastedText.length < MIN_TEXT_CHARS) return Response.json({ ok: false, error: "text_too_short", request_id: requestId }, { status: 400 });
+    if (files.length === 0 && pastedText.length > MAX_TEXT_CHARS) return Response.json({ ok: false, error: "too_large", request_id: requestId }, { status: 413 });
+    if (files.length > MAX_FILES) return Response.json({ ok: false, error: "too_many_files", request_id: requestId }, { status: 400 });
+  }
 
   const inputs: InputFile[] = [];
   let total = 0;
@@ -53,8 +55,6 @@ export async function POST(req: Request) {
     else if (IMAGE_TYPES.has(f.type)) inputs.push({ kind: "image", mediaType: f.type as ImageMediaType, base64 });
     else return Response.json({ ok: false, error: "unsupported_type", request_id: requestId }, { status: 400 });
   }
-  if (files.length === 0) inputs.push({ kind: "text", text: pastedText });
-
   // First notice ever on this browser: make the family now, from the UI locale and the
   // browser's time zone, so the dates are read the right way from the start.
   const headers = new Headers();
@@ -68,6 +68,10 @@ export async function POST(req: Request) {
     createdKey = created.key;
     headers.append("set-cookie", familyCookie(created.key, isHttps(req)));
   }
+
+  // The sample is written for the family's "today", so its weekdays and dates agree.
+  if (useSample) inputs.push({ kind: "text", text: sampleNotice(todayIn(rec.settings.timezone)) });
+  else if (files.length === 0) inputs.push({ kind: "text", text: pastedText });
 
   const hintChildId = String(form.get("child") ?? "") || null;
   const hintChild = hintChildId ? rec.children.find((c) => c.id === hintChildId) : undefined;

@@ -3,7 +3,8 @@ import path from "node:path";
 import Anthropic from "@anthropic-ai/sdk";
 import { betaZodOutputFormat } from "@anthropic-ai/sdk/helpers/beta/zod";
 import { countryOf, type DateOrder } from "./countries";
-import { addDays, weekday } from "./dates";
+import { addDays, nextWeekday, weekday } from "./dates";
+import { sampleDates } from "./sample";
 import { ExtractionSchema, OUTPUT_LANGUAGES, type Extraction } from "./schema";
 
 export type ImageMediaType = "image/jpeg" | "image/png" | "image/webp" | "image/gif";
@@ -178,22 +179,11 @@ export async function extractNotice(files: InputFile[], ctx: ExtractContext): Pr
   };
 }
 
-// Next weekday (0-6) on or after an ISO date.
-function nextWeekday(fromIso: string, wd: number): string {
-  const diff = (wd - weekday(fromIso) + 7) % 7;
-  return addDays(fromIso, diff);
-}
-
 // Canned result used when no API key is configured, so the UI can be exercised. It mirrors
 // the bundled sample newsletter, with dates placed relative to today.
 export function mockExtraction(ctx: ExtractContext): Extraction {
   const t = ctx.todayIso;
-  const friday = nextWeekday(addDays(t, 3), 5);
-  const wednesday = addDays(friday, -2);
-  const tuesdayAfter = nextWeekday(addDays(friday, 1), 2);
-  const thursdayAfter = addDays(tuesdayAfter, 2);
-  const monday = nextWeekday(addDays(t, 1), 1);
-  const thanksgiving = nextWeekday(addDays(thursdayAfter, 1), 4);
+  const { friday, wednesday, tuesdayAfter, thursdayAfter, monday, breakThursday: thanksgiving } = sampleDates(t);
   const kids = ctx.childNames.slice(0, 1);
   return {
     source: {
@@ -360,7 +350,7 @@ export function mockExtraction(ctx: ExtractContext): Extraction {
       },
       {
         type: "event",
-        title: "No school (Thanksgiving)",
+        title: "No school (fall break)",
         description: "Two days off: Thursday and Friday.",
         date: thanksgiving,
         end_date: addDays(thanksgiving, 1),
@@ -375,7 +365,7 @@ export function mockExtraction(ctx: ExtractContext): Extraction {
         action_text: null,
         children: [],
         confidence: "high",
-        quote: "No school Thursday and Friday (Thanksgiving)",
+        quote: "No school Thursday and Friday (fall break)",
       },
     ],
     questions_for_parent: ["Does the field trip return before normal dismissal time?"],

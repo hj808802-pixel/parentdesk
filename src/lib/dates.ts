@@ -34,6 +34,11 @@ export function weekday(iso: string): number {
   return new Date(`${iso}T00:00:00Z`).getUTCDay();
 }
 
+// Next weekday (0 Sunday … 6 Saturday) on or after an ISO date.
+export function nextWeekday(fromIso: string, wd: number): string {
+  return addDays(fromIso, (wd - weekday(fromIso) + 7) % 7);
+}
+
 export function startOfWeek(iso: string, weekStart: 0 | 1): string {
   const wd = weekday(iso);
   const back = (wd - weekStart + 7) % 7;
