@@ -4,7 +4,7 @@ Every school notice, turned into your family calendar and to-do list.
 
 Snap a photo of the newsletter, paste the class message or forward the e-mail. In about 30 seconds you get the events, deadlines, payments, forms to sign and things to bring, sorted by child, with a calendar feed your phone subscribes to. No account. Works in any country and language.
 
-Live: https://parentdesk.vercel.app
+Live: https://parentdesk-app.vercel.app
 
 ## How it works
 

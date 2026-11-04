@@ -12,7 +12,7 @@ import NavLinks from "@/components/NavLinks";
 const geistSans = Geist({ variable: "--font-geist-sans", subsets: ["latin"] });
 const geistMono = Geist_Mono({ variable: "--font-geist-mono", subsets: ["latin"] });
 
-export const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL || "https://parentdesk.vercel.app";
+export const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL || "https://parentdesk-app.vercel.app";
 
 export function generateStaticParams() {
   return LOCALES.map((locale) => ({ locale }));

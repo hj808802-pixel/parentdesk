@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 // Page, link and API sweep of a deployed (or local) build.
 //
-//   node scripts/linkcheck.mjs [--url https://parentdesk.vercel.app]
+//   node scripts/linkcheck.mjs [--url https://parentdesk-app.vercel.app]
 //
 // 1. Fetches every page in every UI locale and the static files, and follows every
 //    internal link found in them (expects 200; the 404 page is expected to be 404).
@@ -17,7 +17,7 @@ const opt = (name, fallback) => {
   const i = args.indexOf(name);
   return i >= 0 && args[i + 1] ? args[i + 1] : fallback;
 };
-const BASE = opt("--url", process.env.LINKCHECK_URL ?? "https://parentdesk.vercel.app").replace(/\/$/, "");
+const BASE = opt("--url", process.env.LINKCHECK_URL ?? "https://parentdesk-app.vercel.app").replace(/\/$/, "");
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const UA = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0 Safari/537.36";
 

@@ -1,7 +1,7 @@
 import type { MetadataRoute } from "next";
 import { LOCALES, LOCALE_TAGS, localePath } from "@/lib/i18n/locales";
 
-const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL || "https://parentdesk.vercel.app";
+const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL || "https://parentdesk-app.vercel.app";
 const PAGES = ["/", "/add", "/privacy", "/terms"];
 
 export default function sitemap(): MetadataRoute.Sitemap {

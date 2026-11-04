@@ -4,7 +4,7 @@
 // Setup (one time, with a domain on Cloudflare):
 // 1. Cloudflare dashboard → Email → Email Routing → enable for the domain.
 // 2. Workers & Pages → Create → paste this file. Set two variables (Settings → Variables):
-//      PARENTDESK_URL    = https://parentdesk.vercel.app/api/inbound
+//      PARENTDESK_URL    = https://parentdesk-app.vercel.app/api/inbound
 //      INBOUND_SECRET    = the same value as INBOUND_SECRET on Vercel
 // 3. Email Routing → Routing rules → Catch-all → Send to a Worker → this worker.
 // 4. On Vercel set INBOUND_DOMAIN to the domain (e.g. in.example.com) and INBOUND_SECRET.
