@@ -1,0 +1,23 @@
+import fs from "node:fs";
+import path from "node:path";
+import { storageMode } from "@/lib/store";
+
+export const runtime = "nodejs";
+
+export async function GET() {
+  const packsDir = path.join(process.cwd(), "knowledge", "countries");
+  const packs = fs.existsSync(packsDir) ? fs.readdirSync(packsDir).filter((f) => f.endsWith(".md")).length : 0;
+  const hasKey = Boolean(process.env.ANTHROPIC_API_KEY || process.env.ANTHROPIC_AUTH_TOKEN);
+  return Response.json(
+    {
+      ok: true,
+      model: process.env.EXTRACT_MODEL || "claude-opus-5-5",
+      hasKey,
+      mock: process.env.MOCK_EXTRACT === "1" || !hasKey,
+      storage: storageMode(),
+      inbound: Boolean(process.env.INBOUND_SECRET && process.env.INBOUND_DOMAIN),
+      packs,
+    },
+    { headers: { "cache-control": "no-store" } },
+  );
+}
