@@ -54,9 +54,9 @@ export default function SourcesView() {
                   <span>· {fmt(t.sources.itemCount, { n: count })}</span>
                   {(s.messagesSeen ?? 1) > 1 && <span>· {fmt(t.sources.mixed, { seen: s.messagesSeen ?? 0, used: s.messagesUsed ?? 0 })}</span>}
                 </div>
-                <h2 className="mt-1 font-semibold">{s.title}</h2>
+                <h2 dir="auto" className="mt-1 font-semibold">{s.title}</h2>
                 <p className="text-sm text-zinc-600 dark:text-zinc-400">{s.sender}</p>
-                <p className="mt-2 text-sm">{s.summary}</p>
+                <p dir="auto" className="mt-2 text-sm">{s.summary}</p>
                 {s.questions.length > 0 && (
                   <>
                     <p className="mt-3 text-xs font-semibold uppercase tracking-wide text-zinc-500">{t.sources.questions}</p>

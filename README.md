@@ -35,7 +35,7 @@ scripts/linkcheck.mjs       page/link/API sweep of a deployment
 tests/                      vitest
 ```
 
-UI languages: English (bare path), 한국어, Español, 日本語, 中文, Français, Deutsch (`/ja/...`). Result languages: 21 (`OUTPUT_LANGUAGES`).
+UI languages: English (bare path), 한국어, Español, 日本語, 中文, Français, Deutsch, Português, Italiano, Tiếng Việt (`/ja/...`). Result languages: 21 (`OUTPUT_LANGUAGES`). Country packs: 24 countries plus a generic note (`knowledge/countries/`), 40 countries with defaults in `src/lib/countries.ts`; country names in the settings come from `Intl.DisplayNames`, result text renders with `dir="auto"` so Arabic, Hebrew, Persian and Urdu results read correctly.
 
 ## Run locally
 
@@ -55,6 +55,7 @@ npm run typecheck
 npm test
 npm run build
 npm run linkcheck -- --url http://localhost:3000
+node scripts/errorcheck.mjs --url http://localhost:3000   # error paths, no model calls
 ```
 
 ## Auto-collect channels

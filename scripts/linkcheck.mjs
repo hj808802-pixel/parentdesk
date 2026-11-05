@@ -21,7 +21,7 @@ const BASE = opt("--url", process.env.LINKCHECK_URL ?? "https://parentdesk-app.v
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const UA = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0 Safari/537.36";
 
-const PREFIXES = ["", "/ko", "/es", "/ja", "/zh", "/fr", "/de"];
+const PREFIXES = ["", "/ko", "/es", "/ja", "/zh", "/fr", "/de", "/pt", "/it", "/vi"];
 const PAGES = ["/", "/add", "/items", "/sources", "/settings", "/privacy", "/terms"];
 const STATIC = ["/manifest.webmanifest", "/robots.txt", "/sitemap.xml", "/favicon.ico", "/og.png", "/icon-192.png", "/icon-512.png", "/apple-touch-icon.png", "/sample-notice.png"];
 

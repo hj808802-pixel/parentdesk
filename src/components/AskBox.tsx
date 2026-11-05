@@ -78,7 +78,7 @@ export default function AskBox({ childrenList }: { childrenList: Child[] }) {
       {error && <p className="mt-3 text-sm text-red-600 dark:text-red-400">{error}</p>}
       {answer && (
         <div className="mt-3" aria-live="polite">
-          <p className="whitespace-pre-wrap text-sm">{answer.text}</p>
+          <p dir="auto" className="whitespace-pre-wrap text-sm">{answer.text}</p>
           {answer.items.length > 0 && (
             <>
               <p className="mt-3 text-xs font-semibold uppercase tracking-wide text-zinc-500">{t.ask.related}</p>

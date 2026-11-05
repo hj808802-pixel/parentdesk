@@ -18,6 +18,7 @@ export const fr: Dict = {
     privacy: "Confidentialité",
     terms: "Conditions",
     language: "Langue",
+    feedback: "Commentaires",
     footer: "Un outil d'organisation pour les parents. Le mot original de l'école fait toujours foi.",
   },
   landing: {
@@ -187,6 +188,7 @@ export const fr: Dict = {
     childHint: "Prénom ou surnom seulement. Nous ne demandons jamais de date de naissance ni de nom d'école.",
     region: "Pays et langue",
     country: "Pays",
+    countryOther: "Autre",
     language: "Langue des résultats",
     timezone: "Fuseau horaire",
     dateOrder: "Comment l'école écrit les dates",
@@ -306,6 +308,7 @@ export const fr: Dict = {
       "Données des enfants : le service s'adresse aux parents et aux autres adultes. Nous ne détenons un prénom ou un surnom que parce que vous avez choisi de le saisir, et uniquement pour regrouper les éléments. Si vous préférez, utilisez des initiales.",
       "Contact : écrivez à l'adresse indiquée dans le dépôt GitHub lié en pied de page.",
       "Gmail (facultatif) : si vous connectez Gmail, nous conservons un jeton chiffré qui nous permet de lire votre boîte une fois par jour pour y trouver les messages de l'école. Nous gardons les dates et tâches extraites de ces messages, les identifiants des e-mails déjà examinés et les adresses d'expéditeur qui se sont révélées être l'école. Nous n'envoyons jamais d'e-mail depuis votre compte. La déconnexion dans les Réglages révoque le jeton. L'utilisation par ParentDesk des informations reçues des API Google respecte la politique relative aux données utilisateur des services d'API Google, y compris les exigences d'utilisation limitée.",
+      "Vos droits et la localisation des données : le service tourne sur des serveurs Vercel aux États-Unis et les mots sont traités par Anthropic aux États-Unis ; vos données quittent donc votre pays. Vous pouvez voir tout ce que nous conservons sur les pages Éléments et Mots, exporter les éléments en cours en fichier calendrier et supprimer vous-même toute la famille à tout moment ; pour toute autre demande, écrivez au contact ci-dessus. Nous ne vendons pas les données et ne les utilisons pas pour la publicité. Le service est destiné aux adultes ; si vous pensez qu'un enfant l'a utilisé, dites-le-nous et nous supprimerons les données.",
     ],
     terms: [
       "ParentDesk est en bêta, proposé gratuitement et en l'état, sans garantie d'exhaustivité ni d'exactitude.",

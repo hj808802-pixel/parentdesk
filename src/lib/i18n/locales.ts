@@ -2,7 +2,7 @@
 // (/ja/items). The language the extractor writes results in is a separate, longer list
 // (schema.ts OUTPUT_LANGUAGES) chosen per family in Settings.
 
-export const LOCALES = ["en", "ko", "es", "ja", "zh", "fr", "de"] as const;
+export const LOCALES = ["en", "ko", "es", "ja", "zh", "fr", "de", "pt", "it", "vi"] as const;
 export type Locale = (typeof LOCALES)[number];
 export const DEFAULT_LOCALE: Locale = "en";
 
@@ -14,6 +14,9 @@ export const LOCALE_NAMES: Record<Locale, string> = {
   zh: "中文",
   fr: "Français",
   de: "Deutsch",
+  pt: "Português",
+  it: "Italiano",
+  vi: "Tiếng Việt",
 };
 
 // BCP 47 tags for <html lang> and Intl.
@@ -25,6 +28,9 @@ export const LOCALE_TAGS: Record<Locale, string> = {
   zh: "zh-Hans",
   fr: "fr",
   de: "de",
+  pt: "pt",
+  it: "it",
+  vi: "vi",
 };
 
 export const LOCALE_COOKIE = "pd_locale";
@@ -44,6 +50,15 @@ export function splitLocale(pathname: string): { locale: Locale | null; path: st
   const m = /^\/([a-zA-Z-]+)(\/.*)?$/.exec(pathname);
   if (m && isLocale(m[1])) return { locale: m[1], path: m[2] || "/" };
   return { locale: null, path: pathname || "/" };
+}
+
+// A country's name in the UI language, from the browser's own data (Intl.DisplayNames).
+export function regionName(code: string, tag: string, fallback: string): string {
+  try {
+    return new Intl.DisplayNames([tag], { type: "region" }).of(code) ?? fallback;
+  } catch {
+    return fallback;
+  }
 }
 
 // Picks a UI locale from an Accept-Language header; anything outside the list is English.

@@ -76,11 +76,11 @@ export default function ReplyPanel({ itemId, onClose }: { itemId: string; onClos
               {t.reply.subject}: {draft.subject}
             </p>
           )}
-          <textarea className={`${INPUT} mt-1`} rows={6} value={draft.reply} onChange={(e) => setDraft({ ...draft, reply: e.target.value })} />
+          <textarea dir="auto" className={`${INPUT} mt-1`} rows={6} value={draft.reply} onChange={(e) => setDraft({ ...draft, reply: e.target.value })} />
           {draft.translation && (
             <details className="mt-2">
               <summary className="cursor-pointer text-xs font-medium">{t.reply.translation}</summary>
-              <p className="mt-1 whitespace-pre-wrap text-sm text-zinc-700 dark:text-zinc-300">{draft.translation}</p>
+              <p dir="auto" className="mt-1 whitespace-pre-wrap text-sm text-zinc-700 dark:text-zinc-300">{draft.translation}</p>
             </details>
           )}
           <div className="mt-2 flex flex-wrap gap-2">

@@ -18,6 +18,7 @@ export const es: Dict = {
     privacy: "Privacidad",
     terms: "Condiciones",
     language: "Idioma",
+    feedback: "Comentarios",
     footer: "Una herramienta de organización para padres y madres. La circular original del colegio siempre manda.",
   },
   landing: {
@@ -187,6 +188,7 @@ export const es: Dict = {
     childHint: "Solo el nombre o un apodo. Nunca pedimos fechas de nacimiento ni nombres de colegios.",
     region: "País e idioma",
     country: "País",
+    countryOther: "Otro",
     language: "Idioma de los resultados",
     timezone: "Zona horaria",
     dateOrder: "Cómo escribe las fechas el colegio",
@@ -306,6 +308,7 @@ export const es: Dict = {
       "Datos de menores: el servicio es para padres y otros adultos. Guardamos un nombre o apodo solo porque tú decidiste escribirlo y solo para agrupar los elementos. Si lo prefieres, usa iniciales.",
       "Contacto: escribe a la dirección del repositorio de GitHub enlazado en el pie de página.",
       "Gmail (opcional): si conectas Gmail, guardamos un token cifrado que nos permite leer tu bandeja una vez al día para encontrar mensajes del colegio. Conservamos las fechas y tareas extraídas de esos mensajes, los identificadores de los correos ya revisados y las direcciones de remitente que resultaron ser del colegio. Nunca enviamos correos desde tu cuenta. Desconectar en Ajustes revoca el token. El uso que ParentDesk hace de la información recibida de las API de Google cumple la Política de datos de usuario de los servicios de API de Google, incluidos los requisitos de uso limitado.",
+      "Tus derechos y dónde van los datos: el servicio funciona en servidores de Vercel en Estados Unidos y las circulares las procesa Anthropic en Estados Unidos, así que tus datos salen de tu país. Puedes ver todo lo que guardamos en las páginas Elementos y Circulares, exportar los elementos abiertos como archivo de calendario y borrar toda la familia tú mismo en cualquier momento; para cualquier otra cosa, escribe al contacto de arriba. No vendemos datos ni los usamos para publicidad. El servicio es para adultos; si crees que lo ha usado un menor, avísanos y borraremos los datos.",
     ],
     terms: [
       "ParentDesk está en beta y se ofrece gratis, tal cual, sin garantía de que sea completo o correcto.",

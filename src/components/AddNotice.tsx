@@ -168,7 +168,7 @@ export default function AddNotice() {
           {result.summary && (
             <div className={`${CARD} mt-3`}>
               <p className="text-xs font-semibold uppercase tracking-wide text-zinc-500">{t.add.summary}</p>
-              <p className="mt-1 text-sm">{result.summary}</p>
+              <p dir="auto" className="mt-1 text-sm">{result.summary}</p>
               {result.questions.length > 0 && (
                 <>
                   <p className="mt-3 text-xs font-semibold uppercase tracking-wide text-zinc-500">{t.add.questions}</p>

@@ -28,7 +28,7 @@ export default function NavLinks({ className = "", mobile = false }: { className
             aria-current={active ? "page" : undefined}
             className={
               mobile
-                ? `flex flex-col items-center gap-0.5 rounded-lg px-3 py-1 ${active ? "text-indigo-600 dark:text-indigo-300" : "text-zinc-600 dark:text-zinc-400"}`
+                ? `flex min-w-0 flex-1 basis-0 flex-col items-center gap-0.5 rounded-lg px-1 py-1 ${active ? "text-indigo-600 dark:text-indigo-300" : "text-zinc-600 dark:text-zinc-400"}`
                 : `${active ? "font-semibold text-zinc-900 dark:text-white" : "text-zinc-600 dark:text-zinc-400"}`
             }
           >
@@ -37,7 +37,7 @@ export default function NavLinks({ className = "", mobile = false }: { className
                 {l.icon}
               </span>
             )}
-            {l.label}
+            {mobile ? <span className="line-clamp-2 max-w-full break-words text-center text-[11px] leading-tight">{l.label}</span> : l.label}
           </Link>
         );
       })}

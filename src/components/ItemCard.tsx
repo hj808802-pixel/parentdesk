@@ -82,12 +82,12 @@ export default function ItemCard({
             )}
             {item.status !== "open" && <span className="text-zinc-500">{t.item.status[item.status]}</span>}
           </div>
-          <h3 className={`mt-1 text-base font-semibold ${muted ? "line-through" : ""}`}>{item.title}</h3>
+          <h3 dir="auto" className={`mt-1 text-base font-semibold ${muted ? "line-through" : ""}`}>{item.title}</h3>
           <div className="mt-1">
             <ChildChips childrenList={childrenList} ids={item.childIds} emptyLabel={childrenList.length ? t.item.noChild : undefined} />
           </div>
-          {item.description && <p className="mt-2 text-sm text-zinc-700 dark:text-zinc-300">{item.description}</p>}
-          {item.action_text && <p className="mt-1 text-sm font-medium">→ {item.action_text}</p>}
+          {item.description && <p dir="auto" className="mt-2 text-sm text-zinc-700 dark:text-zinc-300">{item.description}</p>}
+          {item.action_text && <p dir="auto" className="mt-1 text-sm font-medium">→ {item.action_text}</p>}
           {item.amount !== null && <p className="mt-1 text-sm font-semibold">{formatMoney(item.amount, item.currency, tag)}</p>}
           {item.location && <p className="mt-1 text-sm text-zinc-600 dark:text-zinc-400">📍 {item.location}</p>}
           {item.bring.length > 0 && (

@@ -5,12 +5,15 @@ import { ja } from "./ja";
 import { zh } from "./zh";
 import { fr } from "./fr";
 import { de } from "./de";
+import { pt } from "./pt";
+import { it } from "./it";
+import { vi } from "./vi";
 import { DEFAULT_LOCALE, isLocale, type Locale } from "./locales";
 
 export type { Dict } from "./en";
 export * from "./locales";
 
-const DICTS: Record<Locale, Dict> = { en, ko, es, ja, zh, fr, de };
+const DICTS: Record<Locale, Dict> = { en, ko, es, ja, zh, fr, de, pt, it, vi };
 
 export function getDict(locale: string | undefined | null): Dict {
   return DICTS[isLocale(locale) ? locale : DEFAULT_LOCALE];

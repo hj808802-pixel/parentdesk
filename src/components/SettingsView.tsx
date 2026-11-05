@@ -7,7 +7,7 @@ import { COUNTRIES, TIMEZONES, type DateOrder } from "@/lib/countries";
 import { useFamily } from "@/lib/family-context";
 import { useI18n } from "@/lib/i18n/context";
 import { fmt } from "@/lib/i18n";
-import { LOCALE_TAGS } from "@/lib/i18n/locales";
+import { LOCALE_TAGS, regionName } from "@/lib/i18n/locales";
 import { OUTPUT_LANGUAGES } from "@/lib/schema";
 import { CHILD_COLORS, MAX_CHILDREN, type Child, type Settings } from "@/lib/types";
 import { BTN_PRIMARY, BTN_SECONDARY, BTN_SMALL, CARD, INPUT } from "@/lib/ui";
@@ -140,6 +140,10 @@ export default function SettingsView() {
   }
 
   const tzList = settings && !TIMEZONES.includes(settings.timezone) ? [settings.timezone, ...TIMEZONES] : TIMEZONES;
+  // Country names in the UI language (the browser's own data), "Other" from the dictionary.
+  const countryOptions = COUNTRIES.map((c) => ({ code: c.code, label: c.code === "XX" ? t.settings.countryOther : regionName(c.code, LOCALE_TAGS[locale], c.name) })).sort((a, b) =>
+    a.code === "XX" ? 1 : b.code === "XX" ? -1 : a.label.localeCompare(b.label, LOCALE_TAGS[locale]),
+  );
   const month = new Date().toISOString().slice(0, 7);
 
   return (
@@ -218,9 +222,9 @@ export default function SettingsView() {
                     setSettings({ ...settings, country: c.code, dateOrder: c.dateOrder, currency: c.currency, weekStart: c.weekStart, timezone: c.timezone });
                   }}
                 >
-                  {COUNTRIES.map((c) => (
+                  {countryOptions.map((c) => (
                     <option key={c.code} value={c.code}>
-                      {c.name}
+                      {c.label}
                     </option>
                   ))}
                 </select>

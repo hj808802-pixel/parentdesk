@@ -19,6 +19,7 @@ export const en = {
     privacy: "Privacy",
     terms: "Terms",
     language: "Language",
+    feedback: "Feedback",
     footer: "A planning tool for parents. The school's original notice is always the authority.",
   },
   landing: {
@@ -189,6 +190,7 @@ export const en = {
     childHint: "First name or nickname only. We never ask for birth dates or school names.",
     region: "Country and language",
     country: "Country",
+    countryOther: "Other",
     language: "Language for results",
     timezone: "Time zone",
     dateOrder: "How the school writes dates",
@@ -309,6 +311,7 @@ export const en = {
       "Children's data: the service is for parents and other adults. We hold a first name or nickname only because you chose to enter it, and only so that items can be grouped. If you prefer, use initials.",
       "Contact: write to the address on the GitHub repository linked in the footer.",
       "Gmail (optional): if you connect Gmail, we store an encrypted token that lets us read your inbox once a day to find school messages. We keep the dates and to-dos extracted from those messages, the ids of messages already looked at, and the sender addresses that turned out to be the school. We never send e-mail from your account. Disconnecting in Settings revokes the token. ParentDesk's use of information received from Google APIs adheres to the Google API Services User Data Policy, including the Limited Use requirements.",
+      "Your rights and where data goes: the service runs on Vercel servers in the United States and notices are processed by Anthropic in the United States, so your data leaves your country. You can see everything we hold on the Items and Notices pages, export open items as a calendar file, and delete the whole family yourself at any time; for anything else, write to the contact above. We do not sell data and do not use it for advertising. The service is meant for adults; if you believe a child has used it, tell us and we will delete the data.",
     ],
     terms: [
       "ParentDesk is in beta and offered free of charge, as is, without any guarantee that it is complete or correct.",

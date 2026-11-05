@@ -18,6 +18,7 @@ export const de: Dict = {
     privacy: "Datenschutz",
     terms: "Nutzungsbedingungen",
     language: "Sprache",
+    feedback: "Feedback",
     footer: "Ein Planungswerkzeug für Eltern. Der Originalbrief der Schule gilt immer.",
   },
   landing: {
@@ -187,6 +188,7 @@ export const de: Dict = {
     childHint: "Nur Vorname oder Spitzname. Wir fragen nie nach Geburtsdaten oder Schulnamen.",
     region: "Land und Sprache",
     country: "Land",
+    countryOther: "Anderes",
     language: "Sprache der Ergebnisse",
     timezone: "Zeitzone",
     dateOrder: "Wie die Schule Daten schreibt",
@@ -306,6 +308,7 @@ export const de: Dict = {
       "Daten von Kindern: Der Dienst richtet sich an Eltern und andere Erwachsene. Einen Vornamen oder Spitznamen halten wir nur, weil ihr ihn eingegeben habt, und nur, damit Einträge gruppiert werden können. Wenn ihr möchtet, nutzt Initialen.",
       "Kontakt: Schreibt an die Adresse im GitHub-Repository, das in der Fußzeile verlinkt ist.",
       "Gmail (optional): Wenn ihr Gmail verbindet, speichern wir ein verschlüsseltes Token, mit dem wir euren Posteingang einmal am Tag nach Schulnachrichten durchsehen. Wir behalten die aus diesen Nachrichten gewonnenen Termine und Aufgaben, die IDs bereits angesehener E-Mails und die Absenderadressen, die sich als Schule erwiesen haben. Wir verschicken nie E-Mails von eurem Konto. Das Trennen in den Einstellungen widerruft das Token. ParentDesks Nutzung von Informationen aus Google-APIs folgt der Google API Services User Data Policy einschließlich der Limited-Use-Anforderungen.",
+      "Eure Rechte und wohin die Daten gehen: Der Dienst läuft auf Vercel-Servern in den USA, und Briefe werden von Anthropic in den USA verarbeitet; eure Daten verlassen also euer Land. Alles, was wir speichern, seht ihr auf den Seiten Einträge und Briefe; offene Einträge könnt ihr als Kalenderdatei exportieren und die ganze Familie jederzeit selbst löschen. Für alles Weitere schreibt an den Kontakt oben. Wir verkaufen keine Daten und nutzen sie nicht für Werbung. Der Dienst ist für Erwachsene gedacht; wenn ihr glaubt, dass ein Kind ihn benutzt hat, sagt uns Bescheid, und wir löschen die Daten.",
     ],
     terms: [
       "ParentDesk ist eine Beta, kostenlos und wie besehen, ohne Gewähr für Vollständigkeit oder Richtigkeit.",

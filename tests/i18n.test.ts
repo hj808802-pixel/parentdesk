@@ -6,6 +6,9 @@ import { ja } from "@/lib/i18n/ja";
 import { zh } from "@/lib/i18n/zh";
 import { fr } from "@/lib/i18n/fr";
 import { de } from "@/lib/i18n/de";
+import { pt } from "@/lib/i18n/pt";
+import { it as itDict } from "@/lib/i18n/it";
+import { vi } from "@/lib/i18n/vi";
 import { fmt, getDict, pickLocale, splitLocale, localePath } from "@/lib/i18n";
 
 function keys(obj: unknown, prefix = ""): string[] {
@@ -17,14 +20,14 @@ function keys(obj: unknown, prefix = ""): string[] {
 describe("i18n", () => {
   it("every dictionary has exactly the English keys", () => {
     const ref = keys(en).sort();
-    for (const [name, dict] of Object.entries({ ko, es, ja, zh, fr, de })) {
+    for (const [name, dict] of Object.entries({ ko, es, ja, zh, fr, de, pt, it: itDict, vi })) {
       expect(keys(dict).sort(), name).toEqual(ref);
     }
   });
 
   it("keeps placeholders in every language", () => {
     const check = (a: string, b: string) => expect((b.match(/\{\w+\}/g) ?? []).sort()).toEqual((a.match(/\{\w+\}/g) ?? []).sort());
-    for (const dict of [ko, es, ja, zh, fr, de]) {
+    for (const dict of [ko, es, ja, zh, fr, de, pt, itDict, vi]) {
       check(en.home.inDays, dict.home.inDays);
       check(en.add.errors.too_large, dict.add.errors.too_large);
       check(en.items.count, dict.items.count);
@@ -42,7 +45,9 @@ describe("i18n", () => {
     expect(localePath("en", "/add")).toBe("/add");
     expect(localePath("de", "/")).toBe("/de");
     expect(pickLocale("fr-CA,fr;q=0.9,en;q=0.8")).toBe("fr");
-    expect(pickLocale("pt-BR,pt;q=0.9")).toBe("en");
+    expect(pickLocale("pt-BR,pt;q=0.9")).toBe("pt");
+    expect(pickLocale("vi-VN,vi;q=0.9")).toBe("vi");
+    expect(pickLocale("th-TH")).toBe("en");
     expect(pickLocale(null)).toBe("en");
   });
 });

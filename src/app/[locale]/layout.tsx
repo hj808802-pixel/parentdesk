@@ -8,6 +8,7 @@ import { LocaleProvider } from "@/lib/i18n/context";
 import { FamilyProvider } from "@/lib/family-context";
 import LanguageSwitcher from "@/components/LanguageSwitcher";
 import NavLinks from "@/components/NavLinks";
+import RegisterSw from "@/components/RegisterSw";
 
 const geistSans = Geist({ variable: "--font-geist-sans", subsets: ["latin"] });
 const geistMono = Geist_Mono({ variable: "--font-geist-mono", subsets: ["latin"] });
@@ -112,6 +113,9 @@ export default async function RootLayout({ children, params }: Props) {
                 <Link href={localePath(locale, "/terms")} className="underline underline-offset-4">
                   {t.nav.terms}
                 </Link>
+                <a href="https://github.com/hj808802-pixel/parentdesk/issues" className="underline underline-offset-4" rel="noopener">
+                  {t.nav.feedback}
+                </a>
                 <a href="https://github.com/hj808802-pixel/parentdesk" className="underline underline-offset-4" rel="noopener">
                   GitHub
                 </a>
@@ -120,6 +124,7 @@ export default async function RootLayout({ children, params }: Props) {
           </FamilyProvider>
         </LocaleProvider>
         <Analytics />
+        <RegisterSw />
       </body>
     </html>
   );
