@@ -3,9 +3,10 @@ import path from "node:path";
 import Anthropic from "@anthropic-ai/sdk";
 import { betaZodOutputFormat } from "@anthropic-ai/sdk/helpers/beta/zod";
 import { countryOf, type DateOrder } from "./countries";
-import { addDays, nextWeekday, weekday } from "./dates";
+import { addDays, nextWeekday, todayIn, weekday } from "./dates";
 import { sampleDates } from "./sample";
 import { ExtractionSchema, OUTPUT_LANGUAGES, type Extraction } from "./schema";
+import type { FamilyRecord } from "./types";
 
 export type ImageMediaType = "image/jpeg" | "image/png" | "image/webp" | "image/gif";
 
@@ -43,8 +44,11 @@ export class ExtractError extends Error {
 }
 
 const MODEL = process.env.EXTRACT_MODEL || "claude-opus-5-5";
+// The assistant jobs (questions, reply drafts) and the inbox classifier run on cheaper models.
+export const ASSIST_MODEL = process.env.ASSIST_MODEL || "claude-sonnet-5-5";
+export const CLASSIFY_MODEL = process.env.CLASSIFY_MODEL || "claude-haiku-5-5";
 
-const LANGUAGE_NAMES = Object.fromEntries(OUTPUT_LANGUAGES.map((l) => [l.code, l.prompt])) as Record<string, string>;
+export const LANGUAGE_NAMES = Object.fromEntries(OUTPUT_LANGUAGES.map((l) => [l.code, l.prompt])) as Record<string, string>;
 
 // Keep this block byte-stable: it sits in front of the cached generic knowledge note.
 const RULES = `You are the engine of ParentDesk, a tool that turns school and family-admin communications into a family calendar and to-do list for busy parents anywhere in the world.
@@ -81,6 +85,11 @@ Privacy
 Not a notice
 - If the input is not a school, class, club, camp, childcare or family-admin communication (a shopping receipt, a selfie, a news article, a blank page), set is_school_related=false, items empty, and say in summary what you see.
 
+Mixed input
+- The input may hold several messages at once: a group-chat export, a screenshot of a notification list, a batch of forwarded e-mails, or a week of a parent's inbox. Tell the messages apart, decide which come from a school, teacher, class representative, club, childcare, camp or other family-admin sender, and extract only from those. Skip chatter between parents, jokes, advertising, receipts and anything unrelated to the children's schedule.
+- Set source.kind to "chat" for a chat export and "notification" for a notification list. messages_seen is the number of separate messages you could tell apart; messages_used is how many you took items from. For a single letter, e-mail or newsletter both are 1.
+- is_school_related is true when at least one message was relevant. The title then names the channel and the period, for example "Class chat, 3 school messages (1-5 Nov)".
+
 Questions for the parent
 - At most three short questions for things the communication leaves unclear and that matter (which day the trip returns, whether siblings are included, how to pay). Empty when nothing is unclear.`;
 
@@ -102,7 +111,7 @@ export function loadPack(countryCode: string): Pack {
   return pack;
 }
 
-function isMock(): boolean {
+export function isMock(): boolean {
   if (process.env.MOCK_EXTRACT === "1") return true;
   return !process.env.ANTHROPIC_API_KEY && !process.env.ANTHROPIC_AUTH_TOKEN;
 }
@@ -122,6 +131,21 @@ export function contextLines(ctx: ExtractContext): string {
   if (ctx.hintChildName) lines.push(`The parent says this communication is mainly about "${ctx.hintChildName}".`);
   lines.push("Extract the calendar items and to-dos from the attached communication and return the JSON.");
   return lines.join("\n");
+}
+
+// The extraction context of a family record (what every channel passes to extractNotice).
+export function contextOf(rec: FamilyRecord, hintChildName?: string | null, todayIso?: string): ExtractContext {
+  return {
+    language: rec.settings.language,
+    country: rec.settings.country,
+    timezone: rec.settings.timezone,
+    dateOrder: rec.settings.dateOrder,
+    currency: rec.settings.currency,
+    weekStart: rec.settings.weekStart,
+    childNames: rec.children.map((c) => c.name),
+    todayIso: todayIso ?? todayIn(rec.settings.timezone),
+    hintChildName: hintChildName ?? null,
+  };
 }
 
 export async function extractNotice(files: InputFile[], ctx: ExtractContext): Promise<ExtractOutput> {
@@ -193,6 +217,8 @@ export function mockExtraction(ctx: ExtractContext): Extraction {
         "Weekly class newsletter. The main items are a Science Museum field trip with a permission slip and a 12 USD fee due two days before, picture day the following week, parent-teacher conferences, weekly library and PE reminders, and two no-school days for Thanksgiving.",
       language_detected: "en",
       kind: "newsletter",
+      messages_seen: 1,
+      messages_used: 1,
     },
     is_school_related: true,
     items: [

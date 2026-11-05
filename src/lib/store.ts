@@ -1,11 +1,13 @@
 import fs from "node:fs";
 import path from "node:path";
 import { createHash, randomBytes, timingSafeEqual } from "node:crypto";
-import { del, get, put } from "@vercel/blob";
+import { del, get, list, put } from "@vercel/blob";
 import { countryOf, guessCountry, isCountry, isTimezone } from "./countries";
+import { cryptoReady } from "./crypto";
+import { findDuplicate } from "./dedupe";
 import { isHhMm, isIsoDate } from "./dates";
 import { ITEM_TYPES, isOutputLanguage, type Extraction, type ItemType } from "./schema";
-import { CHILD_COLORS, MAX_CHILDREN, type Child, type FamilyRecord, type FamilyView, type Item, type Settings, type Source, type SourceKind } from "./types";
+import { CHILD_COLORS, MAX_CHILDREN, type Child, type FamilyRecord, type FamilyView, type Features, type Item, type Settings, type Source, type SourceKind } from "./types";
 
 export * from "./types";
 
@@ -59,6 +61,13 @@ export function inboundDomain(): string | null {
 export function inboundAddressOf(rec: Pick<FamilyRecord, "id" | "inboundCode">): string | null {
   const domain = inboundDomain();
   return domain ? `${rec.id}-${rec.inboundCode}@${domain}` : null;
+}
+
+export function features(): Features {
+  return {
+    gmail: Boolean(process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET) && cryptoReady(),
+    inbound: Boolean(inboundDomain() && process.env.INBOUND_SECRET),
+  };
 }
 
 // "<id>-<code>@domain" or "Name <id-code@domain>"
@@ -296,22 +305,32 @@ export function isHttps(req: Request): boolean {
 // ---- views ----
 
 export function toView(rec: FamilyRecord): FamilyView {
-  const { keyHash: _k, feedSecret: _f, inboundCode: _i, ...rest } = rec;
+  const { keyHash: _k, feedSecret: _f, inboundCode: _i, gmail, ...rest } = rec;
   void _k;
   void _f;
   void _i;
-  return { ...rest, feedToken: feedTokenOf(rec), inboundAddress: inboundAddressOf(rec) };
+  const gmailView = gmail
+    ? { email: gmail.email, connectedAt: gmail.connectedAt, lastScanAt: gmail.lastScanAt, lastResult: gmail.lastResult, senders: gmail.senders, paused: gmail.paused }
+    : null;
+  return { ...rest, feedToken: feedTokenOf(rec), inboundAddress: inboundAddressOf(rec), gmail: gmailView, features: features() };
 }
 
 // ---- adding an extraction ----
 
+function clampInt(x: unknown, lo: number, hi: number, fallback: number): number {
+  return typeof x === "number" && Number.isFinite(x) ? Math.min(hi, Math.max(lo, Math.round(x))) : fallback;
+}
+
+// Items the family already has are skipped (the same newsletter photographed twice, a trip
+// that was in last week's e-mail and today's chat message). When nothing is new the notice
+// is not recorded either; the caller reports the skipped count.
 export function addExtraction(
   rec: FamilyRecord,
   extraction: Extraction,
   kind: SourceKind,
   pages: number,
   hintChildId?: string | null,
-): { source: Source; items: Item[] } {
+): { source: Source; items: Item[]; skipped: number } {
   const now = new Date().toISOString();
   const source: Source = {
     id: newId(5),
@@ -323,9 +342,11 @@ export function addExtraction(
     language: extraction.source.language_detected.slice(0, 12),
     pages,
     questions: extraction.questions_for_parent.slice(0, 3).map((q) => q.slice(0, 300)),
+    messagesSeen: clampInt(extraction.source.messages_seen, 1, 500, 1),
+    messagesUsed: clampInt(extraction.source.messages_used, 0, 500, 1),
   };
   const byName = new Map(rec.children.map((c) => [c.name.toLowerCase(), c.id]));
-  const items: Item[] = extraction.items.slice(0, 40).map((it) => {
+  const candidates: Item[] = extraction.items.slice(0, 40).map((it) => {
     const matched = it.children.map((n) => byName.get(n.trim().toLowerCase())).filter((x): x is string => Boolean(x));
     const childIds = matched.length ? [...new Set(matched)] : hintChildId && rec.children.some((c) => c.id === hintChildId) ? [hintChildId] : [];
     return {
@@ -353,11 +374,18 @@ export function addExtraction(
       updatedAt: now,
     };
   });
+  const items: Item[] = [];
+  let skipped = 0;
+  for (const c of candidates) {
+    if (findDuplicate(c, rec.items)) skipped++;
+    else items.push(c);
+  }
+  if (items.length === 0) return { source, items, skipped };
   rec.sources.push(source);
   rec.items.push(...items);
   const month = now.slice(0, 7);
   rec.usage[month] = (rec.usage[month] ?? 0) + 1;
-  return { source, items };
+  return { source, items, skipped };
 }
 
 // Applies an edit from the client to one item. Unknown fields are ignored.
@@ -380,4 +408,30 @@ export function applyItemPatch(item: Item, patch: Record<string, unknown>): Item
   if (Array.isArray(patch.bring)) next.bring = patch.bring.filter((x): x is string => typeof x === "string").slice(0, 12).map((b) => b.slice(0, 80));
   next.updatedAt = new Date().toISOString();
   return next;
+}
+
+// Every family id in the store (the daily Gmail cron walks them). Fine for a beta;
+// a real index comes with a database.
+export async function listFamilyIds(): Promise<string[]> {
+  switch (storageMode()) {
+    case "local": {
+      const dir = path.join(process.env.LOCAL_DATA_DIR as string, "families");
+      return fs.existsSync(dir) ? fs.readdirSync(dir).filter((f) => /^[0-9a-f]{12}\.json$/.test(f)).map((f) => f.slice(0, 12)) : [];
+    }
+    case "blob": {
+      const ids: string[] = [];
+      let cursor: string | undefined;
+      do {
+        const page = await list({ prefix: PREFIX, cursor, limit: 1000 });
+        for (const b of page.blobs) {
+          const m = /([0-9a-f]{12})\.json$/.exec(b.pathname);
+          if (m) ids.push(m[1]);
+        }
+        cursor = page.hasMore ? page.cursor : undefined;
+      } while (cursor);
+      return ids;
+    }
+    default:
+      return [...memory.keys()];
+  }
 }

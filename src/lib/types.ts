@@ -16,7 +16,7 @@ export type Settings = {
 
 export type Child = { id: string; name: string; color: string };
 
-export type SourceKind = "upload" | "paste" | "email" | "sample";
+export type SourceKind = "upload" | "paste" | "email" | "sample" | "share" | "gmail";
 
 export type Source = {
   id: string;
@@ -28,6 +28,10 @@ export type Source = {
   language: string;
   pages: number;
   questions: string[];
+  // How many separate messages the input held and how many were school-related (mixed
+  // input such as a chat export). Absent on records written before v0.2.
+  messagesSeen?: number;
+  messagesUsed?: number;
 };
 
 export type ItemStatus = "open" | "done" | "dismissed";
@@ -57,6 +61,23 @@ export type Item = {
   updatedAt: string;
 };
 
+// Gmail auto-collect (lib/gmail.ts). The refresh token is sealed with lib/crypto.ts and
+// never leaves the server; the browser sees GmailView.
+export type GmailLink = {
+  email: string;
+  refreshToken: string; // sealed
+  connectedAt: string;
+  lastScanAt: string | null;
+  lastResult: { scanned: number; picked: number; added: number; skipped: number; error?: string } | null;
+  processed: string[]; // Gmail message ids already looked at
+  senders: string[]; // addresses that produced items; trusted from then on
+  paused: boolean; // set when the token stops working: the parent must reconnect
+};
+export type GmailView = Omit<GmailLink, "refreshToken" | "processed">;
+
+// Which optional channels this server has switched on.
+export type Features = { gmail: boolean; inbound: boolean };
+
 export type FamilyRecord = {
   id: string;
   keyHash: string;
@@ -69,12 +90,15 @@ export type FamilyRecord = {
   sources: Source[];
   items: Item[];
   usage: Record<string, number>; // "2026-11" -> extractions that month
+  gmail?: GmailLink | null;
 };
 
 // What the browser sees: no hashes or secrets beyond the read-only feed token.
-export type FamilyView = Omit<FamilyRecord, "keyHash" | "feedSecret" | "inboundCode"> & {
+export type FamilyView = Omit<FamilyRecord, "keyHash" | "feedSecret" | "inboundCode" | "gmail"> & {
   feedToken: string;
   inboundAddress: string | null;
+  gmail: GmailView | null;
+  features: Features;
 };
 
 export const MAX_CHILDREN = 8;

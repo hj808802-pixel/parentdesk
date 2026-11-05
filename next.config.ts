@@ -24,6 +24,9 @@ const nextConfig: NextConfig = {
   outputFileTracingIncludes: {
     "/api/extract": ["./knowledge/**/*"],
     "/api/inbound": ["./knowledge/**/*"],
+    "/api/share": ["./knowledge/**/*"],
+    "/api/google/scan": ["./knowledge/**/*"],
+    "/api/cron/scan": ["./knowledge/**/*"],
     "/api/health": ["./knowledge/**/*"],
   },
   async headers() {

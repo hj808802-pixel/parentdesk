@@ -36,6 +36,11 @@ export const api = {
   patchItem: (id: string, patch: Partial<Item> & Record<string, unknown>) => call<{ ok: true; item: Item }>(`/api/items/${id}`, { method: "PATCH", body: JSON.stringify(patch) }),
   deleteItem: (id: string) => call<{ ok: true }>(`/api/items/${id}`, { method: "DELETE" }),
   deleteSource: (id: string) => call<{ ok: true; family: FamilyView }>(`/api/sources/${id}`, { method: "DELETE" }),
+  ask: (question: string) => call<{ ok: true; answer: string; items: Item[]; mock: boolean }>("/api/ask", { method: "POST", body: JSON.stringify({ question }) }),
+  reply: (id: string, intent: string, note: string) =>
+    call<{ ok: true; reply: string; translation: string | null; subject: string | null; mock: boolean }>(`/api/items/${id}/reply`, { method: "POST", body: JSON.stringify({ intent, note }) }),
+  gmailScan: () => call<{ ok: true; family: FamilyView; result: { scanned: number; picked: number; added: number; skipped: number; error?: string } }>("/api/google/scan", { method: "POST" }),
+  gmailDisconnect: () => call<{ ok: true; family: FamilyView }>("/api/google/disconnect", { method: "POST" }),
 };
 
 // The family key is shown in Settings so a partner can join. The server keeps only a hash,

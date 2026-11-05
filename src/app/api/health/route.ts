@@ -1,6 +1,6 @@
 import fs from "node:fs";
 import path from "node:path";
-import { storageMode } from "@/lib/store";
+import { features, storageMode } from "@/lib/store";
 
 export const runtime = "nodejs";
 
@@ -16,6 +16,9 @@ export async function GET() {
       mock: process.env.MOCK_EXTRACT === "1" || !hasKey,
       storage: storageMode(),
       inbound: Boolean(process.env.INBOUND_SECRET && process.env.INBOUND_DOMAIN),
+      gmail: features().gmail,
+      cron: Boolean(process.env.CRON_SECRET),
+      assistModel: process.env.ASSIST_MODEL || "claude-sonnet-5-5",
       packs,
     },
     { headers: { "cache-control": "no-store" } },

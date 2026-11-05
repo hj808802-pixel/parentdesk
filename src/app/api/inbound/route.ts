@@ -1,6 +1,6 @@
 import { timingSafeEqual } from "node:crypto";
-import { extractNotice, ExtractError, type ImageMediaType, type InputFile } from "@/lib/extract";
-import { todayIn } from "@/lib/dates";
+import { contextOf, extractNotice, ExtractError, type ImageMediaType, type InputFile } from "@/lib/extract";
+import { htmlToText } from "@/lib/html";
 import { allowRequest, clientIp } from "@/lib/ratelimit";
 import { addExtraction, loadFamily, parseInboundAddress, saveFamily } from "@/lib/store";
 
@@ -28,28 +28,7 @@ function authorized(req: Request): boolean {
   return a.length === b.length && timingSafeEqual(a, b);
 }
 
-// Rough HTML to text, enough for a newsletter body when no text part is given.
-export function htmlToText(html: string): string {
-  return html
-    .replace(/<style[\s\S]*?<\/style>/gi, "")
-    .replace(/<script[\s\S]*?<\/script>/gi, "")
-    .replace(/<br\s*\/?>/gi, "\n")
-    .replace(/<\/(p|div|tr|li|h[1-6]|table|ul|ol)>/gi, "\n")
-    .replace(/<\/?(b|i|u|em|strong|span|a|font|small|sup|sub|mark)\b[^>]*>/gi, "")
-    .replace(/<\/?t[dh]\b[^>]*>/gi, " ")
-    .replace(/<[^>]+>/g, " ")
-    .replace(/&nbsp;/g, " ")
-    .replace(/&amp;/g, "&")
-    .replace(/&lt;/g, "<")
-    .replace(/&gt;/g, ">")
-    .replace(/&quot;/g, '"')
-    .replace(/&#39;/g, "'")
-    .split("\n")
-    .map((line) => line.replace(/[ \t]+/g, " ").trim())
-    .join("\n")
-    .replace(/\n{3,}/g, "\n\n")
-    .trim();
-}
+export { htmlToText } from "@/lib/html";
 
 type Attachment = { filename?: string; contentType?: string; content?: string };
 
@@ -89,22 +68,17 @@ export async function POST(req: Request) {
   if (inputs.length === 0) return Response.json({ ok: false, error: "empty" }, { status: 400 });
 
   try {
-    const out = await extractNotice(inputs, {
-      language: rec.settings.language,
-      country: rec.settings.country,
-      timezone: rec.settings.timezone,
-      dateOrder: rec.settings.dateOrder,
-      currency: rec.settings.currency,
-      weekStart: rec.settings.weekStart,
-      childNames: rec.children.map((c) => c.name),
-      todayIso: todayIn(rec.settings.timezone),
-    });
-    const saved = out.result.is_school_related && out.result.items.length > 0;
+    const out = await extractNotice(inputs, contextOf(rec));
     let count = 0;
-    if (saved) count = addExtraction(rec, out.result, "email", inputs.length).items.length;
+    let skipped = 0;
+    if (out.result.is_school_related && out.result.items.length > 0) {
+      const added = addExtraction(rec, out.result, "email", inputs.length);
+      count = added.items.length;
+      skipped = added.skipped;
+    }
     await saveFamily(rec);
-    console.log(JSON.stringify({ event: "inbound", family: rec.id, items: count, school_related: out.result.is_school_related, model: out.model, usage: out.usage ?? null }));
-    return Response.json({ ok: true, saved, items: count });
+    console.log(JSON.stringify({ event: "inbound", family: rec.id, items: count, skipped, school_related: out.result.is_school_related, model: out.model, usage: out.usage ?? null }));
+    return Response.json({ ok: true, saved: count > 0, items: count, skipped });
   } catch (e) {
     if (e instanceof ExtractError) return Response.json({ ok: false, error: e.code }, { status: 422 });
     console.error("[inbound]", e);

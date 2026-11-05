@@ -8,6 +8,7 @@ import { localePath } from "@/lib/i18n/locales";
 import { BUCKET_ORDER, bucketOf, daysBetween, todayIn, type Bucket } from "@/lib/dates";
 import type { Item } from "@/lib/store";
 import { BTN_PRIMARY, BTN_SECONDARY, CARD } from "@/lib/ui";
+import AskBox from "./AskBox";
 import ItemCard from "./ItemCard";
 import Landing from "./Landing";
 
@@ -102,6 +103,8 @@ export default function HomeView() {
         })}
 
       {hasAny && groups.size === 0 && needsAction.length === 0 && <p className="mt-8 text-center text-sm text-zinc-500">{t.home.allDone}</p>}
+
+      {hasAny && <AskBox childrenList={family.children} />}
 
       {hasAny && (
         <div className="mt-8 flex flex-wrap items-center justify-between gap-3 text-sm">

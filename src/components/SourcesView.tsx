@@ -52,6 +52,7 @@ export default function SourcesView() {
                   <span className="rounded-full bg-zinc-100 px-2 py-0.5 font-medium dark:bg-zinc-800">{t.sources.kinds[s.kind]}</span>
                   <span>{formatDate(s.ts.slice(0, 10), LOCALE_TAGS[locale], { year: "numeric", month: "short", day: "numeric" })}</span>
                   <span>· {fmt(t.sources.itemCount, { n: count })}</span>
+                  {(s.messagesSeen ?? 1) > 1 && <span>· {fmt(t.sources.mixed, { seen: s.messagesSeen ?? 0, used: s.messagesUsed ?? 0 })}</span>}
                 </div>
                 <h2 className="mt-1 font-semibold">{s.title}</h2>
                 <p className="text-sm text-zinc-600 dark:text-zinc-400">{s.sender}</p>

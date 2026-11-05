@@ -48,3 +48,6 @@ next-env.d.ts
 
 # keep the template in git (.env* above ignores it otherwise)
 !.env.example
+
+# local secrets kept next to the code (never committed)
+*.local

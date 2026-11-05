@@ -1,5 +1,5 @@
 import Anthropic from "@anthropic-ai/sdk";
-import { extractNotice, ExtractError, type ImageMediaType, type InputFile } from "@/lib/extract";
+import { contextOf, extractNotice, ExtractError, type ImageMediaType, type InputFile } from "@/lib/extract";
 import { todayIn } from "@/lib/dates";
 import { allowRequest, clientIp } from "@/lib/ratelimit";
 import { sampleNotice } from "@/lib/sample";
@@ -79,26 +79,20 @@ export async function POST(req: Request) {
   const started = Date.now();
 
   try {
-    const out = await extractNotice(inputs, {
-      language: rec.settings.language,
-      country: rec.settings.country,
-      timezone: rec.settings.timezone,
-      dateOrder: rec.settings.dateOrder,
-      currency: rec.settings.currency,
-      weekStart: rec.settings.weekStart,
-      childNames: rec.children.map((c) => c.name),
-      todayIso: todayIn(rec.settings.timezone),
-      hintChildName: hintChild?.name ?? null,
-    });
+    const out = await extractNotice(inputs, contextOf(rec, hintChild?.name ?? null));
 
-    const saved = out.result.is_school_related && out.result.items.length > 0;
     let source = null;
     let items: unknown[] = [];
-    if (saved) {
+    let duplicates = 0;
+    if (out.result.is_school_related && out.result.items.length > 0) {
       const added = addExtraction(rec, out.result, kind, inputs.length, hintChild?.id ?? null);
-      source = added.source;
-      items = added.items;
+      duplicates = added.skipped;
+      if (added.items.length > 0) {
+        source = added.source;
+        items = added.items;
+      }
     }
+    const saved = items.length > 0;
     await saveFamily(rec);
 
     console.log(
@@ -111,6 +105,7 @@ export async function POST(req: Request) {
         language: rec.settings.language,
         country: rec.settings.country,
         items: out.result.items.length,
+        duplicates,
         school_related: out.result.is_school_related,
         ms: Date.now() - started,
         model: out.model,
@@ -126,6 +121,9 @@ export async function POST(req: Request) {
         saved,
         source,
         items,
+        duplicates,
+        messages_seen: out.result.source.messages_seen,
+        messages_used: out.result.source.messages_used,
         summary: out.result.source.summary,
         questions: out.result.questions_for_parent,
         school_related: out.result.is_school_related,

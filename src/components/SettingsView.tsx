@@ -1,11 +1,13 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import { api, browserTimezone, feedUrl, forgetKey, readKey, rememberKey, writeClipboard } from "@/lib/client";
 import { COUNTRIES, TIMEZONES, type DateOrder } from "@/lib/countries";
 import { useFamily } from "@/lib/family-context";
 import { useI18n } from "@/lib/i18n/context";
 import { fmt } from "@/lib/i18n";
+import { LOCALE_TAGS } from "@/lib/i18n/locales";
 import { OUTPUT_LANGUAGES } from "@/lib/schema";
 import { CHILD_COLORS, MAX_CHILDREN, type Child, type Settings } from "@/lib/types";
 import { BTN_PRIMARY, BTN_SECONDARY, BTN_SMALL, CARD, INPUT } from "@/lib/ui";
@@ -13,6 +15,7 @@ import { BTN_PRIMARY, BTN_SECONDARY, BTN_SMALL, CARD, INPUT } from "@/lib/ui";
 export default function SettingsView() {
   const { locale, t } = useI18n();
   const { family, loading, setFamily, refresh } = useFamily();
+  const params = useSearchParams();
   const [settings, setSettings] = useState<Settings | null>(null);
   const [children, setChildren] = useState<Child[]>([]);
   const [newChild, setNewChild] = useState("");
@@ -24,6 +27,9 @@ export default function SettingsView() {
   const [joinKey, setJoinKey] = useState("");
   const [joinError, setJoinError] = useState(false);
   const [storedKey, setStoredKey] = useState("");
+  const [scanning, setScanning] = useState(false);
+  const [gmailNote, setGmailNote] = useState<string | null>(null);
+  const [gmailError, setGmailError] = useState<string | null>(null);
 
   // The form is a draft of the server document: reload it whenever the document changes.
   useEffect(() => {
@@ -35,7 +41,42 @@ export default function SettingsView() {
     }
   }, [family]);
 
+  // Back from Google (/api/google/callback?gmail=...): show the outcome and, when the
+  // connection is new, check the inbox straight away.
+  const gmailParam = params.get("gmail");
+  useEffect(() => {
+    if (!gmailParam || loading) return;
+    const statuses = t.settings.gmailStatus as Record<string, string>;
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- reading the URL once
+    setGmailNote(statuses[gmailParam] ?? null);
+    window.history.replaceState(null, "", window.location.pathname);
+    if (gmailParam === "connected" && family?.gmail) void scan();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [gmailParam, loading]);
+
   if (loading) return <p className="p-8 text-center text-sm text-zinc-500">{t.common.loading}</p>;
+
+  async function scan() {
+    setScanning(true);
+    setGmailError(null);
+    try {
+      const res = await api.gmailScan();
+      setFamily(res.family);
+      setGmailNote(null);
+      if (res.result.error) setGmailError(res.result.error === "reconnect" ? t.settings.gmailPaused : t.add.errors.generic);
+    } catch {
+      setGmailError(t.add.errors.generic);
+    } finally {
+      setScanning(false);
+    }
+  }
+
+  async function disconnectGmail() {
+    if (!window.confirm(t.settings.gmailDisconnectConfirm)) return;
+    const res = await api.gmailDisconnect();
+    setFamily(res.family);
+    setGmailNote(null);
+  }
 
   async function copy(text: string, what: "feed" | "key" | "inbound") {
     const ok = await writeClipboard(text);
@@ -261,6 +302,63 @@ export default function SettingsView() {
                 ))}
               </ol>
             </details>
+          </section>
+
+          <section className={`${CARD} mt-4`}>
+            <h2 className="font-semibold">{t.settings.auto}</h2>
+            <p className="mt-1 text-sm text-zinc-600 dark:text-zinc-400">{t.settings.autoBody}</p>
+
+            <h3 className="mt-4 text-sm font-semibold">{t.settings.gmail}</h3>
+            <p className="mt-1 text-sm text-zinc-600 dark:text-zinc-400">{t.settings.gmailBody}</p>
+            {gmailNote && (
+              <p className="mt-2 text-sm text-indigo-700 dark:text-indigo-300" role="status">
+                {gmailNote}
+              </p>
+            )}
+            {family.gmail ? (
+              <div className="mt-2 text-sm">
+                <p className="font-medium">{fmt(t.settings.gmailConnected, { email: family.gmail.email })}</p>
+                <p className="mt-1 text-zinc-600 dark:text-zinc-400">
+                  {family.gmail.lastScanAt
+                    ? fmt(t.settings.gmailLastScan, { when: new Date(family.gmail.lastScanAt).toLocaleString(LOCALE_TAGS[locale], { dateStyle: "medium", timeStyle: "short" }) })
+                    : t.settings.gmailNever}
+                </p>
+                {family.gmail.lastResult && !family.gmail.lastResult.error && (
+                  <p className="mt-1 text-zinc-600 dark:text-zinc-400">{fmt(t.settings.gmailResult, family.gmail.lastResult as unknown as Record<string, number>)}</p>
+                )}
+                {family.gmail.senders.length > 0 && <p className="mt-1 text-xs text-zinc-500">{fmt(t.settings.gmailSenders, { n: family.gmail.senders.length })}</p>}
+                {(family.gmail.paused || family.gmail.lastResult?.error === "reconnect") && <p className="mt-1 text-amber-700 dark:text-amber-300">{t.settings.gmailPaused}</p>}
+                {gmailError && <p className="mt-1 text-red-600 dark:text-red-400">{gmailError}</p>}
+                <div className="mt-3 flex flex-wrap gap-2">
+                  <button type="button" className={BTN_SECONDARY} disabled={scanning} onClick={scan}>
+                    {scanning ? t.settings.gmailScanning : t.settings.gmailScan}
+                  </button>
+                  {(family.gmail.paused || family.gmail.lastResult?.error === "reconnect") && (
+                    <button type="button" className={BTN_SECONDARY} onClick={() => {
+                      // eslint-disable-next-line @next/next/no-location-assign-relative-destination -- full navigation to an API route that redirects to Google
+                      window.location.href = `${window.location.origin}/api/google/start`;
+                    }}>
+                      {t.settings.gmailConnect}
+                    </button>
+                  )}
+                  <button type="button" className={BTN_SMALL} onClick={disconnectGmail}>
+                    {t.settings.gmailDisconnect}
+                  </button>
+                </div>
+              </div>
+            ) : family.features.gmail ? (
+              <button type="button" className={`${BTN_PRIMARY} mt-3`} onClick={() => {
+                      // eslint-disable-next-line @next/next/no-location-assign-relative-destination -- full navigation to an API route that redirects to Google
+                      window.location.href = `${window.location.origin}/api/google/start`;
+                    }}>
+                {t.settings.gmailConnect}
+              </button>
+            ) : (
+              <p className="mt-2 text-sm text-zinc-500">{t.settings.gmailOff}</p>
+            )}
+
+            <h3 className="mt-5 text-sm font-semibold">{t.settings.shareTitle}</h3>
+            <p className="mt-1 text-sm text-zinc-600 dark:text-zinc-400">{t.settings.shareAppBody}</p>
           </section>
 
           <section className={`${CARD} mt-4`}>

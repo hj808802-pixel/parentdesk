@@ -26,6 +26,9 @@ type Result = {
   school_related: boolean;
   family: FamilyView;
   key?: string;
+  duplicates?: number;
+  messages_seen?: number;
+  messages_used?: number;
 };
 
 export default function AddNotice() {
@@ -42,8 +45,10 @@ export default function AddNotice() {
   const [preparing, setPreparing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<Result | null>(null);
+  const [sharedNote, setSharedNote] = useState<"none" | "dup" | "error" | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const autoSample = useRef(false);
+  const sharedShown = useRef(false);
 
   const previews = useMemo(() => files.map((f) => (f.type.startsWith("image/") ? URL.createObjectURL(f) : null)), [files]);
   useEffect(() => () => previews.forEach((u) => u && URL.revokeObjectURL(u)), [previews]);
@@ -85,6 +90,38 @@ export default function AddNotice() {
     }
   }
 
+  // Landing here from the Android share sheet (/api/share): show what was just saved. A
+  // family created by that request passes its key in the URL fragment, which is kept in
+  // local storage like a key from a normal first upload and then dropped from the URL.
+  useEffect(() => {
+    const shared = params.get("shared");
+    if (!shared || sharedShown.current || loading) return;
+    sharedShown.current = true;
+    const hash = window.location.hash;
+    if (hash.startsWith("#key=")) {
+      rememberKey(decodeURIComponent(hash.slice(5)));
+      window.history.replaceState(null, "", window.location.pathname + window.location.search);
+    }
+    if (shared === "none" || shared === "dup" || shared === "error") {
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- reading the URL once
+      setSharedNote(shared);
+      return;
+    }
+    const source = family?.sources.find((s) => s.id === shared) ?? null;
+    if (!source || !family) return;
+    setResult({
+      saved: true,
+      source,
+      items: family.items.filter((it) => it.sourceId === source.id),
+      summary: source.summary,
+      questions: source.questions,
+      school_related: true,
+      family,
+      messages_seen: source.messagesSeen,
+      messages_used: source.messagesUsed,
+    });
+  }, [params, loading, family]);
+
   // /add?sample=1 from the landing page runs the demo straight away.
   useEffect(() => {
     if (params.get("sample") === "1" && !autoSample.current && !loading) {
@@ -122,7 +159,12 @@ export default function AddNotice() {
         <section className="mb-8">
           <h1 className="text-2xl font-bold">{result.saved ? fmt(t.add.resultTitle, { n: result.items.length }) : t.add.title}</h1>
           {!result.school_related && <p className="mt-2 text-sm text-amber-700 dark:text-amber-300">{t.add.notSchool}</p>}
-          {result.school_related && result.items.length === 0 && <p className="mt-2 text-sm text-zinc-600">{t.add.resultNone}</p>}
+          {result.school_related && result.items.length === 0 && !result.duplicates && <p className="mt-2 text-sm text-zinc-600">{t.add.resultNone}</p>}
+          {result.school_related && result.items.length === 0 && Boolean(result.duplicates) && <p className="mt-2 text-sm text-zinc-600">{t.add.sharedDup}</p>}
+          {Boolean(result.duplicates) && result.items.length > 0 && <p className="mt-2 text-sm text-zinc-600 dark:text-zinc-400">{fmt(t.add.duplicates, { n: result.duplicates ?? 0 })}</p>}
+          {(result.messages_seen ?? 1) > 1 && (
+            <p className="mt-1 text-sm text-zinc-600 dark:text-zinc-400">{fmt(t.add.mixed, { seen: result.messages_seen ?? 0, used: result.messages_used ?? 0 })}</p>
+          )}
           {result.summary && (
             <div className={`${CARD} mt-3`}>
               <p className="text-xs font-semibold uppercase tracking-wide text-zinc-500">{t.add.summary}</p>
@@ -154,6 +196,12 @@ export default function AddNotice() {
             </button>
           </div>
         </section>
+      )}
+
+      {sharedNote && !result && (
+        <p className={`mb-4 rounded-xl border px-4 py-3 text-sm ${sharedNote === "error" ? "border-red-200 text-red-700 dark:border-red-900 dark:text-red-300" : "border-amber-200 text-amber-800 dark:border-amber-900 dark:text-amber-200"}`} role="status">
+          {sharedNote === "none" ? t.add.sharedNone : sharedNote === "dup" ? t.add.sharedDup : t.add.sharedError}
+        </p>
       )}
 
       {!result && (

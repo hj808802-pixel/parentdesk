@@ -99,6 +99,12 @@ await check("extract: GET", `${BASE}/api/extract`, {}, [405]);
 const big = new FormData();
 big.append("text", "x".repeat(20001));
 await check("extract: too long", `${BASE}/api/extract`, { method: "POST", body: big }, [413]);
+await check("ask: no family", `${BASE}/api/ask`, json(JSON.stringify({ question: "what is due?" })), [404]);
+await check("reply: no family", `${BASE}/api/items/abc/reply`, json(JSON.stringify({ intent: "yes", note: "" })), [404]);
+await check("share: GET redirects to add", `${BASE}/api/share`, { noBody: true }, [200]);
+await check("google start: off or no family", `${BASE}/api/google/start`, {}, [200, 404]);
+await check("google scan: off or no family", `${BASE}/api/google/scan`, { method: "POST" }, [404]);
+await check("cron: needs secret", `${BASE}/api/cron/scan`, {}, [401, 404]);
 
 const badPages = pages.filter((p) => p.status !== 200 || p.error);
 const badInternal = internalResults.filter((p) => !p.ok);

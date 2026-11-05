@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { Suspense } from "react";
 import SettingsView from "@/components/SettingsView";
 import { getDict } from "@/lib/i18n";
 
@@ -8,5 +9,9 @@ export async function generateMetadata({ params }: { params: Promise<{ locale: s
 }
 
 export default function SettingsPage() {
-  return <SettingsView />;
+  return (
+    <Suspense fallback={null}>
+      <SettingsView />
+    </Suspense>
+  );
 }

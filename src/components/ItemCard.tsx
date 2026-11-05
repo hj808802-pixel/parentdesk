@@ -10,6 +10,7 @@ import { ITEM_TYPES, type ItemType } from "@/lib/schema";
 import type { Child, Item } from "@/lib/store";
 import { BTN_SMALL, INPUT, TYPE_STYLES } from "@/lib/ui";
 import ChildChips from "./ChildChips";
+import ReplyPanel from "./ReplyPanel";
 
 type Patch = Partial<Item> & Record<string, unknown>;
 
@@ -31,6 +32,7 @@ export default function ItemCard({
   const [editing, setEditing] = useState(false);
   const [busy, setBusy] = useState(false);
   const [showQuote, setShowQuote] = useState(false);
+  const [replying, setReplying] = useState(false);
   const [draft, setDraft] = useState<Patch>({});
 
   const todayIso = todayIn(timezone);
@@ -131,6 +133,11 @@ export default function ItemCard({
                   </button>
                 </>
               )}
+              {item.status === "open" && (
+                <button type="button" className={`${BTN_SMALL} ${replying ? "bg-zinc-100 dark:bg-zinc-800" : ""}`} onClick={() => setReplying((r) => !r)}>
+                  ✉ {t.reply.button}
+                </button>
+              )}
               <button
                 type="button"
                 className={BTN_SMALL}
@@ -148,6 +155,8 @@ export default function ItemCard({
               )}
             </div>
           )}
+
+          {replying && !editing && <ReplyPanel itemId={item.id} onClose={() => setReplying(false)} />}
 
           {editing && (
             <form

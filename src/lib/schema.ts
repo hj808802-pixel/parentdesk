@@ -51,7 +51,11 @@ export const ExtractionSchema = z.object({
     sender: z.string().describe("School, class, teacher, club or organisation that sent it, as written. 'Unknown' if absent."),
     summary: z.string().describe("Two or three sentences: what the notice is about and the most important date or action."),
     language_detected: z.string().describe("BCP 47 code of the notice language, e.g. en, ko, ja, es, de."),
-    kind: z.enum(["notice", "email", "message", "newsletter", "form", "other"]),
+    kind: z
+      .enum(["notice", "email", "message", "newsletter", "form", "chat", "notification", "other"])
+      .describe("chat: a group-chat export or several messages at once. notification: a list or screenshot of app notifications."),
+    messages_seen: z.number().int().describe("How many separate messages, e-mails or notices the input contained. 1 for a single letter or newsletter."),
+    messages_used: z.number().int().describe("How many of them were school or family-admin communications that items were taken from."),
   }),
   is_school_related: z
     .boolean()
@@ -90,6 +94,26 @@ export const OUTPUT_LANGUAGES = [
 ] as const;
 
 export type OutputLanguage = (typeof OUTPUT_LANGUAGES)[number]["code"];
+
+// ---- the smaller assistant jobs (lib/assist.ts) ----
+
+export const AskSchema = z.object({
+  answer: z.string().describe("The answer for the parent in the target language: short and concrete, dates written out with the weekday. Say plainly when the list has nothing about the question."),
+  item_ids: z.array(z.string()).describe("Ids of the items the answer relies on, copied exactly. Empty when none."),
+});
+export type Ask = z.infer<typeof AskSchema>;
+
+export const ReplySchema = z.object({
+  reply: z.string().describe("The message to the school or teacher, ready to paste, in the reply language."),
+  translation: z.string().nullable().describe("The same message in the family's language when it differs from the reply language, else null."),
+  subject: z.string().nullable().describe("A subject line when the reply would go by e-mail, else null."),
+});
+export type Reply = z.infer<typeof ReplySchema>;
+
+export const ClassifySchema = z.object({
+  school: z.array(z.number().int()).describe("Zero-based indexes of the e-mails that are communications from a school, class, teacher, childcare, club, camp, tutoring or other family-admin sender."),
+});
+export type Classify = z.infer<typeof ClassifySchema>;
 
 export function isOutputLanguage(x: unknown): x is OutputLanguage {
   return typeof x === "string" && OUTPUT_LANGUAGES.some((l) => l.code === x);

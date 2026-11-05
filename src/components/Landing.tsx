@@ -40,6 +40,11 @@ export default function Landing({ compact = false }: { compact?: boolean }) {
             </ol>
           </section>
 
+          <section className={`${CARD} mt-6 border-indigo-200 bg-indigo-50 dark:border-indigo-900 dark:bg-indigo-950/40`}>
+            <p className="font-semibold">{t.landing.autoTitle}</p>
+            <p className="mt-1 text-sm text-zinc-700 dark:text-zinc-300">{t.landing.autoBody}</p>
+          </section>
+
           <section className="mt-12 grid gap-6 sm:grid-cols-2">
             <div>
               <h2 className="text-lg font-semibold">{t.landing.promiseTitle}</h2>

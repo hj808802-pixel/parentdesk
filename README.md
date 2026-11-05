@@ -8,9 +8,10 @@ Live: https://parentdesk-app.vercel.app
 
 ## How it works
 
-1. **Capture**: photo, PDF, screenshot, pasted text, or (optional) e-mail forwarding to a per-family address.
+1. **Capture**: photo, PDF, screenshot, pasted text (a whole chat export works: the model keeps only the school messages and reports how many it used), the Android share sheet, e-mail forwarding to a per-family address, or a connected Gmail inbox checked once a day.
 2. **Extract**: Claude reads the notice with the family's country pack (date order, currency, school-year habits, local vocabulary) and returns structured items (`src/lib/schema.ts`).
-3. **Act**: the week view, "needs your action", per-child filters, one-tap done/dismiss, Google Calendar links, `.ics` downloads and a read-only **calendar feed** (`/api/calendar/<token>.ics`) with reminders that Google, Apple and Outlook calendars refresh on their own.
+3. **Act**: the week view, "needs your action", per-child filters, one-tap done/dismiss, Google Calendar links, `.ics` downloads and a read-only **calendar feed** (`/api/calendar/<token>.ics`) with reminders that Google, Apple and Outlook calendars refresh on their own. Items the family already has are skipped (`src/lib/dedupe.ts`).
+4. **Ask and reply**: ask the assistant about the list (`/api/ask`, answers only from saved items) and draft a reply to the school in the notice's language with a translation (`/api/items/[id]/reply`). Nothing is sent from ParentDesk.
 
 ## Principles
 
@@ -26,9 +27,9 @@ Next.js 16 (App Router) · React 19 · Tailwind 4 · TypeScript · zod · Anthro
 ```
 knowledge/countries/        country packs (markdown, read at request time)
 src/app/[locale]/           pages: / (week), /add, /items, /sources, /settings, /privacy, /terms
-src/app/api/                extract, family (+join, leave, rotate-feed), items/[id], sources/[id], calendar/[feed], inbound, health
+src/app/api/                extract, share, ask, family (+join, leave, rotate-feed), items/[id] (+reply), sources/[id], calendar/[feed], inbound, google/{start,callback,scan,disconnect}, cron/scan, health
 src/components/             HomeView, AddNotice, ItemCard, ItemsView, SourcesView, SettingsView, Landing, …
-src/lib/                    extract (Claude), store (family document), schema, countries, dates, ics, ratelimit, i18n/*
+src/lib/                    extract (Claude), assist (ask, reply, inbox classifier), gmail, dedupe, crypto, store (family document), schema, countries, dates, ics, ratelimit, i18n/*
 integrations/               Cloudflare Email Worker for e-mail forwarding
 scripts/linkcheck.mjs       page/link/API sweep of a deployment
 tests/                      vitest
@@ -55,6 +56,12 @@ npm test
 npm run build
 npm run linkcheck -- --url http://localhost:3000
 ```
+
+## Auto-collect channels
+
+- **Share sheet (Android)**: the manifest declares a `share_target`; after "Add to Home screen", any app's Share menu posts to `/api/share`, which extracts and lands on `/add?shared=<source>`. iOS web apps have no share target; paste instead.
+- **E-mail forwarding**: `INBOUND_DOMAIN` + `INBOUND_SECRET` and the Cloudflare worker in `integrations/` (needs a domain).
+- **Gmail (beta)**: `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` (OAuth web client, redirect `<origin>/api/google/callback`, scope `gmail.readonly`) and `TOKEN_ENCRYPTION_KEY` (64 hex chars; refresh tokens are sealed with AES-256-GCM). The daily cron in `vercel.json` calls `/api/cron/scan` with `CRON_SECRET`. Trusted senders pass straight through; the rest are sorted by the classifier model (`CLASSIFY_MODEL`, default claude-haiku-5-5) before the extractor runs. Settings shows the channel only when the server has it configured.
 
 ## Deploy (Vercel)
 
