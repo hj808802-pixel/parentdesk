@@ -56,6 +56,29 @@ npm run build
 npm run linkcheck -- --url http://localhost:3000
 ```
 
+## GPT second review (Codex in Claude Code)
+
+Claude Code drafts, GPT reviews, Claude fixes: one window. The `/gpt-review` slash command (`.claude/commands/gpt-review.md`) runs `scripts/gpt-review.mjs`, which calls the OpenAI Codex CLI's `codex exec review` and hands the review back to Claude to triage and fix.
+
+One-time setup on your machine:
+
+```bash
+npm install -g @openai/codex
+codex login                                     # ChatGPT Plus/Pro/Team, or:
+printenv OPENAI_API_KEY | codex login --with-api-key
+```
+
+Then inside Claude Code:
+
+```
+/gpt-review                     # review uncommitted changes
+/gpt-review --base main         # review this branch against main
+/gpt-review --commit <sha>      # review one commit
+/gpt-review focus on the ics feed  # extra instructions for the reviewer
+```
+
+Outside Claude Code the same review prints to the terminal with `npm run gpt-review -- --base main`.
+
 ## Deploy (Vercel)
 
 1. Import the repository, framework Next.js.
