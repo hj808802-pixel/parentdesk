@@ -82,6 +82,7 @@ export const es: Dict = {
     wholeFamily: "Toda la familia / no sé",
     submit: "Buscar fechas y tareas",
     working: "Leyendo la circular…",
+    preparing: "Preparando las fotos…",
     sample: "Usar la circular de ejemplo",
     resultTitle: "{n} elementos encontrados",
     resultNone: "No se encontraron fechas ni tareas en esta circular.",

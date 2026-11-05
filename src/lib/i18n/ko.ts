@@ -82,6 +82,7 @@ export const ko: Dict = {
     wholeFamily: "가족 전체 / 모름",
     submit: "날짜와 할 일 찾기",
     working: "안내문을 읽는 중…",
+    preparing: "사진 준비 중…",
     sample: "샘플 가정통신문 사용",
     resultTitle: "항목 {n}개를 찾았습니다",
     resultNone: "이 안내문에서 날짜나 할 일을 찾지 못했습니다.",

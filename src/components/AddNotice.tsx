@@ -8,12 +8,14 @@ import { useI18n } from "@/lib/i18n/context";
 import { localePath } from "@/lib/i18n/locales";
 import { fmt } from "@/lib/i18n";
 import { browserTimezone, rememberKey } from "@/lib/client";
+import { shrinkImage } from "@/lib/image";
 import type { FamilyView, Item, Source } from "@/lib/store";
 import { BTN_PRIMARY, BTN_SECONDARY, CARD, INPUT } from "@/lib/ui";
 import ItemCard from "./ItemCard";
 
 const MAX_FILES = 5;
 const MAX_MB = 4;
+const MAX_TOTAL_MB = 4.3; // mirrors the server (Vercel body limit)
 
 type Result = {
   saved: boolean;
@@ -37,6 +39,7 @@ export default function AddNotice() {
   const [text, setText] = useState("");
   const [child, setChild] = useState("");
   const [busy, setBusy] = useState(false);
+  const [preparing, setPreparing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<Result | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -46,6 +49,10 @@ export default function AddNotice() {
   useEffect(() => () => previews.forEach((u) => u && URL.revokeObjectURL(u)), [previews]);
 
   async function submit(sample = false) {
+    if (!sample && tab === "files" && files.reduce((sum, f) => sum + f.size, 0) > MAX_TOTAL_MB * 1024 * 1024) {
+      setError(fmt(t.add.errors.too_large, { mb: MAX_MB, n: MAX_FILES }));
+      return;
+    }
     setBusy(true);
     setError(null);
     setResult(null);
@@ -87,11 +94,24 @@ export default function AddNotice() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [params, loading]);
 
-  function addFiles(list: FileList | null) {
-    if (!list) return;
-    const next = [...files, ...Array.from(list)].slice(0, MAX_FILES);
-    setFiles(next);
+  // Photos are shrunk in the browser first: phone cameras produce 3-12 MB files and the
+  // server takes 4 MB per file. PDFs pass through and are checked against the limit here.
+  async function addFiles(list: FileList | null) {
+    if (!list || list.length === 0) return;
+    const picked = Array.from(list).slice(0, Math.max(0, MAX_FILES - files.length));
+    if (picked.length === 0) return;
     setTab("files");
+    setError(null);
+    setPreparing(true);
+    try {
+      const prepared = await Promise.all(picked.map((f) => shrinkImage(f)));
+      const limit = MAX_MB * 1024 * 1024;
+      if (prepared.some((f) => f.size > limit)) setError(fmt(t.add.errors.too_large, { mb: MAX_MB, n: MAX_FILES }));
+      const kept = prepared.filter((f) => f.size <= limit);
+      if (kept.length > 0) setFiles((cur) => [...cur, ...kept].slice(0, MAX_FILES));
+    } finally {
+      setPreparing(false);
+    }
   }
 
   const liveItems = result && family ? family.items.filter((it) => result.items.some((r) => r.id === it.id)) : [];
@@ -156,7 +176,10 @@ export default function AddNotice() {
 
           {tab === "files" && (
             <div className={`${CARD} mt-4`}>
-              <input ref={inputRef} type="file" accept="image/jpeg,image/png,image/webp,image/gif,application/pdf" multiple className="sr-only" onChange={(e) => addFiles(e.target.files)} />
+              <input ref={inputRef} type="file" accept="image/jpeg,image/png,image/webp,image/gif,application/pdf" multiple className="sr-only" onChange={(e) => {
+                  void addFiles(e.target.files);
+                  e.target.value = "";
+                }} />
               {files.length === 0 ? (
                 <div className="text-center">
                   <p className="font-medium">{t.add.emptyTitle}</p>
@@ -224,13 +247,14 @@ export default function AddNotice() {
           )}
 
           <div className="mt-4 flex flex-wrap items-center gap-3">
-            <button type="button" className={BTN_PRIMARY} disabled={busy || (tab === "files" ? files.length === 0 : text.trim().length < 15)} onClick={() => submit(false)}>
+            <button type="button" className={BTN_PRIMARY} disabled={busy || preparing || (tab === "files" ? files.length === 0 : text.trim().length < 15)} onClick={() => submit(false)}>
               {busy ? t.add.working : t.add.submit}
             </button>
             <button type="button" className={BTN_SECONDARY} disabled={busy} onClick={() => submit(true)}>
               {t.add.sample}
             </button>
             {busy && <span className="text-sm text-zinc-500" aria-live="polite">{t.add.working}</span>}
+            {preparing && !busy && <span className="text-sm text-zinc-500" aria-live="polite">{t.add.preparing}</span>}
           </div>
           <p className="mt-6 text-xs text-zinc-500">
             <Link href={localePath(locale, "/privacy")} className="underline underline-offset-4">

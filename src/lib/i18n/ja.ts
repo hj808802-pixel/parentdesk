@@ -82,6 +82,7 @@ export const ja: Dict = {
     wholeFamily: "家族全員 / わからない",
     submit: "日付とやることを探す",
     working: "お便りを読んでいます…",
+    preparing: "写真を準備中…",
     sample: "サンプルのお便りを使う",
     resultTitle: "{n}件見つかりました",
     resultNone: "このお便りからは日付ややることが見つかりませんでした。",

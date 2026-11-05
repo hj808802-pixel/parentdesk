@@ -82,6 +82,7 @@ export const zh: Dict = {
     wholeFamily: "全家 / 不确定",
     submit: "找出日期和待办",
     working: "正在阅读通知…",
+    preparing: "正在处理照片…",
     sample: "使用示例通知",
     resultTitle: "找到{n}项",
     resultNone: "这份通知里没有找到日期或待办。",

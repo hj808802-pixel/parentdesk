@@ -84,6 +84,7 @@ export const en = {
     wholeFamily: "Whole family / not sure",
     submit: "Find the dates and to-dos",
     working: "Reading the notice…",
+    preparing: "Preparing the photos…",
     sample: "Use the sample newsletter",
     resultTitle: "{n} items found",
     resultNone: "No dates or to-dos were found in this notice.",

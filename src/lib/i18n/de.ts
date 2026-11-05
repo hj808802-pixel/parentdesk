@@ -82,6 +82,7 @@ export const de: Dict = {
     wholeFamily: "Ganze Familie / unsicher",
     submit: "Termine und Aufgaben finden",
     working: "Brief wird gelesen …",
+    preparing: "Fotos werden vorbereitet…",
     sample: "Beispiel-Elternbrief verwenden",
     resultTitle: "{n} Einträge gefunden",
     resultNone: "In diesem Brief wurden keine Termine oder Aufgaben gefunden.",

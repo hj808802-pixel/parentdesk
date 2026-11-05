@@ -82,6 +82,7 @@ export const fr: Dict = {
     wholeFamily: "Toute la famille / je ne sais pas",
     submit: "Trouver les dates et les tâches",
     working: "Lecture du mot…",
+    preparing: "Préparation des photos…",
     sample: "Utiliser la circulaire d'exemple",
     resultTitle: "{n} éléments trouvés",
     resultNone: "Aucune date ni tâche trouvée dans ce mot.",
