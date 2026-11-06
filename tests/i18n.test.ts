@@ -33,6 +33,12 @@ describe("i18n", () => {
       check(en.items.count, dict.items.count);
       check(en.settings.usage, dict.settings.usage);
       check(en.legal.updated, dict.legal.updated);
+      check(en.settings.planFreeBody, dict.settings.planFreeBody);
+      check(en.settings.inviteExpires, dict.settings.inviteExpires);
+      check(en.digest.subject, dict.digest.subject);
+      check(en.pricing.perMonth, dict.pricing.perMonth);
+      check(en.pricing.freeFeatures[0], dict.pricing.freeFeatures[0]);
+      check(en.pricing.freeFeatures[1], dict.pricing.freeFeatures[1]);
     }
   });
 

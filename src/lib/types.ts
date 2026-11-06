@@ -12,6 +12,9 @@ export type Settings = {
   dateOrder: DateOrder;
   currency: string;
   weekStart: 0 | 1;
+  locale: string; // UI language the family uses (i18n LOCALES); the weekly summary is written in it
+  digest: boolean; // weekly summary e-mail switched on
+  digestEmail: string; // where it goes; empty = not set
 };
 
 export type Child = { id: string; name: string; color: string };
@@ -75,12 +78,38 @@ export type GmailLink = {
 };
 export type GmailView = Omit<GmailLink, "refreshToken" | "processed">;
 
+// Subscription state mirrored from Stripe webhooks (lib/stripe.ts). Card details never
+// reach this server; Stripe keeps them.
+export type Plan = "free" | "family";
+export type Billing = {
+  customerId: string;
+  subscriptionId: string | null;
+  status: string; // Stripe subscription status: active, trialing, past_due, canceled, ...
+  interval: "month" | "year" | null;
+  currentPeriodEnd: string | null; // ISO date-time
+  cancelAtPeriodEnd: boolean;
+  updatedAt: string;
+  lastEvent: string | null; // Stripe event id, to ignore replays
+};
+export type BillingView = Omit<Billing, "customerId" | "subscriptionId" | "lastEvent">;
+
+// A partner invite link: the family keeps a hash of the token, the link carries the token.
+export type Invite = { hash: string; createdAt: string; expiresAt: string; uses: number; maxUses: number };
+
+// Weekly summary e-mail state.
+export type DigestState = { lastSentAt: string | null; lastWeeklyAt: string | null; lastError: string | null };
+
 // Which optional channels this server has switched on.
-export type Features = { gmail: boolean; inbound: boolean };
+export type Features = { gmail: boolean; inbound: boolean; billing: boolean; digest: boolean };
+
+// What the free plan allows while billing is on. Mirrored to the browser so the pricing
+// page and the settings can say the numbers.
+export type PlanLimits = { freeNotices: number; freeChildren: number; priceMonthly: string; priceYearly: string };
 
 export type FamilyRecord = {
   id: string;
   keyHash: string;
+  memberHashes?: string[]; // keys handed to partners through invite links (hashes)
   feedSecret: string;
   inboundCode: string;
   createdAt: string;
@@ -91,14 +120,22 @@ export type FamilyRecord = {
   items: Item[];
   usage: Record<string, number>; // "2026-11" -> extractions that month
   gmail?: GmailLink | null;
+  billing?: Billing | null;
+  invites?: Invite[];
+  digest?: DigestState | null;
+  counters?: Record<string, number>; // "ask", "reply", "gmail_scan", "digest" -> lifetime counts (ops only)
 };
 
 // What the browser sees: no hashes or secrets beyond the read-only feed token.
-export type FamilyView = Omit<FamilyRecord, "keyHash" | "feedSecret" | "inboundCode" | "gmail"> & {
+export type FamilyView = Omit<FamilyRecord, "keyHash" | "memberHashes" | "feedSecret" | "inboundCode" | "gmail" | "billing" | "invites" | "counters"> & {
   feedToken: string;
   inboundAddress: string | null;
   gmail: GmailView | null;
   features: Features;
+  plan: Plan;
+  billing: BillingView | null;
+  limits: PlanLimits;
+  invites: number; // live invite links
 };
 
 export const MAX_CHILDREN = 8;

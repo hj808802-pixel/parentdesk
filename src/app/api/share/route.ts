@@ -1,5 +1,7 @@
 import { contextOf, extractNotice, type ImageMediaType, type InputFile } from "@/lib/extract";
+import { todayIn } from "@/lib/dates";
 import { localePath } from "@/lib/i18n/locales";
+import { canExtract } from "@/lib/plan";
 import { allowRequest, clientIp } from "@/lib/ratelimit";
 import { localeOf, redirectTo } from "@/lib/request";
 import { addExtraction, createFamily, familyCookie, familyFromRequest, isHttps, saveFamily } from "@/lib/store";
@@ -28,6 +30,7 @@ export async function POST(req: Request) {
   let rec = await familyFromRequest(req);
   const gate = allowRequest({ ip: clientIp(req), family: rec?.id ?? null });
   if (!gate.ok) return back("shared=error&reason=rate_limited");
+  if (rec && !canExtract(rec, todayIn(rec.settings.timezone).slice(0, 7)).ok) return back("shared=error&reason=plan_limit");
 
   let form: FormData;
   try {

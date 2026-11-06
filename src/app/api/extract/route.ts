@@ -1,6 +1,7 @@
 import Anthropic from "@anthropic-ai/sdk";
 import { contextOf, extractNotice, ExtractError, type ImageMediaType, type InputFile } from "@/lib/extract";
 import { todayIn } from "@/lib/dates";
+import { canExtract } from "@/lib/plan";
 import { allowRequest, clientIp } from "@/lib/ratelimit";
 import { sampleNotice } from "@/lib/sample";
 import { addExtraction, createFamily, familyCookie, familyFromRequest, isHttps, saveFamily, toView, type SourceKind } from "@/lib/store";
@@ -25,6 +26,11 @@ export async function POST(req: Request) {
   const gate = allowRequest({ ip: clientIp(req), family: rec?.id ?? null });
   if (!gate.ok) {
     return Response.json({ ok: false, error: gate.reason, request_id: requestId, retry_after: gate.retryAfterSec }, { status: 429, headers: { "Retry-After": String(gate.retryAfterSec) } });
+  }
+
+  if (rec) {
+    const plan = canExtract(rec, todayIn(rec.settings.timezone).slice(0, 7));
+    if (!plan.ok) return Response.json({ ok: false, error: plan.reason, request_id: requestId, used: plan.used, limit: plan.limit }, { status: 402 });
   }
 
   let form: FormData;

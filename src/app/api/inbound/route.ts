@@ -1,6 +1,7 @@
 import { timingSafeEqual } from "node:crypto";
 import { contextOf, extractNotice, ExtractError, type ImageMediaType, type InputFile } from "@/lib/extract";
 import { htmlToText } from "@/lib/html";
+import { canExtract } from "@/lib/plan";
 import { allowRequest, clientIp } from "@/lib/ratelimit";
 import { addExtraction, loadFamily, parseInboundAddress, saveFamily } from "@/lib/store";
 
@@ -46,6 +47,7 @@ export async function POST(req: Request) {
 
   const gate = allowRequest({ ip: clientIp(req), family: rec.id });
   if (!gate.ok) return Response.json({ ok: false, error: gate.reason }, { status: 429 });
+  if (!canExtract(rec, new Date().toISOString().slice(0, 7)).ok) return Response.json({ ok: false, error: "plan_limit" }, { status: 402 });
 
   const subject = typeof body.subject === "string" ? body.subject.slice(0, 300) : "";
   const from = typeof body.from === "string" ? body.from.slice(0, 200) : "";

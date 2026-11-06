@@ -4,6 +4,7 @@ import { cryptoReady, decrypt, sign, verifySignature } from "./crypto";
 import { todayIn } from "./dates";
 import { contextOf, extractNotice, type ImageMediaType, type InputFile } from "./extract";
 import { htmlToText } from "./html";
+import { canExtract } from "./plan";
 import { addExtraction } from "./store";
 import type { FamilyRecord, GmailLink } from "./types";
 
@@ -286,6 +287,7 @@ export async function scanFamily(rec: FamilyRecord, opts: { budgetMs?: number; m
     const todayIso = todayIn(rec.settings.timezone, now);
     for (const h of picked) {
       if (extracted >= maxExtract || Date.now() > deadline) break; // the rest waits for the next run
+      if (!canExtract(rec, todayIso.slice(0, 7)).ok) break; // free plan used up this month
       const full = await getMessage(access, h.id, "full");
       const parsed = parsePayload(full.payload);
       const body = (parsed.text || htmlToText(parsed.html)).slice(0, MAX_TEXT_CHARS);

@@ -86,6 +86,21 @@ expect("google disconnect: no family", await call("POST", "/api/google/disconnec
 expect("google start: redirects to settings", await call("GET", "/api/google/start"), [302, 303], (r) => /settings\?gmail=(nofamily|off)/.test(r.headers.get("location") ?? ""));
 expect("google callback: bad state", await call("GET", "/api/google/callback?code=x&state=bad"), [302, 303], (r) => /settings\?gmail=(error|off)/.test(r.headers.get("location") ?? ""));
 expect("google callback: denied", await call("GET", "/api/google/callback?error=access_denied"), [302, 303], (r) => /settings\?gmail=(denied|off)/.test(r.headers.get("location") ?? ""));
+expect("invite: no family", await call("POST", "/api/family/invite"), 404);
+expect("join: malformed invite", await call("POST", "/api/family/join", { json: { invite: "abc.def" } }), 400);
+expect("join: unknown invite", await call("POST", "/api/family/join", { json: { invite: `${"0".repeat(12)}.${"0".repeat(32)}` } }), 404);
+expect("billing checkout: off or no family", await call("POST", "/api/billing/checkout", { json: { interval: "month" } }), 404);
+expect("billing portal: off or no family", await call("POST", "/api/billing/portal"), 404);
+expect("billing webhook: off or bad signature", await call("POST", "/api/billing/webhook", { body: "{}", headers: { "stripe-signature": "t=1,v1=00" } }), [400, 404]);
+expect("digest preview: no family", await call("GET", "/api/digest/preview"), 404);
+expect("digest send: off or no family", await call("POST", "/api/digest/send"), 404);
+expect("digest unsubscribe: bad token", await call("GET", "/api/digest/unsubscribe?u=nope"), [302, 303], (r) => /settings\?digest=badlink/.test(r.headers.get("location") ?? ""));
+expect("digest unsubscribe: bad token (one-click)", await call("POST", "/api/digest/unsubscribe?u=nope"), 404);
+expect("cron digest: no secret", await call("GET", "/api/cron/digest"), [401, 404]);
+expect("admin login: off or bad token", await call("POST", "/api/admin/login", { json: { token: "wrong" } }), [401, 404]);
+expect("admin login: not json", await call("POST", "/api/admin/login", { json: "{" }), [401, 404]);
+expect("admin stats: off or unauthorized", await call("GET", "/api/admin/stats"), [401, 404]);
+expect("admin stats: forged cookie", await call("GET", "/api/admin/stats", { headers: { cookie: `pd_admin=${"0".repeat(64)}` }, useCookie: false }), [401, 404]);
 expect("extract: GET not allowed", await call("GET", "/api/extract"), 405);
 expect("extract: not a form", await call("POST", "/api/extract", { json: {} }), 400);
 expect("extract: empty form", await call("POST", "/api/extract", { form: new FormData() }), 400);
@@ -124,6 +139,10 @@ expect("page: /en redirects to bare path", await call("GET", "/en/items"), 308, 
   const r = await call("GET", "/", { redirect: "follow", headers: { "accept-language": "en" } });
   expect("page: security headers", r, 200, (x) => x.headers.get("x-frame-options") === "DENY" && x.headers.get("x-content-type-options") === "nosniff");
 }
+expect("page: pricing", await call("GET", "/pricing", { redirect: "follow", headers: { "accept-language": "en" } }), 200, (r) => r.text.includes("Family"));
+expect("page: join without token", await call("GET", "/join", { redirect: "follow", headers: { "accept-language": "en" } }), 200);
+expect("page: admin console shell", await call("GET", "/admin", { redirect: "follow" }), 200, (r) => r.text.includes("admin"));
+expect("page: admin is not localised", await call("GET", "/ko/admin", { redirect: "follow" }), 404);
 expect("manifest: declares the share target", await call("GET", "/manifest.webmanifest"), 200, (r) => Boolean(r.data?.share_target?.action === "/api/share"));
 expect("static: robots", await call("GET", "/robots.txt"), 200);
 expect("static: sitemap", await call("GET", "/sitemap.xml"), 200, (r) => r.text.includes("<urlset"));
@@ -154,6 +173,27 @@ if (key) {
   expect("ask: empty question", await call("POST", "/api/ask", { json: { question: "" } }), 400);
   expect("ask: not json", await call("POST", "/api/ask", { json: "nope" }), 400);
   expect("google scan: not connected or off", await call("POST", "/api/google/scan"), [400, 404]);
+  expect("billing portal: no subscription or off", await call("POST", "/api/billing/portal"), [400, 404]);
+  expect("digest preview: works for a family", await call("GET", "/api/digest/preview"), 200, (r) => typeof r.data?.subject === "string" && typeof r.data?.text === "string");
+  expect("digest send: off, no address or plan", await call("POST", "/api/digest/send"), [400, 402, 404]);
+  const addr = await call("PATCH", "/api/family", { json: { settings: { digestEmail: "not-an-address", digest: true, locale: "xx" } } });
+  expect("settings: bad e-mail and locale ignored, digest stays off", addr, 200, (r) => r.data.family.settings.digestEmail === "" && r.data.family.settings.digest === false && r.data.family.settings.locale === "fr");
+  const inv = await call("POST", "/api/family/invite");
+  expect("invite: created (or Family-only once billing is on)", inv, [200, 402], (r) => r.status === 402 || /\/join\?i=[0-9a-f]{12}\.[0-9a-f]{32}$/.test(r.data.url));
+  if (inv.status === 200) {
+    const mine = cookie;
+    cookie = "";
+    const token = /i=([^&]+)/.exec(inv.data.url)[1];
+    const joined = await call("POST", "/api/family/join", { json: { invite: token } });
+    expect("join: invite link gives a member key and the family", joined, 200, (r) => /^pd_[0-9a-f]{12}_[0-9a-f]{24}$/.test(r.data.key) && r.data.family.id === key.slice(3, 15) && Boolean(cookie));
+    expect("family: member key opens the family", await call("GET", "/api/family"), 200, (r) => r.data.family.id === key.slice(3, 15));
+    cookie = "";
+    await call("POST", "/api/family/join", { json: { invite: token } });
+    await call("POST", "/api/family/join", { json: { invite: token } });
+    cookie = "";
+    expect("join: invite dead after three uses", await call("POST", "/api/family/join", { json: { invite: token } }), 404);
+    cookie = mine;
+  }
   const fam = (await call("GET", "/api/family")).data.family;
   const feed = await call("GET", `/api/calendar/${fam.feedToken}.ics`, { useCookie: false });
   expect("calendar: feed works without cookie", feed, 200, (r) => r.text.includes("BEGIN:VCALENDAR") && (r.headers.get("content-type") ?? "").includes("text/calendar"));

@@ -1,4 +1,6 @@
+import { maxChildrenFor } from "@/lib/plan";
 import {
+  MAX_CHILDREN,
   clearFamilyCookie,
   createFamily,
   deleteFamily,
@@ -43,7 +45,7 @@ export async function PATCH(req: Request) {
   if (!body) return Response.json({ ok: false, error: "bad_request" }, { status: 400 });
   if (body.settings) rec.settings = sanitizeSettings(body.settings, rec.settings);
   if (body.children) {
-    rec.children = sanitizeChildren(body.children, rec.children);
+    rec.children = sanitizeChildren(body.children, rec.children, maxChildrenFor(rec, MAX_CHILDREN));
     const ids = new Set(rec.children.map((c) => c.id));
     for (const it of rec.items) it.childIds = it.childIds.filter((id) => ids.has(id));
   }

@@ -1,4 +1,4 @@
-import type { FamilyView, Item } from "./store";
+import type { FamilyView, Item, PlanLimits } from "./types";
 
 // Thin fetch helpers for the browser. Every call carries the HttpOnly family cookie.
 
@@ -41,6 +41,13 @@ export const api = {
     call<{ ok: true; reply: string; translation: string | null; subject: string | null; mock: boolean }>(`/api/items/${id}/reply`, { method: "POST", body: JSON.stringify({ intent, note }) }),
   gmailScan: () => call<{ ok: true; family: FamilyView; result: { scanned: number; picked: number; added: number; skipped: number; error?: string } }>("/api/google/scan", { method: "POST" }),
   gmailDisconnect: () => call<{ ok: true; family: FamilyView }>("/api/google/disconnect", { method: "POST" }),
+  invite: (locale: string) => call<{ ok: true; url: string; expiresAt: string; maxUses: number; family: FamilyView }>("/api/family/invite", { method: "POST", body: JSON.stringify({ locale }) }),
+  joinInvite: (invite: string) => call<FamilyResponse>("/api/family/join", { method: "POST", body: JSON.stringify({ invite }) }),
+  checkout: (interval: "month" | "year") => call<{ ok: true; url: string }>("/api/billing/checkout", { method: "POST", body: JSON.stringify({ interval }) }),
+  portal: () => call<{ ok: true; url: string }>("/api/billing/portal", { method: "POST" }),
+  digestSend: () => call<{ ok: true; family: FamilyView }>("/api/digest/send", { method: "POST" }),
+  digestPreview: () => call<{ ok: true; subject: string; text: string; count: number }>("/api/digest/preview"),
+  health: () => call<{ ok: true; billing: boolean; digest: boolean; limits: PlanLimits }>("/api/health"),
 };
 
 // The family key is shown in Settings so a partner can join. The server keeps only a hash,

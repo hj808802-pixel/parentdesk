@@ -107,6 +107,9 @@ export default async function RootLayout({ children, params }: Props) {
             <footer className="border-t px-4 py-6 text-center text-xs text-zinc-500 dark:border-zinc-800">
               <p>{t.nav.footer}</p>
               <p className="mt-2 flex flex-wrap justify-center gap-x-3 gap-y-1">
+                <Link href={localePath(locale, "/pricing")} className="underline underline-offset-4">
+                  {t.nav.pricing}
+                </Link>
                 <Link href={localePath(locale, "/privacy")} className="underline underline-offset-4">
                   {t.nav.privacy}
                 </Link>

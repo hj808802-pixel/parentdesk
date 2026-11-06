@@ -6,8 +6,10 @@ import { countryOf, guessCountry, isCountry, isTimezone } from "./countries";
 import { cryptoReady } from "./crypto";
 import { findDuplicate } from "./dedupe";
 import { isHhMm, isIsoDate } from "./dates";
+import { isLocale } from "./i18n/locales";
+import { billingEnabled, canUse, planLimits, planOf } from "./plan";
 import { ITEM_TYPES, isOutputLanguage, type Extraction, type ItemType } from "./schema";
-import { CHILD_COLORS, MAX_CHILDREN, type Child, type FamilyRecord, type FamilyView, type Features, type Item, type Settings, type Source, type SourceKind } from "./types";
+import { CHILD_COLORS, MAX_CHILDREN, type Child, type FamilyRecord, type FamilyView, type Features, type Invite, type Item, type Settings, type Source, type SourceKind } from "./types";
 
 export * from "./types";
 
@@ -19,7 +21,9 @@ export * from "./types";
 // the extracted items. Uploaded photos and PDFs are never stored.
 
 export const FAMILY_COOKIE = "pd_family";
-const PREFIX = "parentdesk/families/";
+const ROOT = "parentdesk/";
+const FAMILIES = "families/";
+const OPS = "ops/";
 const MAX_ITEMS = 2000;
 const MAX_SOURCES = 400;
 
@@ -63,10 +67,16 @@ export function inboundAddressOf(rec: Pick<FamilyRecord, "id" | "inboundCode">):
   return domain ? `${rec.id}-${rec.inboundCode}@${domain}` : null;
 }
 
+export function digestEnabled(): boolean {
+  return Boolean(process.env.RESEND_API_KEY && process.env.DIGEST_FROM);
+}
+
 export function features(): Features {
   return {
     gmail: Boolean(process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET) && cryptoReady(),
     inbound: Boolean(inboundDomain() && process.env.INBOUND_SECRET),
+    billing: billingEnabled(),
+    digest: digestEnabled(),
   };
 }
 
@@ -79,6 +89,12 @@ export function parseInboundAddress(to: unknown): { id: string; code: string } |
 
 // ---- settings ----
 
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+export function isEmail(x: unknown): x is string {
+  return typeof x === "string" && x.length <= 120 && EMAIL_RE.test(x);
+}
+
 export function defaultSettings(locale?: string | null, timezone?: string | null): Settings {
   const country = countryOf(guessCountry(locale, timezone));
   return {
@@ -89,6 +105,9 @@ export function defaultSettings(locale?: string | null, timezone?: string | null
     dateOrder: country.dateOrder,
     currency: country.currency,
     weekStart: country.weekStart,
+    locale: isLocale(locale) ? locale : "", // empty = not known yet (records from before v0.4)
+    digest: false,
+    digestEmail: "",
   };
 }
 
@@ -111,13 +130,20 @@ export function sanitizeSettings(input: unknown, current: Settings): Settings {
   if (o.dateOrder === "MDY" || o.dateOrder === "DMY" || o.dateOrder === "YMD") next.dateOrder = o.dateOrder;
   if (typeof o.currency === "string" && /^[A-Z]{3}$/.test(o.currency)) next.currency = o.currency;
   if (o.weekStart === 0 || o.weekStart === 1) next.weekStart = o.weekStart;
+  if (isLocale(o.locale)) next.locale = o.locale;
+  if (typeof o.digest === "boolean") next.digest = o.digest;
+  if (typeof o.digestEmail === "string") {
+    const e = o.digestEmail.trim().toLowerCase();
+    if (e === "" || isEmail(e)) next.digestEmail = e;
+  }
+  if (!next.digestEmail) next.digest = false;
   return next;
 }
 
-export function sanitizeChildren(input: unknown, current: Child[]): Child[] {
+export function sanitizeChildren(input: unknown, current: Child[], max = MAX_CHILDREN): Child[] {
   if (!Array.isArray(input)) return current;
   const out: Child[] = [];
-  for (const raw of input.slice(0, MAX_CHILDREN)) {
+  for (const raw of input.slice(0, Math.min(max, MAX_CHILDREN))) {
     if (!raw || typeof raw !== "object") continue;
     const c = raw as Record<string, unknown>;
     const name = typeof c.name === "string" ? c.name.trim().slice(0, 40) : "";
@@ -148,14 +174,30 @@ export function createFamily(init: { settings?: Partial<Settings>; locale?: stri
     sources: [],
     items: [],
     usage: {},
+    billing: null,
+    invites: [],
+    digest: null,
+    counters: {},
   };
   return { record, key: makeFamilyKey(id, secret) };
 }
 
 export function verifySecret(rec: FamilyRecord, secret: string): boolean {
-  const a = Buffer.from(rec.keyHash, "hex");
-  const b = Buffer.from(hashSecret(secret), "hex");
-  return a.length === b.length && timingSafeEqual(a, b);
+  const given = Buffer.from(hashSecret(secret), "hex");
+  for (const h of [rec.keyHash, ...(rec.memberHashes ?? [])]) {
+    const a = Buffer.from(h, "hex");
+    if (a.length === given.length && timingSafeEqual(a, given)) return true;
+  }
+  return false;
+}
+
+// A key of its own for a device that joined through an invite link. It opens the family
+// exactly like the first key; the record keeps only its hash.
+const MAX_MEMBER_KEYS = 10;
+export function addMemberKey(rec: FamilyRecord): string {
+  const secret = newId(12);
+  rec.memberHashes = [...(rec.memberHashes ?? []), hashSecret(secret)].slice(-MAX_MEMBER_KEYS);
+  return makeFamilyKey(rec.id, secret);
 }
 
 export function verifyFeedSecret(rec: FamilyRecord, secret: string): boolean {
@@ -166,6 +208,60 @@ export function verifyFeedSecret(rec: FamilyRecord, secret: string): boolean {
 
 export function rotateFeed(rec: FamilyRecord) {
   rec.feedSecret = newId(8);
+}
+
+export function bumpCounter(rec: FamilyRecord, name: string, by = 1) {
+  rec.counters ??= {};
+  rec.counters[name] = (rec.counters[name] ?? 0) + by;
+}
+
+// ---- invite links ----
+//
+// "<family id>.<secret>": the family keeps sha256(secret), the link carries the secret.
+// A link works a few times for a few days, so a screenshot that leaks later is useless.
+
+export const INVITE_TTL_HOURS = 72;
+export const INVITE_MAX_USES = 3;
+const MAX_LIVE_INVITES = 5;
+
+export function liveInvites(rec: FamilyRecord, now: Date = new Date()): Invite[] {
+  const t = now.toISOString();
+  return (rec.invites ?? []).filter((i) => i.expiresAt > t && i.uses < i.maxUses);
+}
+
+export function createInvite(rec: FamilyRecord, now: Date = new Date()): { token: string; invite: Invite } | null {
+  const live = liveInvites(rec, now);
+  if (live.length >= MAX_LIVE_INVITES) return null;
+  const secret = newId(16);
+  const invite: Invite = {
+    hash: hashSecret(secret),
+    createdAt: now.toISOString(),
+    expiresAt: new Date(now.getTime() + INVITE_TTL_HOURS * 3600_000).toISOString(),
+    uses: 0,
+    maxUses: INVITE_MAX_USES,
+  };
+  rec.invites = [...live, invite];
+  return { token: `${rec.id}.${secret}`, invite };
+}
+
+export function parseInviteToken(token: unknown): { id: string; secret: string } | null {
+  if (typeof token !== "string") return null;
+  const m = /^([0-9a-f]{12})\.([0-9a-f]{32})$/.exec(token.trim());
+  return m ? { id: m[1], secret: m[2] } : null;
+}
+
+// Marks one use and returns true when the token matched a live invite.
+export function acceptInvite(rec: FamilyRecord, secret: string, now: Date = new Date()): boolean {
+  const h = Buffer.from(hashSecret(secret), "hex");
+  for (const inv of liveInvites(rec, now)) {
+    const a = Buffer.from(inv.hash, "hex");
+    if (a.length === h.length && timingSafeEqual(a, h)) {
+      inv.uses += 1;
+      rec.invites = liveInvites(rec, now);
+      return true;
+    }
+  }
+  return false;
 }
 
 // ---- storage ----
@@ -179,35 +275,36 @@ export function storageMode(): Mode {
   return "memory";
 }
 
-function localPath(id: string): string {
-  const dir = path.join(process.env.LOCAL_DATA_DIR as string, "families");
-  fs.mkdirSync(dir, { recursive: true });
-  return path.join(dir, `${id}.json`);
+function localPath(key: string): string {
+  const p = path.join(process.env.LOCAL_DATA_DIR as string, `${key}.json`);
+  fs.mkdirSync(path.dirname(p), { recursive: true });
+  return p;
 }
 
-async function readRaw(id: string): Promise<string | null> {
+// `key` is "families/<id>" or "ops/<name>".
+async function readRaw(key: string): Promise<string | null> {
   switch (storageMode()) {
     case "local": {
-      const p = localPath(id);
+      const p = localPath(key);
       return fs.existsSync(p) ? fs.readFileSync(p, "utf8") : null;
     }
     case "blob": {
-      const res = await get(`${PREFIX}${id}.json`, { access: "private", useCache: false });
+      const res = await get(`${ROOT}${key}.json`, { access: "private", useCache: false });
       if (!res || res.statusCode !== 200 || !res.stream) return null;
       return new Response(res.stream).text();
     }
     default:
-      return memory.get(id) ?? null;
+      return memory.get(key) ?? null;
   }
 }
 
-async function writeRaw(id: string, body: string): Promise<void> {
+async function writeRaw(key: string, body: string): Promise<void> {
   switch (storageMode()) {
     case "local":
-      fs.writeFileSync(localPath(id), body, "utf8");
+      fs.writeFileSync(localPath(key), body, "utf8");
       return;
     case "blob":
-      await put(`${PREFIX}${id}.json`, body, {
+      await put(`${ROOT}${key}.json`, body, {
         access: "private",
         addRandomSuffix: false,
         allowOverwrite: true,
@@ -215,28 +312,28 @@ async function writeRaw(id: string, body: string): Promise<void> {
       });
       return;
     default:
-      memory.set(id, body);
+      memory.set(key, body);
   }
 }
 
-async function removeRaw(id: string): Promise<void> {
+async function removeRaw(key: string): Promise<void> {
   switch (storageMode()) {
     case "local": {
-      const p = localPath(id);
+      const p = localPath(key);
       if (fs.existsSync(p)) fs.unlinkSync(p);
       return;
     }
     case "blob":
-      await del(`${PREFIX}${id}.json`);
+      await del(`${ROOT}${key}.json`);
       return;
     default:
-      memory.delete(id);
+      memory.delete(key);
   }
 }
 
 export async function loadFamily(id: string): Promise<FamilyRecord | null> {
   if (!/^[0-9a-f]{12}$/.test(id)) return null;
-  const raw = await readRaw(id);
+  const raw = await readRaw(`${FAMILIES}${id}`);
   if (!raw) return null;
   try {
     const rec = JSON.parse(raw) as FamilyRecord;
@@ -254,6 +351,11 @@ function normalize(rec: FamilyRecord): FamilyRecord {
   rec.usage ??= {};
   rec.inboundCode ??= newId(4);
   rec.feedSecret ??= newId(8);
+  rec.memberHashes ??= [];
+  rec.billing ??= null;
+  rec.invites ??= [];
+  rec.digest ??= null;
+  rec.counters ??= {};
   rec.settings = sanitizeSettings(rec.settings, defaultSettings());
   return rec;
 }
@@ -262,11 +364,28 @@ export async function saveFamily(rec: FamilyRecord): Promise<void> {
   rec.updatedAt = new Date().toISOString();
   if (rec.items.length > MAX_ITEMS) rec.items = rec.items.slice(-MAX_ITEMS);
   if (rec.sources.length > MAX_SOURCES) rec.sources = rec.sources.slice(-MAX_SOURCES);
-  await writeRaw(rec.id, JSON.stringify(rec));
+  await writeRaw(`${FAMILIES}${rec.id}`, JSON.stringify(rec));
 }
 
 export async function deleteFamily(id: string): Promise<void> {
-  await removeRaw(id);
+  await removeRaw(`${FAMILIES}${id}`);
+}
+
+// Small operational documents next to the families (last cron runs, for the admin page).
+export async function readOps<T>(name: string): Promise<T | null> {
+  if (!/^[a-z_-]{1,40}$/.test(name)) return null;
+  const raw = await readRaw(`${OPS}${name}`);
+  if (!raw) return null;
+  try {
+    return JSON.parse(raw) as T;
+  } catch {
+    return null;
+  }
+}
+
+export async function writeOps(name: string, value: unknown): Promise<void> {
+  if (!/^[a-z_-]{1,40}$/.test(name)) throw new Error("bad ops name");
+  await writeRaw(`${OPS}${name}`, JSON.stringify(value));
 }
 
 // Test hook.
@@ -305,14 +424,30 @@ export function isHttps(req: Request): boolean {
 // ---- views ----
 
 export function toView(rec: FamilyRecord): FamilyView {
-  const { keyHash: _k, feedSecret: _f, inboundCode: _i, gmail, ...rest } = rec;
+  const { keyHash: _k, memberHashes: _m, feedSecret: _f, inboundCode: _i, gmail, billing, invites: _inv, counters: _c, ...rest } = rec;
   void _k;
+  void _m;
   void _f;
   void _i;
+  void _inv;
+  void _c;
   const gmailView = gmail
     ? { email: gmail.email, connectedAt: gmail.connectedAt, lastScanAt: gmail.lastScanAt, lastResult: gmail.lastResult, senders: gmail.senders, paused: gmail.paused }
     : null;
-  return { ...rest, feedToken: feedTokenOf(rec), inboundAddress: inboundAddressOf(rec), gmail: gmailView, features: features() };
+  const billingView = billing
+    ? { status: billing.status, interval: billing.interval, currentPeriodEnd: billing.currentPeriodEnd, cancelAtPeriodEnd: billing.cancelAtPeriodEnd, updatedAt: billing.updatedAt }
+    : null;
+  return {
+    ...rest,
+    feedToken: feedTokenOf(rec),
+    inboundAddress: canUse(rec, "inbound") ? inboundAddressOf(rec) : null,
+    gmail: gmailView,
+    features: features(),
+    plan: planOf(rec),
+    billing: billingView,
+    limits: planLimits(),
+    invites: liveInvites(rec).length,
+  };
 }
 
 // ---- adding an extraction ----
@@ -410,8 +545,8 @@ export function applyItemPatch(item: Item, patch: Record<string, unknown>): Item
   return next;
 }
 
-// Every family id in the store (the daily Gmail cron walks them). Fine for a beta;
-// a real index comes with a database.
+// Every family id in the store (the daily crons and the admin page walk them). Fine for a
+// beta; a real index comes with a database.
 export async function listFamilyIds(): Promise<string[]> {
   switch (storageMode()) {
     case "local": {
@@ -422,7 +557,7 @@ export async function listFamilyIds(): Promise<string[]> {
       const ids: string[] = [];
       let cursor: string | undefined;
       do {
-        const page = await list({ prefix: PREFIX, cursor, limit: 1000 });
+        const page = await list({ prefix: `${ROOT}${FAMILIES}`, cursor, limit: 1000 });
         for (const b of page.blobs) {
           const m = /([0-9a-f]{12})\.json$/.exec(b.pathname);
           if (m) ids.push(m[1]);
@@ -432,6 +567,6 @@ export async function listFamilyIds(): Promise<string[]> {
       return ids;
     }
     default:
-      return [...memory.keys()];
+      return [...memory.keys()].filter((k) => k.startsWith(FAMILIES)).map((k) => k.slice(FAMILIES.length));
   }
 }

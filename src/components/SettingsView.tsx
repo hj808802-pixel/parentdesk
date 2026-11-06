@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { api, browserTimezone, feedUrl, forgetKey, readKey, rememberKey, writeClipboard } from "@/lib/client";
@@ -7,7 +8,7 @@ import { COUNTRIES, TIMEZONES, type DateOrder } from "@/lib/countries";
 import { useFamily } from "@/lib/family-context";
 import { useI18n } from "@/lib/i18n/context";
 import { fmt } from "@/lib/i18n";
-import { LOCALE_TAGS, regionName } from "@/lib/i18n/locales";
+import { LOCALE_TAGS, localePath, regionName } from "@/lib/i18n/locales";
 import { OUTPUT_LANGUAGES } from "@/lib/schema";
 import { CHILD_COLORS, MAX_CHILDREN, type Child, type Settings } from "@/lib/types";
 import { BTN_PRIMARY, BTN_SECONDARY, BTN_SMALL, CARD, INPUT } from "@/lib/ui";
@@ -21,7 +22,7 @@ export default function SettingsView() {
   const [newChild, setNewChild] = useState("");
   const [saving, setSaving] = useState(false);
   const [justSaved, setJustSaved] = useState(false);
-  const [copied, setCopied] = useState<"" | "feed" | "key" | "inbound">("");
+  const [copied, setCopied] = useState<"" | "feed" | "key" | "inbound" | "invite">("");
   const [copyFailed, setCopyFailed] = useState(false);
   const [showKey, setShowKey] = useState(false);
   const [joinKey, setJoinKey] = useState("");
@@ -30,6 +31,14 @@ export default function SettingsView() {
   const [scanning, setScanning] = useState(false);
   const [gmailNote, setGmailNote] = useState<string | null>(null);
   const [gmailError, setGmailError] = useState<string | null>(null);
+  const [billingNote, setBillingNote] = useState<string | null>(null);
+  const [billingBusy, setBillingBusy] = useState(false);
+  const [digestNote, setDigestNote] = useState<string | null>(null);
+  const [digestBusy, setDigestBusy] = useState(false);
+  const [preview, setPreview] = useState<{ subject: string; text: string } | null>(null);
+  const [invite, setInvite] = useState<{ url: string; expiresAt: string } | null>(null);
+  const [inviteBusy, setInviteBusy] = useState(false);
+  const [inviteError, setInviteError] = useState(false);
 
   // The form is a draft of the server document: reload it whenever the document changes.
   useEffect(() => {
@@ -54,7 +63,88 @@ export default function SettingsView() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [gmailParam, loading]);
 
+  // Back from Stripe (?billing=success|cancel) or an unsubscribe link (?digest=off|badlink).
+  const billingParam = params.get("billing");
+  const digestParam = params.get("digest");
+  useEffect(() => {
+    if ((!billingParam && !digestParam) || loading) return;
+    const b = t.settings.billingStatus as Record<string, string>;
+    const d = t.settings.digestStatus as Record<string, string>;
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- reading the URL once
+    if (billingParam) setBillingNote(b[billingParam] ?? null);
+    if (digestParam) setDigestNote(d[digestParam] ?? null);
+    window.history.replaceState(null, "", window.location.pathname);
+    // The webhook may land a moment after the redirect: look again shortly.
+    if (billingParam === "success") setTimeout(() => void refresh(), 4000);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [billingParam, digestParam, loading]);
+
   if (loading) return <p className="p-8 text-center text-sm text-zinc-500">{t.common.loading}</p>;
+
+  async function openBilling(kind: "checkout" | "portal") {
+    setBillingBusy(true);
+    setBillingNote(null);
+    try {
+      const res = kind === "checkout" ? await api.checkout("month") : await api.portal();
+      window.location.href = res.url;
+    } catch {
+      setBillingNote(t.settings.billingStatus.error);
+      setBillingBusy(false);
+    }
+  }
+
+  async function sendDigestTest() {
+    if (!settings) return;
+    setDigestBusy(true);
+    setDigestNote(null);
+    try {
+      const saved = await api.updateFamily({ settings: { ...settings, locale }, children });
+      setFamily(saved.family);
+      const res = await api.digestSend();
+      setFamily(res.family);
+      setDigestNote(t.settings.digestSent);
+    } catch {
+      setDigestNote(t.settings.digestError);
+    } finally {
+      setDigestBusy(false);
+    }
+  }
+
+  async function showPreview() {
+    if (preview) {
+      setPreview(null);
+      return;
+    }
+    try {
+      const res = await api.digestPreview();
+      setPreview({ subject: res.subject, text: res.text });
+    } catch {
+      setDigestNote(t.add.errors.generic);
+    }
+  }
+
+  async function makeInvite() {
+    setInviteBusy(true);
+    setInviteError(false);
+    try {
+      const res = await api.invite(locale);
+      setInvite({ url: res.url, expiresAt: res.expiresAt });
+      setFamily(res.family);
+    } catch {
+      setInviteError(true);
+    } finally {
+      setInviteBusy(false);
+    }
+  }
+
+  async function shareInvite() {
+    if (!invite) return;
+    try {
+      await navigator.share({ title: t.meta.siteName, url: invite.url });
+    } catch {
+      /* dismissed or unsupported */
+    }
+  }
 
   async function scan() {
     setScanning(true);
@@ -78,7 +168,7 @@ export default function SettingsView() {
     setGmailNote(null);
   }
 
-  async function copy(text: string, what: "feed" | "key" | "inbound") {
+  async function copy(text: string, what: "feed" | "key" | "inbound" | "invite") {
     const ok = await writeClipboard(text);
     setCopied(ok ? what : "");
     setCopyFailed(!ok);
@@ -98,7 +188,7 @@ export default function SettingsView() {
     if (!settings) return;
     setSaving(true);
     try {
-      const res = await api.updateFamily({ settings, children });
+      const res = await api.updateFamily({ settings: { ...settings, locale }, children });
       setFamily(res.family);
       setJustSaved(true);
       setTimeout(() => setJustSaved(false), 4000);
@@ -168,6 +258,52 @@ export default function SettingsView() {
               <input className={INPUT} value={settings.familyName} onChange={(e) => setSettings({ ...settings, familyName: e.target.value })} maxLength={60} />
             </label>
             <p className="mt-2 text-xs text-zinc-500">{fmt(t.settings.usage, { n: family.usage[month] ?? 0 })}</p>
+          </section>
+
+          <section className={`${CARD} mt-4`}>
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <h2 className="font-semibold">{t.settings.plan}</h2>
+              <span className="rounded-full bg-indigo-100 px-3 py-0.5 text-xs font-semibold text-indigo-800 dark:bg-indigo-900/50 dark:text-indigo-200">
+                {family.plan === "family" ? t.settings.planFamily : t.settings.planFree}
+              </span>
+            </div>
+            {billingNote && (
+              <p className="mt-2 text-sm text-indigo-700 dark:text-indigo-300" role="status">
+                {billingNote}
+              </p>
+            )}
+            {!family.features.billing ? (
+              <p className="mt-2 text-sm text-zinc-600 dark:text-zinc-400">{t.settings.planBeta}</p>
+            ) : family.plan === "family" ? (
+              <div className="mt-2 text-sm">
+                <p className="text-zinc-600 dark:text-zinc-400">{t.settings.planFamilyBody}</p>
+                {family.billing?.status === "past_due" && <p className="mt-1 text-amber-700 dark:text-amber-300">{t.settings.planPastDue}</p>}
+                {family.billing?.currentPeriodEnd && family.billing.status !== "past_due" && (
+                  <p className="mt-1 text-zinc-600 dark:text-zinc-400">
+                    {fmt(family.billing.cancelAtPeriodEnd ? t.settings.planEnds : t.settings.planRenews, {
+                      date: new Date(family.billing.currentPeriodEnd).toLocaleDateString(LOCALE_TAGS[locale], { dateStyle: "medium" }),
+                    })}
+                  </p>
+                )}
+                {family.billing && (
+                  <button type="button" className={`${BTN_SECONDARY} mt-3`} disabled={billingBusy} onClick={() => openBilling("portal")}>
+                    {t.settings.manageBilling}
+                  </button>
+                )}
+              </div>
+            ) : (
+              <div className="mt-2 text-sm">
+                <p className="text-zinc-600 dark:text-zinc-400">{fmt(t.settings.planFreeBody, { n: family.limits.freeNotices, k: family.limits.freeChildren })}</p>
+                <div className="mt-3 flex flex-wrap gap-2">
+                  <button type="button" className={BTN_PRIMARY} disabled={billingBusy} onClick={() => openBilling("checkout")}>
+                    {t.settings.upgrade}
+                  </button>
+                  <Link href={localePath(locale, "/pricing")} className={BTN_SECONDARY}>
+                    {t.nav.pricing}
+                  </Link>
+                </div>
+              </div>
+            )}
           </section>
 
           <section className={`${CARD} mt-4`}>
@@ -366,6 +502,71 @@ export default function SettingsView() {
           </section>
 
           <section className={`${CARD} mt-4`}>
+            <h2 className="font-semibold">{t.settings.digest}</h2>
+            <p className="mt-1 text-sm text-zinc-600 dark:text-zinc-400">{t.settings.digestBody}</p>
+            {digestNote && (
+              <p className="mt-2 text-sm text-indigo-700 dark:text-indigo-300" role="status">
+                {digestNote}
+              </p>
+            )}
+            {family.features.billing && family.plan !== "family" ? (
+              <p className="mt-2 text-sm text-zinc-600 dark:text-zinc-400">
+                {t.settings.digestFamilyOnly}{" "}
+                <Link href={localePath(locale, "/pricing")} className="underline underline-offset-4">
+                  {t.settings.upgrade}
+                </Link>
+              </p>
+            ) : (
+              <>
+                <label className="mt-3 grid gap-1 text-sm">
+                  <span className="text-xs text-zinc-500">{t.settings.digestEmail}</span>
+                  <input
+                    className={INPUT}
+                    type="email"
+                    inputMode="email"
+                    autoComplete="email"
+                    value={settings.digestEmail}
+                    maxLength={120}
+                    onChange={(e) => setSettings({ ...settings, digestEmail: e.target.value, digest: e.target.value.trim() ? settings.digest : false })}
+                  />
+                </label>
+                <label className="mt-2 inline-flex items-center gap-2 text-sm">
+                  <input type="checkbox" checked={settings.digest} disabled={!settings.digestEmail.trim()} onChange={(e) => setSettings({ ...settings, digest: e.target.checked })} />
+                  {t.settings.digestOn}
+                </label>
+                {!family.features.digest && <p className="mt-2 text-xs text-zinc-500">{t.settings.digestOff}</p>}
+                {family.digest?.lastSentAt && (
+                  <p className="mt-2 text-xs text-zinc-500">
+                    {fmt(t.settings.digestLast, { when: new Date(family.digest.lastSentAt).toLocaleString(LOCALE_TAGS[locale], { dateStyle: "medium", timeStyle: "short" }) })}
+                  </p>
+                )}
+                <div className="mt-3 flex flex-wrap items-center gap-2">
+                  <button type="button" className={BTN_PRIMARY} disabled={saving} onClick={save}>
+                    {t.settings.save}
+                  </button>
+                  {family.features.digest && (
+                    <button type="button" className={BTN_SECONDARY} disabled={digestBusy || !settings.digestEmail.trim()} onClick={sendDigestTest}>
+                      {t.settings.digestTest}
+                    </button>
+                  )}
+                  <button type="button" className={BTN_SMALL} onClick={showPreview}>
+                    {t.settings.digestPreview}
+                  </button>
+                  {justSaved && <span className="text-sm text-emerald-700 dark:text-emerald-300">{t.settings.saved}</span>}
+                </div>
+                {preview && (
+                  <div className="mt-3 rounded-lg bg-zinc-100 p-3 text-xs dark:bg-zinc-800">
+                    <p className="font-semibold">{preview.subject}</p>
+                    <pre className="mt-2 whitespace-pre-wrap font-sans" dir="auto">
+                      {preview.text}
+                    </pre>
+                  </div>
+                )}
+              </>
+            )}
+          </section>
+
+          <section className={`${CARD} mt-4`}>
             <h2 className="font-semibold">{t.settings.inbound}</h2>
             {family.inboundAddress ? (
               <>
@@ -382,6 +583,43 @@ export default function SettingsView() {
 
           <section className={`${CARD} mt-4`}>
             <h2 className="font-semibold">{t.settings.share}</h2>
+            <h3 className="mt-3 text-sm font-semibold">{t.settings.invite}</h3>
+            <p className="mt-1 text-sm text-zinc-600 dark:text-zinc-400">{t.settings.inviteBody}</p>
+            {family.features.billing && family.plan !== "family" ? (
+              <p className="mt-2 text-sm text-zinc-600 dark:text-zinc-400">
+                {t.settings.inviteFamilyOnly}{" "}
+                <Link href={localePath(locale, "/pricing")} className="underline underline-offset-4">
+                  {t.settings.upgrade}
+                </Link>
+              </p>
+            ) : (
+              <>
+                <div className="mt-3 flex flex-wrap gap-2">
+                  <button type="button" className={invite ? BTN_SECONDARY : BTN_PRIMARY} disabled={inviteBusy} onClick={makeInvite}>
+                    {t.settings.inviteCreate}
+                  </button>
+                  {invite && (
+                    <button type="button" className={BTN_SECONDARY} onClick={() => copy(invite.url, "invite")}>
+                      {copied === "invite" ? t.settings.copied : t.settings.inviteCopy}
+                    </button>
+                  )}
+                  {invite && typeof navigator !== "undefined" && typeof navigator.share === "function" && (
+                    <button type="button" className={BTN_SECONDARY} onClick={shareInvite}>
+                      {t.settings.inviteShare}
+                    </button>
+                  )}
+                </div>
+                {invite && (
+                  <>
+                    <code className="mt-3 block select-all break-all rounded-lg bg-zinc-100 px-3 py-2 text-xs dark:bg-zinc-800">{invite.url}</code>
+                    <p className="mt-1 text-xs text-zinc-500">{fmt(t.settings.inviteExpires, { date: new Date(invite.expiresAt).toLocaleString(LOCALE_TAGS[locale], { dateStyle: "medium", timeStyle: "short" }) })}</p>
+                  </>
+                )}
+                {inviteError && <p className="mt-2 text-sm text-red-600 dark:text-red-400">{t.settings.inviteError}</p>}
+              </>
+            )}
+
+            <h3 className="mt-5 text-sm font-semibold">{t.settings.showKey}</h3>
             <p className="mt-1 text-sm text-zinc-600 dark:text-zinc-400">{t.settings.shareBody}</p>
             {storedKey ? (
               <div className="mt-3 flex flex-wrap items-center gap-2">

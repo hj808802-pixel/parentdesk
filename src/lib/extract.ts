@@ -67,6 +67,7 @@ Dates and times
 - Times are 24-hour local time. "Noon" is 12:00. A time range sets time and end_time. All-day when no time is stated.
 - A deadline, payment or consent item's date is its due date. If a slip is "due by" a day, use that day; if the notice says only "before the trip", use the day before the trip with confidence "medium".
 - Never move a date earlier or later to be helpful; the parent's calendar will carry the reminder.
+- Keep every item whose date the communication states, even when that date is already in the past (a letter can reach the parent late, or be added for the record). Never drop or skip an item because of its date; the app sorts past items under "past due" and the parent dismisses them. When the whole communication looks older than a month, say so in the summary.
 
 Children
 - The family's child names are given. Attach an item to a child only when the communication names the child, the class, grade or group that clearly belongs to that child, or the parent said which child it is about (the hint). Copy names exactly from the list. When unsure, leave children empty: the whole family sees it.

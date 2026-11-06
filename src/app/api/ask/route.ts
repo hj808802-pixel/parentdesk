@@ -2,7 +2,7 @@ import { modelErrorResponse } from "@/lib/apierror";
 import { askAssistant } from "@/lib/assist";
 import { todayIn } from "@/lib/dates";
 import { allowRequest, clientIp } from "@/lib/ratelimit";
-import { familyFromRequest } from "@/lib/store";
+import { bumpCounter, familyFromRequest, saveFamily } from "@/lib/store";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -25,6 +25,8 @@ export async function POST(req: Request) {
     const out = await askAssistant(rec, question, todayIn(rec.settings.timezone));
     const ids = new Set(out.result.item_ids);
     const items = rec.items.filter((it) => ids.has(it.id));
+    bumpCounter(rec, "ask");
+    await saveFamily(rec);
     console.log(JSON.stringify({ event: "ask", family: rec.id, chars: question.length, items: items.length, ms: Date.now() - started, model: out.model, mock: out.mock }));
     return Response.json({ ok: true, answer: out.result.answer, items, mock: out.mock });
   } catch (e) {

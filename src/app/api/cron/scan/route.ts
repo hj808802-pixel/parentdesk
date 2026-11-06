@@ -1,5 +1,7 @@
 import { timingSafeEqual } from "node:crypto";
 import { gmailEnabled, scanFamily } from "@/lib/gmail";
+import { recordRun } from "@/lib/ops";
+import { canUse } from "@/lib/plan";
 import { listFamilyIds, loadFamily, saveFamily } from "@/lib/store";
 
 export const runtime = "nodejs";
@@ -36,7 +38,7 @@ export async function GET(req: Request) {
         break;
       }
       const rec = await loadFamily(id);
-      if (!rec?.gmail || rec.gmail.paused) continue;
+      if (!rec?.gmail || rec.gmail.paused || !canUse(rec, "gmail")) continue;
       summary.connected++;
       const r = await scanFamily(rec, { budgetMs: PER_FAMILY_MS });
       await saveFamily(rec);
@@ -46,6 +48,8 @@ export async function GET(req: Request) {
       if (r.error) summary.errors++;
     }
   }
-  console.log(JSON.stringify({ event: "cron_scan", ms: Date.now() - started, ...summary }));
-  return Response.json({ ok: true, ...summary, ms: Date.now() - started });
+  const ms = Date.now() - started;
+  console.log(JSON.stringify({ event: "cron_scan", ms, ...summary }));
+  await recordRun("scan", ms, summary).catch((e) => console.error("[cron scan] record", e));
+  return Response.json({ ok: true, ...summary, ms });
 }

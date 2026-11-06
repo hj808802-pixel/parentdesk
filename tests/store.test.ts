@@ -1,5 +1,10 @@
 import { beforeEach, describe, expect, it } from "vitest";
 import {
+  acceptInvite,
+  addMemberKey,
+  createInvite,
+  liveInvites,
+  parseInviteToken,
   addExtraction,
   applyItemPatch,
   createFamily,
@@ -123,5 +128,56 @@ describe("store", () => {
     expect(cleared.time).toBeNull();
     expect(cleared.all_day).toBe(true);
     expect(cleared.date).toBeNull();
+  });
+
+  it("hands out invite links that expire and member keys that open the family", () => {
+    const { record, key } = createFamily();
+    const now = new Date("2026-11-06T10:00:00Z");
+    const made = createInvite(record, now)!;
+    expect(made.token).toMatch(/^[0-9a-f]{12}.[0-9a-f]{32}$/);
+    expect(liveInvites(record, now)).toHaveLength(1);
+    expect(toView(record).invites).toBe(1);
+    expect(JSON.stringify(toView(record))).not.toContain(made.invite.hash);
+    const parsed = parseInviteToken(made.token)!;
+    expect(parsed.id).toBe(record.id);
+    expect(parseInviteToken("abc.def")).toBeNull();
+    // three uses, then dead
+    expect(acceptInvite(record, parsed.secret, now)).toBe(true);
+    expect(acceptInvite(record, parsed.secret, now)).toBe(true);
+    expect(acceptInvite(record, parsed.secret, now)).toBe(true);
+    expect(acceptInvite(record, parsed.secret, now)).toBe(false);
+    expect(liveInvites(record, now)).toHaveLength(0);
+    // expiry
+    const again = createInvite(record, now)!;
+    const later = new Date("2026-11-10T10:00:00Z");
+    expect(acceptInvite(record, parseInviteToken(again.token)!.secret, later)).toBe(false);
+    expect(acceptInvite(record, "0".repeat(32), now)).toBe(false);
+    // at most five live links
+    for (let i = 0; i < 5; i++) createInvite(record, now);
+    expect(liveInvites(record, now)).toHaveLength(5);
+    expect(createInvite(record, now)).toBeNull();
+    // a member key verifies like the first key; the view shows neither hash
+    const member = addMemberKey(record);
+    expect(verifySecret(record, parseFamilyKey(member)!.secret)).toBe(true);
+    expect(verifySecret(record, parseFamilyKey(key)!.secret)).toBe(true);
+    expect((toView(record) as unknown as Record<string, unknown>).memberHashes).toBeUndefined();
+  });
+
+  it("validates the weekly summary address and keeps the UI locale", () => {
+    const { record } = createFamily({ locale: "de" });
+    expect(record.settings.locale).toBe("de");
+    expect(record.settings.digest).toBe(false);
+    const s1 = sanitizeSettings({ digest: true, digestEmail: " Parent@Example.com ", locale: "ja" }, record.settings);
+    expect(s1.digestEmail).toBe("parent@example.com");
+    expect(s1.digest).toBe(true);
+    expect(s1.locale).toBe("ja");
+    expect(createFamily().record.settings.locale).toBe(""); // unknown until the UI says
+    const s2 = sanitizeSettings({ digestEmail: "not an address", locale: "xx" }, s1);
+    expect(s2.digestEmail).toBe("parent@example.com");
+    expect(s2.locale).toBe("ja");
+    const s3 = sanitizeSettings({ digestEmail: "" }, s1);
+    expect(s3.digestEmail).toBe("");
+    expect(s3.digest).toBe(false); // no address, no digest
+    expect(sanitizeChildren([{ name: "A" }, { name: "B" }, { name: "C" }], [], 2).map((c) => c.name)).toEqual(["A", "B"]);
   });
 });

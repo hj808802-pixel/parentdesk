@@ -2,7 +2,7 @@ import { modelErrorResponse } from "@/lib/apierror";
 import { draftReply, REPLY_INTENTS, type ReplyIntent } from "@/lib/assist";
 import { todayIn } from "@/lib/dates";
 import { allowRequest, clientIp } from "@/lib/ratelimit";
-import { familyFromRequest } from "@/lib/store";
+import { bumpCounter, familyFromRequest, saveFamily } from "@/lib/store";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -29,6 +29,8 @@ export async function POST(req: Request, { params }: Params) {
   const source = rec.sources.find((s) => s.id === item.sourceId) ?? null;
   try {
     const out = await draftReply(rec, item, source, intent, note, todayIn(rec.settings.timezone));
+    bumpCounter(rec, "reply");
+    await saveFamily(rec);
     console.log(JSON.stringify({ event: "reply", family: rec.id, intent, model: out.model, mock: out.mock }));
     return Response.json({ ok: true, ...out.result, mock: out.mock });
   } catch (e) {

@@ -1,5 +1,7 @@
 import fs from "node:fs";
 import path from "node:path";
+import { adminEnabled } from "@/lib/admin";
+import { planLimits } from "@/lib/plan";
 import { features, storageMode } from "@/lib/store";
 
 export const runtime = "nodejs";
@@ -18,6 +20,10 @@ export async function GET() {
       inbound: Boolean(process.env.INBOUND_SECRET && process.env.INBOUND_DOMAIN),
       gmail: features().gmail,
       cron: Boolean(process.env.CRON_SECRET),
+      billing: features().billing,
+      digest: features().digest,
+      admin: adminEnabled(),
+      limits: planLimits(),
       assistModel: process.env.ASSIST_MODEL || "claude-sonnet-5-5",
       packs,
     },

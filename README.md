@@ -64,6 +64,14 @@ node scripts/errorcheck.mjs --url http://localhost:3000   # error paths, no mode
 - **E-mail forwarding**: `INBOUND_DOMAIN` + `INBOUND_SECRET` and the Cloudflare worker in `integrations/` (needs a domain).
 - **Gmail (beta)**: `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` (OAuth web client, redirect `<origin>/api/google/callback`, scope `gmail.readonly`) and `TOKEN_ENCRYPTION_KEY` (64 hex chars; refresh tokens are sealed with AES-256-GCM). The daily cron in `vercel.json` calls `/api/cron/scan` with `CRON_SECRET`. Trusted senders pass straight through; the rest are sorted by the classifier model (`CLASSIFY_MODEL`, default claude-haiku-5-5) before the extractor runs. Settings shows the channel only when the server has it configured.
 
+## Plans, weekly summary, invites, admin console (v0.4)
+
+- **Plans** (`src/lib/plan.ts`): while no Stripe keys are set every family has the Family plan and the beta is free. With `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET` and a price id, a family without a subscription is on Free: `FREE_MONTHLY_NOTICES` (15) notices a month and `FREE_MAX_CHILDREN` (1); Gmail, e-mail forwarding, the weekly summary and invite links are Family-only. Over the cap the API answers 402 `plan_limit`. The family key keeps working for everyone.
+- **Stripe** (`src/lib/stripe.ts`, REST, no SDK): `POST /api/billing/checkout` opens Checkout (monthly or yearly, `client_reference_id` = family id, the id also in subscription metadata), `POST /api/billing/portal` opens the Customer Portal, `POST /api/billing/webhook` verifies `Stripe-Signature` (HMAC, 5-minute tolerance, replays and out-of-order events ignored) and mirrors the subscription status into the family document. Nothing about the card is stored. `/pricing` shows the plans in every UI language.
+- **Weekly summary** (`src/lib/digest.ts`): past due, this week, next week, to pay (sums per currency), to sign and dateless to-dos, written in the family's UI language without a model call. Sent through Resend (`RESEND_API_KEY`, `DIGEST_FROM`) by `/api/cron/digest` on Sunday 21:00 UTC with one-click unsubscribe headers and a signed unsubscribe link; Settings has the address, the switch, a test send and a preview (the preview works without Resend).
+- **Invite links** (`POST /api/family/invite`, `/join?i=<family>.<secret>`): the record keeps a hash; a link works 3 times for 3 days, at most 5 live. A device that joins gets a member key of its own (same format; up to 10 hashes per family).
+- **Admin console** (`/admin`, `ADMIN_TOKEN` of 16+ characters): the token is exchanged for an HttpOnly cookie holding its hash; `/api/admin/stats` walks the family documents and returns counts only (families, items, notices per day, plans, Gmail, digest, countries, languages, lifetime counters, last cron runs from `ops/runs.json`) plus a per-family summary without item text or child names. Lives outside the locale routing and is never indexed.
+
 ## Deploy (Vercel)
 
 1. Import the repository, framework Next.js.
@@ -86,4 +94,4 @@ One extraction is roughly 3–6K input tokens (notice + cached rules and country
 
 ## Status
 
-v0.1 beta (2026-11-05). Not yet: payments, weekly digest e-mail, partner invite links, school-side dashboard. See the plan in the author's notes.
+v0.4 beta (2026-11-06): extraction, assistant, auto-collect channels, 10 UI languages, plans and Stripe billing, weekly summary e-mail, partner invite links, admin console. Billing and e-mail sending switch on when their keys are set. Not yet: school-side dashboard. See the plan in the author's notes.
