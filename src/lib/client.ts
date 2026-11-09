@@ -8,7 +8,8 @@ export type FamilyResponse = { ok: true; family: FamilyView; key?: string };
 export type TeacherResponse = { ok: true; teacher: TeacherView; key?: string };
 export type RoomInfoResponse = { ok: true; room: RoomPublic; following: boolean; childIds: string[] };
 export type RoomJoinResponse = FamilyResponse & { room: RoomPublic; backfilled: { posts: number; items: number } };
-export type RoomPostResponse = { ok: true; saved: boolean; school_related: boolean; summary?: string; post?: RoomPost; delivered?: number; members?: number; languages?: string[]; teacher?: TeacherView; mock: boolean };
+export type RoomPostResponse = { ok: true; saved: boolean; school_related: boolean; preview?: boolean; summary?: string; draft?: RoomPost; post?: RoomPost; delivered?: number; members?: number; languages?: string[]; teacher?: TeacherView; mock: boolean };
+export type RoomSendResponse = { ok: true; post: RoomPost; delivered: number; members: number; languages: string[]; teacher: TeacherView };
 
 export class ApiFailure extends Error {
   constructor(
@@ -66,8 +67,11 @@ export const api = {
   joinTeacher: (key: string) => call<TeacherResponse>("/api/teacher/join", { method: "POST", body: JSON.stringify({ key }) }),
   leaveTeacher: () => call<{ ok: true }>("/api/teacher/leave", { method: "POST" }),
   createRoom: (name: string) => call<TeacherResponse & { roomId: string }>("/api/teacher/rooms", { method: "POST", body: JSON.stringify({ name }) }),
-  updateRoom: (id: string, patch: { name?: string; rotate?: boolean }) => call<TeacherResponse>(`/api/teacher/rooms/${id}`, { method: "PATCH", body: JSON.stringify(patch) }),
+  updateRoom: (id: string, patch: { name?: string; rotate?: boolean; description?: string }) => call<TeacherResponse>(`/api/teacher/rooms/${id}`, { method: "PATCH", body: JSON.stringify(patch) }),
   deleteRoom: (id: string) => call<TeacherResponse>(`/api/teacher/rooms/${id}`, { method: "DELETE" }),
+  roomDraftSend: (roomId: string, draftId: string, body: { drop: number[]; targets: string[] }) => call<RoomSendResponse>(`/api/teacher/rooms/${roomId}/drafts/${draftId}`, { method: "POST", body: JSON.stringify(body) }),
+  roomDraftDiscard: (roomId: string, draftId: string) => call<TeacherResponse>(`/api/teacher/rooms/${roomId}/drafts/${draftId}`, { method: "DELETE" }),
+  roomPostRecall: (roomId: string, postId: string) => call<TeacherResponse & { families: number; items: number }>(`/api/teacher/rooms/${roomId}/posts/${postId}`, { method: "DELETE" }),
 };
 
 // The teacher key is shown on the teacher page so the desk can be opened on another

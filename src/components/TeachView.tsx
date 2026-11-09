@@ -9,11 +9,12 @@ import { useI18n } from "@/lib/i18n/context";
 import { fmt } from "@/lib/i18n";
 import { LOCALE_TAGS, localePath, regionName } from "@/lib/i18n/locales";
 import { shrinkImage } from "@/lib/image";
-import type { RoomView, TeacherView } from "@/lib/rooms";
+import type { RoomPost, RoomView, TeacherView } from "@/lib/rooms";
 import { OUTPUT_LANGUAGES } from "@/lib/schema";
 import { BTN_PRIMARY, BTN_SECONDARY, BTN_SMALL, CARD, INPUT, TYPE_STYLES } from "@/lib/ui";
 
-// /teach: the teacher's desk. Create it, open rooms, share each room's link, post notices.
+// /teach: the teacher's desk. Create it, open rooms, share each room's link, read a notice
+// in, check what was extracted, send it (to one room or several), recall it if needed.
 // The teacher key lives in the pd_teacher cookie; the browser remembers it in local
 // storage so it can be shown here, exactly like the family key in Settings.
 
@@ -306,6 +307,8 @@ export default function TeachView() {
   );
 }
 
+type Note = { kind: "ok" | "warn" | "error"; text: string; langs?: string };
+
 function RoomCard({
   room,
   teacher,
@@ -325,16 +328,19 @@ function RoomCard({
   const tag = LOCALE_TAGS[locale];
   const [text, setText] = useState("");
   const [files, setFiles] = useState<File[]>([]);
-  const [posting, setPosting] = useState(false);
+  const [reading, setReading] = useState(false);
   const [preparing, setPreparing] = useState(false);
-  const [note, setNote] = useState<{ kind: "ok" | "warn" | "error"; text: string; langs?: string } | null>(null);
+  const [note, setNote] = useState<Note | null>(null);
   const [showPosts, setShowPosts] = useState(false);
   const [showQr, setShowQr] = useState(false);
   const [openPost, setOpenPost] = useState<string | null>(null);
-  const [busy, setBusy] = useState(false);
+  const [busy, setBusy] = useState<string | null>(null);
+  const [drop, setDrop] = useState<Record<string, number[]>>({});
+  const [targets, setTargets] = useState<Record<string, string[]>>({});
   const inputRef = useRef<HTMLInputElement>(null);
   const link = roomJoinUrl(room.joinToken, localePath(locale, "/join"));
   const posts = [...room.posts].reverse();
+  const otherRooms = teacher.rooms.filter((r) => r.id !== room.id);
 
   async function addFiles(list: FileList | null) {
     if (!list || list.length === 0) return;
@@ -349,10 +355,12 @@ function RoomCard({
     }
   }
 
-  async function post() {
-    setPosting(true);
+  // Reads the notice into a draft; nothing reaches the families until the teacher sends it.
+  async function preview() {
+    setReading(true);
     setNote(null);
     const form = new FormData();
+    form.set("mode", "preview");
     if (text.trim()) form.set("text", text.trim());
     files.forEach((f) => form.append("files", f));
     try {
@@ -362,55 +370,110 @@ function RoomCard({
         setNote({ kind: "error", text: errorText(body?.error ?? "generic", { used: body?.used ?? 0, limit: body?.limit ?? 0 }) });
         return;
       }
-      if (!body.saved || !body.post) {
+      if (!body.school_related || !body.draft) {
         setNote({ kind: "warn", text: t.teach.postNotSchool });
         return;
       }
       if (body.teacher) onTeacher(body.teacher);
-      setNote({
-        kind: "ok",
-        text: fmt(t.teach.postDone, { items: body.post.items.length, n: body.delivered ?? 0 }),
-        langs: body.languages && body.languages.length ? fmt(t.teach.postLanguages, { langs: body.languages.map(languageLabel).join(", ") }) : undefined,
-      });
       setText("");
       setFiles([]);
-      setShowPosts(true);
-      setOpenPost(body.post.id);
     } catch {
       setNote({ kind: "error", text: errorText("generic") });
     } finally {
-      setPosting(false);
+      setReading(false);
+    }
+  }
+
+  async function send(draft: RoomPost) {
+    const dropped = drop[draft.id] ?? [];
+    if (dropped.length >= draft.items.length) {
+      setNote({ kind: "error", text: t.teach.noneSelected });
+      return;
+    }
+    setBusy(draft.id);
+    setNote(null);
+    try {
+      const res = await api.roomDraftSend(room.id, draft.id, { drop: dropped, targets: targets[draft.id] ?? [] });
+      onTeacher(res.teacher);
+      setNote({
+        kind: "ok",
+        text: fmt(t.teach.postDone, { items: res.post.items.length, n: res.delivered }),
+        langs: res.languages.length ? fmt(t.teach.postLanguages, { langs: res.languages.map(languageLabel).join(", ") }) : undefined,
+      });
+      setShowPosts(true);
+      setOpenPost(res.post.id);
+    } catch (err) {
+      setNote({ kind: "error", text: errorText(err instanceof ApiFailure ? err.code : "generic") });
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  async function discard(draft: RoomPost) {
+    if (!window.confirm(t.teach.discardConfirm)) return;
+    setBusy(draft.id);
+    try {
+      onTeacher((await api.roomDraftDiscard(room.id, draft.id)).teacher);
+    } catch (err) {
+      setNote({ kind: "error", text: errorText(err instanceof ApiFailure ? err.code : "generic") });
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  async function recall(post: RoomPost) {
+    if (!window.confirm(t.teach.recallConfirm)) return;
+    setBusy(post.id);
+    try {
+      const res = await api.roomPostRecall(room.id, post.id);
+      onTeacher(res.teacher);
+      setNote({ kind: "ok", text: fmt(t.teach.recalled, { n: res.families }) });
+    } catch (err) {
+      setNote({ kind: "error", text: errorText(err instanceof ApiFailure ? err.code : "generic") });
+    } finally {
+      setBusy(null);
     }
   }
 
   async function rename() {
     const next = window.prompt(t.teach.newRoom, room.name);
     if (!next || !next.trim() || next.trim() === room.name) return;
-    setBusy(true);
+    setBusy("room");
     try {
       onTeacher((await api.updateRoom(room.id, { name: next.trim() })).teacher);
     } finally {
-      setBusy(false);
+      setBusy(null);
+    }
+  }
+
+  async function editNote() {
+    const next = window.prompt(`${t.teach.description}\n${t.teach.descriptionPlaceholder}`, room.description);
+    if (next === null || next.trim() === room.description) return;
+    setBusy("room");
+    try {
+      onTeacher((await api.updateRoom(room.id, { description: next.trim() })).teacher);
+    } finally {
+      setBusy(null);
     }
   }
 
   async function rotate() {
     if (!window.confirm(t.teach.rotateConfirm)) return;
-    setBusy(true);
+    setBusy("room");
     try {
       onTeacher((await api.updateRoom(room.id, { rotate: true })).teacher);
     } finally {
-      setBusy(false);
+      setBusy(null);
     }
   }
 
   async function close() {
     if (!window.confirm(t.teach.deleteRoomConfirm)) return;
-    setBusy(true);
+    setBusy("room");
     try {
       onTeacher((await api.deleteRoom(room.id)).teacher);
     } finally {
-      setBusy(false);
+      setBusy(null);
     }
   }
 
@@ -422,23 +485,48 @@ function RoomCard({
     }
   }
 
+  const toggleDrop = (draftId: string, i: number) =>
+    setDrop((cur) => {
+      const set = cur[draftId] ?? [];
+      return { ...cur, [draftId]: set.includes(i) ? set.filter((x) => x !== i) : [...set, i] };
+    });
+  const toggleTarget = (draftId: string, id: string) =>
+    setTargets((cur) => {
+      const set = cur[draftId] ?? [];
+      return { ...cur, [draftId]: set.includes(id) ? set.filter((x) => x !== id) : [...set, id] };
+    });
+  const recipients = (draftId: string) => room.memberCount + otherRooms.filter((r) => (targets[draftId] ?? []).includes(r.id)).reduce((sum, r) => sum + r.memberCount, 0);
+
+  const roomBusy = busy === "room";
+
   return (
     <article className={`${CARD} border-emerald-200 dark:border-emerald-900`}>
       <div className="flex flex-wrap items-start justify-between gap-2">
-        <div>
+        <div className="min-w-0">
           <h3 dir="auto" className="text-lg font-semibold">{room.name}</h3>
           <p dir="auto" className="text-xs text-zinc-500">
             {fmt(t.teach.following, { n: room.memberCount })} · {[teacher.school, teacher.name].filter(Boolean).join(" · ")}
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
-          <button type="button" className={BTN_SMALL} disabled={busy} onClick={rename}>
+          <button type="button" className={BTN_SMALL} disabled={roomBusy} onClick={rename}>
             {t.teach.rename}
           </button>
-          <button type="button" className={`${BTN_SMALL} text-red-600 dark:text-red-400`} disabled={busy} onClick={close}>
+          <button type="button" className={`${BTN_SMALL} text-red-600 dark:text-red-400`} disabled={roomBusy} onClick={close}>
             {t.teach.deleteRoom}
           </button>
         </div>
+      </div>
+
+      <div className="mt-3 flex flex-wrap items-start gap-2 text-sm">
+        {room.description ? (
+          <p dir="auto" className="min-w-0 flex-1 rounded-lg bg-zinc-50 px-3 py-2 text-zinc-700 dark:bg-zinc-800/60 dark:text-zinc-300">{room.description}</p>
+        ) : (
+          <p className="min-w-0 flex-1 text-xs text-zinc-500">{t.teach.description}</p>
+        )}
+        <button type="button" className={BTN_SMALL} disabled={roomBusy} onClick={editNote}>
+          {t.teach.descriptionEdit}
+        </button>
       </div>
 
       <p className="mt-4 text-xs font-semibold uppercase tracking-wide text-zinc-500">{t.teach.link}</p>
@@ -455,7 +543,7 @@ function RoomCard({
         <button type="button" className={BTN_SMALL} onClick={() => setShowQr((s) => !s)}>
           {showQr ? t.teach.hideQr : t.teach.showQr}
         </button>
-        <button type="button" className={BTN_SMALL} disabled={busy} onClick={rotate}>
+        <button type="button" className={BTN_SMALL} disabled={roomBusy} onClick={rotate}>
           {t.teach.rotate}
         </button>
       </div>
@@ -499,11 +587,69 @@ function RoomCard({
         ))}
       </div>
       <div className="mt-3 flex flex-wrap items-center gap-3">
-        <button type="button" className={BTN_PRIMARY} disabled={posting || preparing || (text.trim().length < 10 && files.length === 0)} onClick={post}>
-          {posting ? t.teach.postWorking : t.teach.postSubmit}
+        <button type="button" className={BTN_PRIMARY} disabled={reading || preparing || (text.trim().length < 10 && files.length === 0)} onClick={preview}>
+          {reading ? t.add.working : t.teach.preview}
         </button>
-        {preparing && !posting && <span className="text-sm text-zinc-500">{t.add.preparing}</span>}
+        {preparing && !reading && <span className="text-sm text-zinc-500">{t.add.preparing}</span>}
       </div>
+
+      {room.drafts.length > 0 && (
+        <section className="mt-4">
+          <p className="text-xs font-semibold uppercase tracking-wide text-amber-700 dark:text-amber-300">{t.teach.drafts}</p>
+          <p className="mt-1 text-xs text-zinc-500">{t.teach.draftHint}</p>
+          <div className="mt-2 grid gap-3">
+            {[...room.drafts].reverse().map((d) => {
+              const dropped = drop[d.id] ?? [];
+              return (
+                <div key={d.id} className="rounded-xl border border-amber-200 bg-amber-50/50 p-3 text-sm dark:border-amber-900 dark:bg-amber-950/20">
+                  <p dir="auto" className="font-semibold">{d.title}</p>
+                  <p dir="auto" className="mt-1 text-xs text-zinc-600 dark:text-zinc-400">{d.summary}</p>
+                  <ul className="mt-2 grid gap-1">
+                    {d.items.map((it, i) => (
+                      <li key={i}>
+                        <label className={`flex items-start gap-2 ${dropped.includes(i) ? "opacity-50" : ""}`}>
+                          <input type="checkbox" className="mt-0.5" checked={!dropped.includes(i)} onChange={() => toggleDrop(d.id, i)} />
+                          <span className="min-w-0">
+                            <span className={`mr-1 rounded-full px-1.5 py-0.5 text-[10px] font-medium ${TYPE_STYLES[it.type].badge}`}>{t.item.types[it.type]}</span>
+                            {it.date && <span className="mr-1 text-xs text-zinc-600 dark:text-zinc-400">{formatDate(it.date, tag)}</span>}
+                            <span dir="auto">{it.title}</span>
+                            {it.description && <span dir="auto" className="block text-xs text-zinc-500">{it.description}</span>}
+                          </span>
+                        </label>
+                      </li>
+                    ))}
+                  </ul>
+                  {otherRooms.length > 0 && (
+                    <fieldset className="mt-3">
+                      <legend className="text-xs text-zinc-500">{t.teach.sendAlso}</legend>
+                      <div className="mt-1 flex flex-wrap gap-2">
+                        {otherRooms.map((r) => {
+                          const on = (targets[d.id] ?? []).includes(r.id);
+                          return (
+                            <label key={r.id} className={`cursor-pointer rounded-full border px-3 py-1 text-xs ${on ? "border-emerald-600 bg-emerald-600 text-white" : "border-zinc-300 dark:border-zinc-700"}`}>
+                              <input type="checkbox" className="sr-only" checked={on} onChange={() => toggleTarget(d.id, r.id)} />
+                              {r.name} · {r.memberCount}
+                            </label>
+                          );
+                        })}
+                      </div>
+                    </fieldset>
+                  )}
+                  <div className="mt-3 flex flex-wrap gap-2">
+                    <button type="button" className={BTN_PRIMARY} disabled={busy === d.id || dropped.length >= d.items.length} onClick={() => send(d)}>
+                      {busy === d.id ? t.teach.postWorking : fmt(t.teach.sendTo, { n: recipients(d.id) })}
+                    </button>
+                    <button type="button" className={BTN_SMALL} disabled={busy === d.id} onClick={() => discard(d)}>
+                      {t.teach.discard}
+                    </button>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </section>
+      )}
+
       {note && (
         <p
           role="status"
@@ -536,18 +682,23 @@ function RoomCard({
                   </span>
                 </button>
                 {openPost === p.id && (
-                  <ul className="mt-2 grid gap-1">
-                    {p.items.map((it, i) => (
-                      <li key={i} className="flex flex-wrap items-center gap-2 text-xs">
-                        <span className={`rounded-full px-2 py-0.5 font-medium ${TYPE_STYLES[it.type].badge}`}>{t.item.types[it.type]}</span>
-                        {it.date && <span className="text-zinc-600 dark:text-zinc-400">{formatDate(it.date, tag)}</span>}
-                        <span dir="auto">{it.title}</span>
-                      </li>
-                    ))}
-                    {Object.keys(p.translations).length > 0 && (
-                      <li className="text-xs text-zinc-500">{fmt(t.teach.postLanguages, { langs: Object.keys(p.translations).map(languageLabel).join(", ") })}</li>
-                    )}
-                  </ul>
+                  <div className="mt-2">
+                    <ul className="grid gap-1">
+                      {p.items.map((it, i) => (
+                        <li key={i} className="flex flex-wrap items-center gap-2 text-xs">
+                          <span className={`rounded-full px-2 py-0.5 font-medium ${TYPE_STYLES[it.type].badge}`}>{t.item.types[it.type]}</span>
+                          {it.date && <span className="text-zinc-600 dark:text-zinc-400">{formatDate(it.date, tag)}</span>}
+                          <span dir="auto">{it.title}</span>
+                        </li>
+                      ))}
+                      {Object.keys(p.translations).length > 0 && (
+                        <li className="text-xs text-zinc-500">{fmt(t.teach.postLanguages, { langs: Object.keys(p.translations).map(languageLabel).join(", ") })}</li>
+                      )}
+                    </ul>
+                    <button type="button" className={`${BTN_SMALL} mt-2 text-red-600 dark:text-red-400`} disabled={busy === p.id} onClick={() => recall(p)}>
+                      {t.teach.recall}
+                    </button>
+                  </div>
                 )}
               </li>
             ))}

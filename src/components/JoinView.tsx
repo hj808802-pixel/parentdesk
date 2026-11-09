@@ -149,6 +149,7 @@ function RoomJoin({ token }: { token: string }) {
               {fmt(room.teacherName ? t.join.roomLead : t.join.roomLeadNoTeacher, { teacher: room.teacherName, room: roomLabel })}
             </p>
             <p className="mt-1 text-xs text-zinc-500">{fmt(t.join.roomFollowers, { n: room.memberCount })}</p>
+            {room.description && <p dir="auto" className="mt-3 rounded-lg bg-zinc-50 px-3 py-2 text-sm text-zinc-700 dark:bg-zinc-800/60 dark:text-zinc-300">{room.description}</p>}
             {info?.following && <p className="mt-3 rounded-lg bg-amber-50 px-3 py-2 text-sm text-amber-800 dark:bg-amber-950/40 dark:text-amber-200">{t.join.roomAlready}</p>}
             {family && family.children.length > 0 && (
               <fieldset className="mt-4">

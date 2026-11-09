@@ -1,9 +1,10 @@
-import { deleteRoom, loadRoom, loadRooms, rotateJoinSecret, sanitizeName, saveRoom, saveTeacher, teacherFromRequest, teacherView } from "@/lib/rooms";
+import { deleteRoom, loadRoom, loadRooms, rotateJoinSecret, sanitizeDescription, sanitizeName, saveRoom, saveTeacher, teacherFromRequest, teacherView } from "@/lib/rooms";
 
 export const runtime = "nodejs";
 
-// One of the teacher's rooms. PATCH: { name } renames it, { rotate: true } makes a new join
-// link (the old one stops working; families already following stay). DELETE: closes it.
+// One of the teacher's rooms. PATCH: { name } renames it, { description } sets the note parents
+// see when they join, { rotate: true } makes a new join link (the old one stops working;
+// families already following stay). DELETE: closes it.
 
 export async function PATCH(req: Request, { params }: { params: Promise<{ id: string }> }) {
   const teacher = await teacherFromRequest(req);
@@ -18,6 +19,7 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
     if (!name) return Response.json({ ok: false, error: "name_required" }, { status: 400 });
     room.name = name;
   }
+  if (typeof body.description === "string") room.description = sanitizeDescription(body.description);
   if (body.rotate === true) rotateJoinSecret(room);
   await saveRoom(room);
   return Response.json({ ok: true, teacher: teacherView(teacher, await loadRooms(teacher)) });

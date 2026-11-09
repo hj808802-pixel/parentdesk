@@ -2,7 +2,8 @@ import { createHash, timingSafeEqual } from "node:crypto";
 import { todayIn } from "./dates";
 import type { ExtractContext } from "./extract";
 import type { Extraction } from "./schema";
-import { commitItems, defaultSettings, draftItem, listDocIds, newId, readDoc, removeDoc, sanitizeSettings, writeDoc, type ItemDraft } from "./store";
+import { translatePost } from "./assist";
+import { commitItems, defaultSettings, draftItem, listDocIds, loadFamily, newId, readDoc, removeDoc, sanitizeSettings, saveFamily, writeDoc, type ItemDraft } from "./store";
 import type { FamilyRecord, Item, RoomSubscription, Settings, Source } from "./types";
 
 // Class rooms: a teacher posts a notice once, every family that follows the room gets the
@@ -71,11 +72,13 @@ export type RoomRecord = {
   id: string;
   teacherId: string;
   name: string;
+  description: string; // optional note parents see on the join page
   joinSecret: string;
   createdAt: string;
   updatedAt: string;
   members: RoomMember[];
-  posts: RoomPost[];
+  posts: RoomPost[]; // sent
+  drafts: RoomPost[]; // extracted, waiting for the teacher to check and send
 };
 
 // What the teacher's browser sees: no member ids, the join token to build the link.
@@ -83,7 +86,7 @@ export type RoomView = Omit<RoomRecord, "joinSecret" | "members"> & { memberCoun
 export type TeacherView = Omit<TeacherRecord, "keyHash"> & { rooms: RoomView[]; postCap: number };
 
 // What a parent sees before joining.
-export type RoomPublic = { id: string; name: string; teacherName: string; school: string; memberCount: number; postCount: number; language: string };
+export type RoomPublic = { id: string; name: string; description: string; teacherName: string; school: string; memberCount: number; postCount: number; language: string };
 
 // Who a post comes from, as families see it. A TeacherRecord fits.
 export type Sender = { name: string; school: string };
@@ -176,6 +179,10 @@ export function sanitizeSchool(x: unknown): string {
   return typeof x === "string" ? x.replace(/\s+/g, " ").trim().slice(0, 80) : "";
 }
 
+export function sanitizeDescription(x: unknown): string {
+  return typeof x === "string" ? x.replace(/\s+/g, " ").trim().slice(0, 300) : "";
+}
+
 export function createTeacher(init: { name?: unknown; school?: unknown; locale?: string | null; timezone?: string | null; settings?: Partial<Settings> } = {}): { record: TeacherRecord; key: string } {
   const now = new Date().toISOString();
   const id = newId(6);
@@ -199,7 +206,7 @@ export function createRoom(teacher: TeacherRecord, name: unknown): RoomRecord | 
   const clean = sanitizeName(name);
   if (!clean) return null;
   const now = new Date().toISOString();
-  const room: RoomRecord = { id: newId(6), teacherId: teacher.id, name: clean, joinSecret: newId(8), createdAt: now, updatedAt: now, members: [], posts: [] };
+  const room: RoomRecord = { id: newId(6), teacherId: teacher.id, name: clean, description: "", joinSecret: newId(8), createdAt: now, updatedAt: now, members: [], posts: [], drafts: [] };
   teacher.roomIds = [...teacher.roomIds, room.id];
   return room;
 }
@@ -261,6 +268,119 @@ export function makePost(room: RoomRecord, teacher: TeacherRecord, extraction: E
 export function addPost(room: RoomRecord, post: RoomPost) {
   room.posts.push(post);
   if (room.posts.length > MAX_POSTS_KEPT) room.posts = room.posts.slice(-MAX_POSTS_KEPT);
+}
+
+// ---- drafts: check before sending ----
+
+const MAX_DRAFTS = 10;
+const DELIVERY_BATCH = 8;
+
+export function addDraft(room: RoomRecord, post: RoomPost) {
+  room.drafts.push(post);
+  if (room.drafts.length > MAX_DRAFTS) room.drafts = room.drafts.slice(-MAX_DRAFTS);
+}
+
+// Removes the draft from the room and returns it, or null when it is not there.
+export function takeDraft(room: RoomRecord, id: string): RoomPost | null {
+  const draft = room.drafts.find((d) => d.id === id) ?? null;
+  if (draft) room.drafts = room.drafts.filter((d) => d.id !== id);
+  return draft;
+}
+
+export function removePost(room: RoomRecord, id: string): boolean {
+  const before = room.posts.length;
+  room.posts = room.posts.filter((p) => p.id !== id);
+  return room.posts.length < before;
+}
+
+// The post without the items the teacher unticked (zero-based indexes into post.items).
+export function dropItems(post: RoomPost, drop: unknown): RoomPost {
+  const skip = new Set(Array.isArray(drop) ? drop.filter((i): i is number => Number.isInteger(i) && i >= 0) : []);
+  if (skip.size === 0) return post;
+  const keep = (list: ItemDraft[]) => list.filter((_, i) => !skip.has(i));
+  const translations: Record<string, PostTranslation> = {};
+  for (const [lang, tr] of Object.entries(post.translations)) translations[lang] = { ...tr, items: tr.items.length === post.items.length ? keep(tr.items) : tr.items };
+  return { ...post, items: keep(post.items), translations };
+}
+
+// Takes a recalled post off one family's list: the notice and every item that came from it.
+export function recallFromFamily(rec: FamilyRecord, postId: string): { sources: number; items: number } {
+  const gone = rec.sources.filter((s) => s.postId === postId).map((s) => s.id);
+  if (gone.length === 0) return { sources: 0, items: 0 };
+  const before = rec.items.length;
+  rec.sources = rec.sources.filter((s) => s.postId !== postId);
+  rec.items = rec.items.filter((it) => !gone.includes(it.sourceId));
+  return { sources: gone.length, items: before - rec.items.length };
+}
+
+// The member families that still exist and still follow the room. Members that are gone
+// are dropped from the room on the way (the caller saves the room).
+export async function loadMemberFamilies(room: RoomRecord): Promise<FamilyRecord[]> {
+  const loaded = await Promise.all(room.members.map((m) => loadFamily(m.familyId)));
+  const families = loaded.filter((fam): fam is FamilyRecord => Boolean(fam && (fam.rooms ?? []).some((s) => s.roomId === room.id)));
+  const keep = new Set(families.map((f) => f.id));
+  room.members = room.members.filter((m) => keep.has(m.familyId));
+  return families;
+}
+
+// Sends one post to every family that follows any of the rooms (a family in two of them
+// gets it once): translates it once per result language the families read, writes it onto
+// each list, and records it in every room. Saves the rooms, not the teacher.
+export async function sendPost(teacher: TeacherRecord, rooms: RoomRecord[], post: RoomPost): Promise<{ delivered: number; items: number; languages: string[]; members: number }> {
+  const seen = new Map<string, { fam: FamilyRecord; room: RoomRecord }>();
+  for (const room of rooms) for (const fam of await loadMemberFamilies(room)) if (!seen.has(fam.id)) seen.set(fam.id, { fam, room });
+  const families = [...seen.values()];
+  const languages = [...new Set(families.map((f) => f.fam.settings.language))].filter((l) => l !== post.language && !post.translations[l]);
+  const done = await Promise.allSettled(languages.map((lang) => translatePost(post, post.language, lang)));
+  done.forEach((r, i) => {
+    if (r.status === "fulfilled") post.translations[languages[i]] = r.value.result;
+    else console.warn("[room post] translation failed", languages[i], r.reason instanceof Error ? r.reason.message : r.reason);
+  });
+  let delivered = 0;
+  let items = 0;
+  for (let i = 0; i < families.length; i += DELIVERY_BATCH) {
+    await Promise.all(
+      families.slice(i, i + DELIVERY_BATCH).map(async ({ fam, room }) => {
+        const res = deliverPost(fam, room, post, teacher);
+        if (!res) return;
+        try {
+          await saveFamily(fam);
+          delivered++;
+          items += res.items.length;
+        } catch (e) {
+          console.error("[room post] save failed", fam.id, e);
+        }
+      }),
+    );
+  }
+  post.delivered = delivered;
+  for (const room of rooms) {
+    addPost(room, post);
+    await saveRoom(room);
+  }
+  return { delivered, items, languages, members: families.length };
+}
+
+// Recalls a post from every room of the teacher that holds it and from every family that
+// follows those rooms. Families that left a room keep what they had.
+export async function recallPost(teacher: TeacherRecord, postId: string): Promise<{ rooms: number; families: number; items: number }> {
+  const rooms = (await loadRooms(teacher)).filter((r) => r.posts.some((p) => p.id === postId));
+  const seen = new Map<string, FamilyRecord>();
+  for (const room of rooms) for (const fam of await loadMemberFamilies(room)) seen.set(fam.id, fam);
+  let families = 0;
+  let items = 0;
+  for (const fam of seen.values()) {
+    const res = recallFromFamily(fam, postId);
+    if (res.sources === 0) continue;
+    await saveFamily(fam);
+    families++;
+    items += res.items;
+  }
+  for (const room of rooms) {
+    removePost(room, postId);
+    await saveRoom(room);
+  }
+  return { rooms: rooms.length, families, items };
 }
 
 // The post in a family's result language: its translation when one was made, else the
@@ -389,7 +509,7 @@ export function teacherView(teacher: TeacherRecord, rooms: RoomRecord[]): Teache
 }
 
 export function roomPublic(room: RoomRecord, teacher: TeacherRecord | null): RoomPublic {
-  return { id: room.id, name: room.name, teacherName: teacher?.name ?? "", school: teacher?.school ?? "", memberCount: room.members.length, postCount: room.posts.length, language: teacher?.settings.language ?? "en" };
+  return { id: room.id, name: room.name, description: room.description, teacherName: teacher?.name ?? "", school: teacher?.school ?? "", memberCount: room.members.length, postCount: room.posts.length, language: teacher?.settings.language ?? "en" };
 }
 
 // ---- storage ----
@@ -430,7 +550,9 @@ export async function loadRoom(id: string): Promise<RoomRecord | null> {
     if (!room || room.id !== id || !room.teacherId || !room.joinSecret) return null;
     room.members ??= [];
     room.posts ??= [];
-    for (const p of room.posts) p.translations ??= {};
+    room.drafts ??= [];
+    room.description = sanitizeDescription(room.description);
+    for (const p of [...room.posts, ...room.drafts]) p.translations ??= {};
     return room;
   } catch {
     return null;

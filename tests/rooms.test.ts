@@ -2,8 +2,16 @@ import { beforeEach, describe, expect, it } from "vitest";
 import { translatePost } from "@/lib/assist";
 import { mockExtraction } from "@/lib/extract";
 import {
+  addDraft,
   addPost,
   backfill,
+  dropItems,
+  recallFromFamily,
+  recallPost,
+  removePost,
+  sanitizeDescription,
+  sendPost,
+  takeDraft,
   postsNeedingTranslation,
   recentPosts,
   canPost,
@@ -34,6 +42,8 @@ import {
   verifyTeacherSecret,
 } from "@/lib/rooms";
 import { createFamily, loadFamily, resetMemoryStore, sanitizeChildren, saveFamily, toView } from "@/lib/store";
+
+const anyPost = (room: Parameters<typeof makePost>[0], teacher: Parameters<typeof makePost>[1]) => makePost(room, teacher, mockExtraction(ctx), 1);
 
 const ctx = { language: "en", country: "US", timezone: "America/New_York", dateOrder: "MDY" as const, currency: "USD", weekStart: 0 as const, childNames: [], todayIso: "2026-11-05" };
 
@@ -210,6 +220,49 @@ describe("rooms", () => {
     expect(postsNeedingTranslation(recentPosts(room, now), "ko").map((p) => p.id)).toEqual([a.id, c.id]);
     expect(postsNeedingTranslation(recentPosts(room, now), "en")).toEqual([]); // the room's own language
     expect(postsNeedingTranslation(recentPosts(room, now), "ja", 1).map((p) => p.id)).toEqual([c.id]); // newest first when capped
+  });
+
+  it("keeps drafts, sends one post to several rooms once per family, and recalls it", async () => {
+    const { record: teacher } = createTeacher({ name: "T" }); // writes in English
+    const a = createRoom(teacher, "A")!;
+    const b = createRoom(teacher, "B")!;
+    const { record: famA } = createFamily();
+    const { record: famAB } = createFamily({ locale: "ko" });
+    subscribe(famA, a, teacher, []);
+    subscribe(famAB, a, teacher, []);
+    subscribe(famAB, b, teacher, []);
+    await saveFamily(famA);
+    await saveFamily(famAB);
+    await saveTeacher(teacher);
+    const post = anyPost(a, teacher);
+    addDraft(a, post);
+    expect(a.drafts.map((d) => d.id)).toEqual([post.id]);
+    const trimmed = dropItems(post, [0, 99, -1, "x"]);
+    expect(trimmed.items.length).toBe(post.items.length - 1);
+    expect(dropItems(post, []).items.length).toBe(post.items.length);
+    expect(takeDraft(a, post.id)?.id).toBe(post.id);
+    expect(takeDraft(a, post.id)).toBeNull();
+    expect(a.drafts).toEqual([]);
+    const sent = await sendPost(teacher, [a, b], trimmed);
+    expect(sent).toMatchObject({ members: 2, delivered: 2, languages: ["ko"] });
+    expect(a.posts.map((p) => p.id)).toEqual([post.id]);
+    expect(b.posts.map((p) => p.id)).toEqual([post.id]); // the same post sits in both rooms
+    const ab = (await loadFamily(famAB.id))!;
+    expect(ab.sources.filter((s) => s.postId === post.id).length).toBe(1); // in two rooms, delivered once
+    expect(ab.items.length).toBe(trimmed.items.length);
+    expect(ab.sources[0].title.startsWith("[ko] ")).toBe(true); // translated for the Korean family
+    expect((await loadFamily(famA.id))!.sources[0].title.startsWith("[ko] ")).toBe(false);
+    expect(recallFromFamily(famA, "nope")).toEqual({ sources: 0, items: 0 });
+    const res = await recallPost(teacher, post.id);
+    expect(res).toEqual({ rooms: 2, families: 2, items: trimmed.items.length * 2 });
+    expect((await loadFamily(famAB.id))!.items.length).toBe(0);
+    expect((await loadFamily(famAB.id))!.sources.length).toBe(0);
+    expect((await loadRoom(a.id))!.posts.length).toBe(0);
+    const bb = (await loadRoom(b.id))!; // the stored copy, not the local object
+    expect(bb.posts.length).toBe(0);
+    expect(removePost(bb, post.id)).toBe(false); // already gone
+    expect(sanitizeDescription("  Office   hours\n Tue ")).toBe("Office hours Tue");
+    expect(sanitizeDescription("x".repeat(400)).length).toBe(300);
   });
 
   it("translates a post in demo mode and keeps the item shape", async () => {
