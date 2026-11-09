@@ -91,6 +91,7 @@ function RoomFinder() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [picked, setPicked] = useState<DirectoryHit | null>(null);
+  const [now] = useState(() => Date.now()); // "n days ago" is measured from when the page opened
 
   async function search(e: React.FormEvent) {
     e.preventDefault();
@@ -124,6 +125,9 @@ function RoomFinder() {
         </form>
         {error && <p className="mt-3 text-sm text-red-600 dark:text-red-400">{error}</p>}
         {hits && hits.length === 0 && <p className="mt-3 text-sm text-zinc-600 dark:text-zinc-400">{t.join.findNone}</p>}
+        {hits && hits.length > 0 && new Set(hits.map((h) => h.schoolId)).size > new Set(hits.map((h) => h.school.toLowerCase().replace(/\s+/g, ""))).size && (
+          <p className="mt-3 rounded-lg bg-amber-50 px-3 py-2 text-sm text-amber-900 dark:bg-amber-950/40 dark:text-amber-200">{t.join.sameName}</p>
+        )}
         {hits && hits.length > 0 && (
           <ul className="mt-3 grid gap-2" aria-live="polite">
             {hits.map((h) => (
@@ -138,7 +142,7 @@ function RoomFinder() {
                     {roomLine(t, h)}
                   </span>
                   <span dir="auto" className="block text-xs text-zinc-500">
-                    {[h.teacherName, fmt(t.join.roomFollowers, { n: h.members })].filter(Boolean).join(" · ")}
+                    {[h.teacherName, fmt(t.join.roomFollowers, { n: h.members }), h.lastPostAt ? fmt(t.join.lastPost, { n: Math.max(0, Math.floor((now - Date.parse(h.lastPostAt)) / 86400000)) }) : t.join.noPosts].filter(Boolean).join(" · ")}
                   </span>
                 </button>
               </li>

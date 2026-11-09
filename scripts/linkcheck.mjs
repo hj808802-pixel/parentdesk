@@ -113,6 +113,7 @@ await check("teacher: none", `${BASE}/api/teacher`, {}, [404]);
 await check("teacher join: bad key", `${BASE}/api/teacher/join`, json(JSON.stringify({ key: "nope" })), [400]);
 await check("room join: bad token", `${BASE}/api/rooms/join?r=nope`, {}, [400]);
 await check("room search: no query", `${BASE}/api/rooms/search`, {}, [400]);
+await check("school search: no query", `${BASE}/api/schools/search`, {}, [400]);
 await check("room: no family", `${BASE}/api/rooms/abc`, { method: "DELETE" }, [404]);
 await check("teacher room qr: no teacher", `${BASE}/api/teacher/rooms/abc/qr`, {}, [404]);
 await check("teacher translate: no teacher", `${BASE}/api/teacher/translate`, json(JSON.stringify({ text: "hola" })), [404]);

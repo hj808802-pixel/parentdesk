@@ -1,5 +1,5 @@
 import { allowRequest, clientIp } from "@/lib/ratelimit";
-import { clearTeacherCookie, createTeacher, deleteRoom, deleteTeacher, loadRooms, removeFromDirectory, sanitizeName, sanitizeSchool, saveTeacher, syncDirectory, teacherCookie, teacherFromRequest, teacherView } from "@/lib/rooms";
+import { clearTeacherCookie, createTeacher, deleteRoom, deleteTeacher, forgetSchoolIfUnused, loadRooms, rememberSchool, removeFromDirectory, sanitizeName, sanitizePlace, sanitizeSchool, saveTeacher, schoolIdOf, syncDirectory, teacherCookie, teacherFromRequest, teacherView } from "@/lib/rooms";
 import { isHttps, sanitizeSettings } from "@/lib/store";
 
 export const runtime = "nodejs";
@@ -28,11 +28,14 @@ export async function POST(req: Request) {
   const { record, key } = createTeacher({
     name,
     school: body.school,
+    region: body.region,
+    city: body.city,
     locale: typeof body.locale === "string" ? body.locale : null,
     timezone: typeof body.timezone === "string" ? body.timezone : null,
     settings: body.settings && typeof body.settings === "object" ? (body.settings as Record<string, unknown>) : undefined,
   });
   await saveTeacher(record);
+  if (record.school) await rememberSchool(record);
   return Response.json({ ok: true, teacher: teacherView(record, []), key }, { headers: { "set-cookie": teacherCookie(key, isHttps(req)) } });
 }
 
@@ -46,12 +49,19 @@ export async function PATCH(req: Request) {
     if (!name) return Response.json({ ok: false, error: "name_required" }, { status: 400 });
     teacher.name = name;
   }
+  const before = schoolIdOf(teacher);
   if (typeof body.school === "string") teacher.school = sanitizeSchool(body.school);
+  if (typeof body.region === "string") teacher.region = sanitizePlace(body.region);
+  if (typeof body.city === "string") teacher.city = sanitizePlace(body.city);
   if (body.settings) teacher.settings = sanitizeSettings(body.settings, teacher.settings);
   await saveTeacher(teacher);
-  // The directory shows the school, the teacher's name and country: keep it in step.
+  // The directory shows the school, the teacher's name and country: keep it in step, and
+  // the school list follows the school the teacher now names.
   const rooms = await loadRooms(teacher);
   if (rooms.some((r) => r.listed)) await syncDirectory(teacher, rooms);
+  const after = schoolIdOf(teacher);
+  if (after) await rememberSchool(teacher);
+  if (before && before !== after) await forgetSchoolIfUnused(before);
   return Response.json({ ok: true, teacher: teacherView(teacher, rooms) });
 }
 
@@ -62,6 +72,7 @@ export async function DELETE(req: Request) {
     for (const room of rooms) await deleteRoom(room.id);
     await deleteTeacher(teacher.id);
     await removeFromDirectory(rooms.map((r) => r.id));
+    await forgetSchoolIfUnused(schoolIdOf(teacher));
   }
   return Response.json({ ok: true }, { headers: { "set-cookie": clearTeacherCookie(isHttps(req)) } });
 }

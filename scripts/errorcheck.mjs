@@ -132,6 +132,8 @@ expect("teacher compose: no teacher", await call("POST", "/api/teacher/rooms/abc
 expect("teacher translate: no teacher", await call("POST", "/api/teacher/translate", { json: { text: "hola" } }), 404);
 expect("room join: malformed token", await call("GET", "/api/rooms/join?r=abc"), 400);
 expect("room search: no query", await call("GET", "/api/rooms/search"), 400);
+expect("school search: no query", await call("GET", "/api/schools/search"), 400);
+expect("school search: nothing matches", await call("GET", "/api/schools/search?q=zzqqxxnothing"), 200, (r) => Array.isArray(r.data.schools) && r.data.schools.length === 0);
 expect("room search: query too short", await call("GET", "/api/rooms/search?q=a"), 400);
 expect("room search: nothing matches", await call("GET", "/api/rooms/search?q=zzqqxxnothing"), 200, (r) => Array.isArray(r.data.rooms) && r.data.rooms.length === 0);
 expect("room join by id: malformed", await call("GET", "/api/rooms/join?id=abc"), 400);
@@ -257,6 +259,8 @@ if (key) {
     expect("teacher: empty name rejected", await call("PATCH", "/api/teacher", { json: { name: " " } }), 400);
     expect("teacher: long school name capped", await call("PATCH", "/api/teacher", { json: { school: "s".repeat(100) } }), 200, (r) => r.data.teacher.school.length === 80);
     expect("teacher: school and time zone saved", await call("PATCH", "/api/teacher", { json: { school: "  Oak   Street Elementary ", settings: { timezone: "Asia/Seoul" } } }), 200, (r) => r.data.teacher.school === "Oak Street Elementary" && r.data.teacher.settings.timezone === "Asia/Seoul");
+    expect("teacher: region and city saved and capped", await call("PATCH", "/api/teacher", { json: { region: " Seoul ", city: "x".repeat(60) } }), 200, (r) => r.data.teacher.region === "Seoul" && r.data.teacher.city.length === 40 && r.data.teacher.schoolId.length === 12);
+    expect("school search: finds the teacher's school with its place", await call("GET", "/api/schools/search?q=oak%20seoul"), 200, (r) => r.data.schools.some((s) => s.name === "Oak Street Elementary" && s.region === "Seoul"));
     expect("teacher rooms: empty name", await call("POST", "/api/teacher/rooms", { json: { name: "" } }), 400);
     const roomRes = await call("POST", "/api/teacher/rooms", { json: { name: "  Room   12 " } });
     expect("teacher rooms: create", roomRes, 200, (r) => r.data.teacher.rooms.length === 1 && r.data.teacher.rooms[0].name === "Room 12" && /^[0-9a-f]{12}\.[0-9a-f]{16}$/.test(r.data.teacher.rooms[0].joinToken) && !("joinSecret" in r.data.teacher.rooms[0]));
@@ -295,6 +299,12 @@ if (key) {
       const code = details.data?.teacher?.rooms?.[0]?.joinCode ?? "";
       expect("room search: finds the listed room by school and grade", await call("GET", "/api/rooms/search?q=oak%20street%203"), 200, (r) => r.data.rooms.some((h) => h.id === room.id && h.grade === "3" && !("teacherId" in h)));
       expect("room search: other grade does not match", await call("GET", "/api/rooms/search?q=oak%20street%207"), 200, (r) => !r.data.rooms.some((h) => h.id === room.id));
+      expect("room search: a place word finds it too", await call("GET", "/api/rooms/search?q=seoul%20oak"), 200, (r) => r.data.rooms.some((h) => h.id === room.id && h.region === "Seoul" && h.schoolId.length === 12));
+      const schoolId = details.data?.teacher?.schoolId ?? "";
+      expect("room match: exact school, grade and class", await call("GET", `/api/rooms/search?schoolId=${schoolId}&grade=3&classLabel=2`), 200, (r) => r.data.rooms.length === 1 && r.data.rooms[0].id === room.id);
+      expect("room match: other class is empty", await call("GET", `/api/rooms/search?schoolId=${schoolId}&grade=3&classLabel=9`), 200, (r) => r.data.rooms.length === 0);
+      expect("room match: malformed school id", await call("GET", "/api/rooms/search?schoolId=nope"), 400);
+      expect("school search: counts the listed room", await call("GET", "/api/schools/search?q=oak%20seoul"), 200, (r) => r.data.schools.some((s) => s.name === "Oak Street Elementary" && s.rooms >= 1));
       expect("room join by id: listed room info", await call("GET", `/api/rooms/join?id=${room.id}`), 200, (r) => r.data.room.grade === "3" && r.data.room.listed === true && r.data.following === false);
       expect("room join by code: wrong code", await call("POST", "/api/rooms/join", { json: { roomId: room.id, code: "ZZZZZZ", childIds: [] } }), 403, (r) => r.data.error === "bad_code");
       expect("room join by code: right code, typed loosely", await call("POST", "/api/rooms/join", { json: { roomId: room.id, code: ` ${code.toLowerCase()} `, childIds: [] } }), 200, (r) => r.data.family?.rooms?.length === 1 && r.data.family.rooms[0].roomId === room.id);
@@ -324,6 +334,7 @@ if (key) {
     expect("teacher join: own key restores the desk", await call("POST", "/api/teacher/join", { json: { key: tKey } }), 200, (r) => r.data.teacher.name === "Ms. Test" && Boolean(teacherCookie));
     if (!teacherCookie) teacherCookie = savedTeacher;
     expect("teacher: delete", await call("DELETE", "/api/teacher"), 200);
+    expect("school search: the school leaves with its last teacher", await call("GET", "/api/schools/search?q=oak%20seoul"), 200, (r) => !r.data.schools.some((s) => s.name === "Oak Street Elementary" && s.region === "Seoul"));
     teacherCookie = savedTeacher;
     expect("teacher: gone after delete", await call("GET", "/api/teacher"), 404);
     teacherCookie = "";

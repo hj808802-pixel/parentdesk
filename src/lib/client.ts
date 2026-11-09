@@ -1,4 +1,4 @@
-import type { DirectoryHit, RoomPost, RoomPublic, TeacherView } from "./rooms";
+import type { DirectoryHit, RoomPost, RoomPublic, SchoolHit, TeacherView } from "./rooms";
 import type { SettingsSuggestion } from "./schema";
 import type { FamilyView, Item, PlanLimits } from "./types";
 
@@ -64,6 +64,8 @@ export const api = {
   roomInfoById: (id: string) => call<RoomInfoResponse>(`/api/rooms/join?id=${encodeURIComponent(id)}`),
   roomJoin: (token: string, childIds: string[], init: { locale?: string; timezone?: string }) => call<RoomJoinResponse>("/api/rooms/join", { method: "POST", body: JSON.stringify({ token, childIds, ...init }) }),
   roomJoinByCode: (roomId: string, code: string, childIds: string[], init: { locale?: string; timezone?: string }) => call<RoomJoinResponse>("/api/rooms/join", { method: "POST", body: JSON.stringify({ roomId, code, childIds, ...init }) }),
+  schoolSearch: (q: string, country?: string) => call<{ ok: true; schools: SchoolHit[] }>(`/api/schools/search?q=${encodeURIComponent(q)}${country ? `&country=${encodeURIComponent(country)}` : ""}`),
+  roomMatch: (schoolId: string, grade: string, classLabel: string) => call<{ ok: true; rooms: DirectoryHit[] }>(`/api/rooms/search?schoolId=${encodeURIComponent(schoolId)}&grade=${encodeURIComponent(grade)}&classLabel=${encodeURIComponent(classLabel)}`),
   roomSearch: (q: string, country?: string) => call<{ ok: true; rooms: DirectoryHit[] }>(`/api/rooms/search?q=${encodeURIComponent(q)}${country ? `&country=${encodeURIComponent(country)}` : ""}`),
   roomChildren: (roomId: string, childIds: string[]) => call<FamilyResponse>(`/api/rooms/${roomId}`, { method: "PATCH", body: JSON.stringify({ childIds }) }),
   roomLeave: (roomId: string) => call<FamilyResponse>(`/api/rooms/${roomId}`, { method: "DELETE" }),

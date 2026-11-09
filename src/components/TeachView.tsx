@@ -9,8 +9,9 @@ import { useI18n } from "@/lib/i18n/context";
 import { fmt } from "@/lib/i18n";
 import { LOCALE_TAGS, localePath, regionName } from "@/lib/i18n/locales";
 import { shrinkImage } from "@/lib/image";
-import type { RoomPost, RoomView, TeacherView } from "@/lib/rooms";
-import { gradeClassLabel } from "@/lib/rooms-ui";
+import { regionsOf } from "@/lib/regions";
+import type { DirectoryHit, RoomPost, RoomView, SchoolHit, TeacherView } from "@/lib/rooms";
+import { gradeClassLabel, schoolLabel } from "@/lib/rooms-ui";
 import { NOTICE_KINDS, OUTPUT_LANGUAGES, type NoticeKind } from "@/lib/schema";
 import { BTN_PRIMARY, BTN_SECONDARY, BTN_SMALL, CARD, INPUT, TYPE_STYLES } from "@/lib/ui";
 
@@ -40,7 +41,9 @@ export default function TeachView() {
   const [newListed, setNewListed] = useState(true);
   const [roomError, setRoomError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
-  const [profile, setProfile] = useState<{ name: string; school: string; language: string; country: string; timezone: string } | null>(null);
+  const [profile, setProfile] = useState<{ name: string; school: string; region: string; city: string; language: string; country: string; timezone: string } | null>(null);
+  const [schoolHits, setSchoolHits] = useState<SchoolHit[]>([]);
+  const [dup, setDup] = useState<DirectoryHit | null>(null);
   const [profileSaved, setProfileSaved] = useState(false);
   const [showKey, setShowKey] = useState(false);
   const [copied, setCopied] = useState("");
@@ -63,7 +66,7 @@ export default function TeachView() {
 
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect -- syncing a draft from server data
-    if (teacher) setProfile({ name: teacher.name, school: teacher.school, language: teacher.settings.language, country: teacher.settings.country, timezone: teacher.settings.timezone });
+    if (teacher) setProfile({ name: teacher.name, school: teacher.school, region: teacher.region, city: teacher.city, language: teacher.settings.language, country: teacher.settings.country, timezone: teacher.settings.timezone });
   }, [teacher]);
 
   async function copy(text: string, what: string) {
@@ -106,11 +109,57 @@ export default function TeachView() {
     }
   }
 
+  // Schools already registered that match what the teacher types (not the saved name itself).
+  const schoolQuery = profile && profile.school.trim().length >= 2 && profile.school.trim() !== teacher?.school ? profile.school.trim() : "";
+  const schoolCountry = profile?.country ?? "";
+  useEffect(() => {
+    if (!schoolQuery) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- clearing stale suggestions
+      setSchoolHits([]);
+      return;
+    }
+    let live = true;
+    const timer = setTimeout(() => {
+      api
+        .schoolSearch(schoolQuery, schoolCountry)
+        .then((res) => live && setSchoolHits(res.schools))
+        .catch(() => live && setSchoolHits([]));
+    }, 350);
+    return () => {
+      live = false;
+      clearTimeout(timer);
+    };
+  }, [schoolQuery, schoolCountry]);
+
+  // The same school, grade and class listed by another teacher: say so before a second room
+  // for one class appears (co-teachers should share one room).
+  const dupKey = teacher && teacher.school && (newGrade.trim() || newClass.trim()) ? `${teacher.schoolId}|${newGrade.trim()}|${newClass.trim()}` : "";
+  useEffect(() => {
+    if (!dupKey || !teacher) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- clearing a stale warning
+      setDup(null);
+      return;
+    }
+    const [schoolId, grade, classLabel] = dupKey.split("|");
+    let live = true;
+    const timer = setTimeout(() => {
+      api
+        .roomMatch(schoolId, grade, classLabel)
+        .then((res) => live && setDup(res.rooms.find((h) => !teacher.rooms.some((r) => r.id === h.id)) ?? null))
+        .catch(() => live && setDup(null));
+    }, 400);
+    return () => {
+      live = false;
+      clearTimeout(timer);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [dupKey]);
+
   async function saveProfile() {
     if (!profile) return;
     setBusy(true);
     try {
-      const res = await api.updateTeacher({ name: profile.name, school: profile.school, settings: { language: profile.language, country: profile.country, timezone: profile.timezone } });
+      const res = await api.updateTeacher({ name: profile.name, school: profile.school, region: profile.region, city: profile.city, settings: { language: profile.language, country: profile.country, timezone: profile.timezone } });
       setTeacher(res.teacher);
       setProfileSaved(true);
       setTimeout(() => setProfileSaved(false), 3000);
@@ -124,7 +173,7 @@ export default function TeachView() {
     setBusy(true);
     setRoomError(null);
     try {
-      const res = await api.createRoom(newRoom.trim(), { grade: newGrade.trim(), classLabel: newClass.trim(), listed: newListed });
+      const res = await api.createRoom(newRoom.trim() || gradeClassLabel(t, newGrade.trim(), newClass.trim()), { grade: newGrade.trim(), classLabel: newClass.trim(), listed: newListed });
       setTeacher(res.teacher);
       setNewRoom("");
       setNewGrade("");
@@ -210,9 +259,15 @@ export default function TeachView() {
           ))}
         </div>
         <form onSubmit={addRoom} className={`${CARD} mt-4`}>
+          {teacher.school ? (
+            <p dir="auto" className="mb-3 text-xs text-zinc-500">{fmt(t.teach.listedAs, { school: schoolLabel(teacher) })}</p>
+          ) : (
+            <p className="mb-3 text-xs text-amber-700 dark:text-amber-300">{t.teach.listedHint}</p>
+          )}
           <label className="grid gap-1 text-sm">
             <span className="text-xs text-zinc-500">{t.teach.newRoom}</span>
-            <input className={INPUT} value={newRoom} onChange={(e) => setNewRoom(e.target.value)} placeholder={t.teach.newRoomPlaceholder} maxLength={60} />
+            <input className={INPUT} value={newRoom} onChange={(e) => setNewRoom(e.target.value)} placeholder={gradeClassLabel(t, newGrade.trim(), newClass.trim()) || t.teach.newRoomPlaceholder} maxLength={60} />
+            <span className="text-xs text-zinc-500">{t.teach.nameAuto}</span>
           </label>
           <div className="mt-2 grid grid-cols-2 gap-2">
             <label className="grid gap-1 text-sm">
@@ -231,7 +286,12 @@ export default function TeachView() {
               <span className="block text-xs text-zinc-500">{teacher.school ? t.teach.listedBody : t.teach.listedHint}</span>
             </span>
           </label>
-          <button type="submit" className={`${BTN_PRIMARY} mt-3`} disabled={busy || !newRoom.trim()}>
+          {dup && (
+            <p dir="auto" className="mt-3 rounded-lg bg-amber-50 px-3 py-2 text-sm text-amber-900 dark:bg-amber-950/40 dark:text-amber-200" role="status">
+              {fmt(t.teach.duplicate, { teacher: dup.teacherName || "?", n: dup.members })}
+            </p>
+          )}
+          <button type="submit" className={`${BTN_PRIMARY} mt-3`} disabled={busy || !(newRoom.trim() || gradeClassLabel(t, newGrade.trim(), newClass.trim()))}>
             {t.teach.addRoom}
           </button>
           {roomError && <p className="mt-2 text-sm text-red-600 dark:text-red-400">{roomError}</p>}
@@ -244,9 +304,44 @@ export default function TeachView() {
           <input className={`${INPUT} mt-3`} value={profile.name} onChange={(e) => setProfile({ ...profile, name: e.target.value })} maxLength={60} />
           <label className="mt-3 grid gap-1 text-sm">
             <span className="text-xs text-zinc-500">{t.teach.school}</span>
-            <input className={INPUT} value={profile.school} onChange={(e) => setProfile({ ...profile, school: e.target.value })} placeholder={t.teach.schoolPlaceholder} maxLength={80} />
-            <span className="text-xs text-zinc-500">{t.teach.schoolHint}</span>
+            <input className={INPUT} value={profile.school} onChange={(e) => setProfile({ ...profile, school: e.target.value })} placeholder={t.teach.schoolPlaceholder} maxLength={80} autoComplete="off" />
+            <span className="text-xs text-zinc-500">{t.teach.schoolSearchHint}</span>
           </label>
+          {schoolHits.length > 0 && (
+            <ul className="mt-2 grid gap-1" aria-label={t.teach.school}>
+              {schoolHits.map((s) => (
+                <li key={s.id}>
+                  <button
+                    type="button"
+                    className="w-full rounded-lg border border-zinc-200 px-3 py-2 text-left text-sm hover:bg-zinc-50 dark:border-zinc-700 dark:hover:bg-zinc-800"
+                    onClick={() => {
+                      setProfile({ ...profile, school: s.name, region: s.region, city: s.city });
+                      setSchoolHits([]);
+                    }}
+                  >
+                    <span dir="auto" className="font-medium">{schoolLabel({ school: s.name, region: s.region, city: s.city })}</span>
+                    <span className="ml-2 text-xs text-zinc-500">{fmt(t.teach.schoolRooms, { n: s.rooms })}</span>
+                  </button>
+                </li>
+              ))}
+            </ul>
+          )}
+          <div className="mt-3 grid grid-cols-2 gap-2">
+            <label className="grid gap-1 text-sm">
+              <span className="text-xs text-zinc-500">{t.teach.region}</span>
+              <input className={INPUT} list="pd-regions" value={profile.region} onChange={(e) => setProfile({ ...profile, region: e.target.value })} maxLength={40} autoComplete="off" />
+              <datalist id="pd-regions">
+                {regionsOf(profile.country).map((r) => (
+                  <option key={r} value={r} />
+                ))}
+              </datalist>
+            </label>
+            <label className="grid gap-1 text-sm">
+              <span className="text-xs text-zinc-500">{t.teach.city}</span>
+              <input className={INPUT} value={profile.city} onChange={(e) => setProfile({ ...profile, city: e.target.value })} maxLength={40} autoComplete="off" />
+            </label>
+          </div>
+          <p className="mt-1 text-xs text-zinc-500">{t.teach.placeHint}</p>
           <div className="mt-3 grid gap-3 sm:grid-cols-2">
             <label className="grid gap-1 text-sm">
               <span className="text-xs text-zinc-500">{t.teach.language}</span>

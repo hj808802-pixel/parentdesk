@@ -51,6 +51,8 @@ export type TeacherRecord = {
   updatedAt: string;
   name: string; // how families see the sender: "Ms. Rivera", "3학년 2반 담임"
   school: string; // optional; shown to families in front of the room's name
+  region: string; // first-level region ("서울", "Bayern", "California"): tells one "Hanbit Elementary" from another
+  city: string; // city or district ("강남구", "München")
   settings: Settings; // country, result language, time zone (familyName and digest unused)
   roomIds: string[];
   usage: Record<string, number>; // "2026-11" -> posts that month
@@ -93,14 +95,19 @@ export type RoomRecord = {
 // What the teacher's browser sees: no member ids, the join token to build the link, the
 // class code to hand out.
 export type RoomView = Omit<RoomRecord, "joinSecret" | "members"> & { memberCount: number; joinToken: string; joinCode: string };
-export type TeacherView = Omit<TeacherRecord, "keyHash"> & { rooms: RoomView[]; postCap: number };
+export type TeacherView = Omit<TeacherRecord, "keyHash"> & { rooms: RoomView[]; postCap: number; schoolId: string };
 
 // What a parent sees before joining.
-export type RoomPublic = { id: string; name: string; description: string; teacherName: string; school: string; grade: string; classLabel: string; listed: boolean; memberCount: number; postCount: number; language: string };
+export type RoomPublic = { id: string; name: string; description: string; teacherName: string; school: string; region: string; city: string; grade: string; classLabel: string; listed: boolean; memberCount: number; postCount: number; language: string };
 
 // One line of the directory parents search. Counts only, never who follows.
-export type DirectoryEntry = { id: string; teacherId: string; school: string; grade: string; classLabel: string; name: string; teacherName: string; country: string; members: number; updatedAt: string };
+export type DirectoryEntry = { id: string; teacherId: string; schoolId: string; school: string; region: string; city: string; grade: string; classLabel: string; name: string; teacherName: string; country: string; members: number; lastPostAt: string | null; updatedAt: string };
 export type DirectoryHit = Omit<DirectoryEntry, "teacherId">;
+
+// A school teachers pick from (schools/<id>): the same name in the same place converges on
+// one entry however it was typed, and a different place gets another.
+export type SchoolEntry = { id: string; country: string; region: string; city: string; name: string; updatedAt: string };
+export type SchoolHit = SchoolEntry & { rooms: number };
 
 // Who a post comes from, as families see it. A TeacherRecord fits.
 export type Sender = { name: string; school: string };
@@ -219,6 +226,10 @@ export function sanitizeSchool(x: unknown): string {
   return typeof x === "string" ? x.replace(/\s+/g, " ").trim().slice(0, 80) : "";
 }
 
+export function sanitizePlace(x: unknown): string {
+  return typeof x === "string" ? x.replace(/\s+/g, " ").trim().slice(0, 40) : "";
+}
+
 export function sanitizeDescription(x: unknown): string {
   return typeof x === "string" ? x.replace(/\s+/g, " ").trim().slice(0, 300) : "";
 }
@@ -241,7 +252,7 @@ export function applyRoomDetails(room: RoomRecord, teacher: TeacherRecord, d: Ro
   if (!teacher.school) room.listed = false;
 }
 
-export function createTeacher(init: { name?: unknown; school?: unknown; locale?: string | null; timezone?: string | null; settings?: Partial<Settings> } = {}): { record: TeacherRecord; key: string } {
+export function createTeacher(init: { name?: unknown; school?: unknown; region?: unknown; city?: unknown; locale?: string | null; timezone?: string | null; settings?: Partial<Settings> } = {}): { record: TeacherRecord; key: string } {
   const now = new Date().toISOString();
   const id = newId(6);
   const secret = newId(12);
@@ -252,6 +263,8 @@ export function createTeacher(init: { name?: unknown; school?: unknown; locale?:
     updatedAt: now,
     name: sanitizeName(init.name),
     school: sanitizeSchool(init.school),
+    region: sanitizePlace(init.region),
+    city: sanitizePlace(init.city),
     settings: sanitizeSettings(init.settings ?? {}, defaultSettings(init.locale, init.timezone)),
     roomIds: [],
     usage: {},
@@ -284,7 +297,22 @@ let directoryCache: { at: number; entries: DirectoryEntry[] } | null = null;
 
 export function directoryEntry(room: RoomRecord, teacher: TeacherRecord | null): DirectoryEntry | null {
   if (!room.listed || !teacher || !teacher.school || teacher.id !== room.teacherId) return null;
-  return { id: room.id, teacherId: teacher.id, school: teacher.school, grade: room.grade, classLabel: room.classLabel, name: room.name, teacherName: teacher.name, country: teacher.settings.country, members: room.members.length, updatedAt: room.updatedAt };
+  return {
+    id: room.id,
+    teacherId: teacher.id,
+    schoolId: schoolIdOf(teacher),
+    school: teacher.school,
+    region: teacher.region,
+    city: teacher.city,
+    grade: room.grade,
+    classLabel: room.classLabel,
+    name: room.name,
+    teacherName: teacher.name,
+    country: teacher.settings.country,
+    members: room.members.length,
+    lastPostAt: room.posts.length ? room.posts[room.posts.length - 1].ts : null,
+    updatedAt: room.updatedAt,
+  };
 }
 
 async function readEntry(id: string): Promise<DirectoryEntry | null> {
@@ -292,10 +320,118 @@ async function readEntry(id: string): Promise<DirectoryEntry | null> {
   if (!raw) return null;
   try {
     const e = JSON.parse(raw) as DirectoryEntry;
-    return e && e.id === id && typeof e.school === "string" ? e : null;
+    if (!e || e.id !== id || typeof e.school !== "string") return null;
+    e.region ??= "";
+    e.city ??= "";
+    e.lastPostAt ??= null;
+    // Written before school ids existed: the id follows from the entry's own fields.
+    if (!e.schoolId) e.schoolId = schoolIdOf({ school: e.school, region: e.region, city: e.city, settings: { country: e.country } });
+    return e;
   } catch {
     return null;
   }
+}
+
+// ---- the schools teachers pick from ----
+
+const SCHOOLS = "schools/";
+const SCHOOLS_CACHE_MS = 30_000;
+let schoolsCache: { at: number; entries: SchoolEntry[] } | null = null;
+
+const placeKey = (s: string) => s.toLowerCase().normalize("NFKC").replace(/[\s\-_.,·()]/g, "");
+
+// The same school typed by two teachers lands on one id: country, region, city and name
+// compared without case, spaces or punctuation.
+export function schoolIdOf(t: Pick<TeacherRecord, "school" | "region" | "city"> & { settings: Pick<Settings, "country"> }): string {
+  if (!t.school) return "";
+  return createHash("sha256").update(`school:${t.settings.country}|${placeKey(t.region)}|${placeKey(t.city)}|${placeKey(t.school)}`).digest("hex").slice(0, 12);
+}
+
+export function schoolEntryOf(teacher: TeacherRecord): SchoolEntry | null {
+  const id = schoolIdOf(teacher);
+  if (!id) return null;
+  return { id, country: teacher.settings.country, region: teacher.region, city: teacher.city, name: teacher.school, updatedAt: new Date().toISOString() };
+}
+
+// Called when a teacher saves a school: the entry is written (or refreshed) under its id.
+export async function rememberSchool(teacher: TeacherRecord): Promise<void> {
+  const entry = schoolEntryOf(teacher);
+  if (!entry) return;
+  await writeDoc(`${SCHOOLS}${entry.id}`, JSON.stringify(entry));
+  schoolsCache = null;
+}
+
+// A school nobody names any more is dropped (its last teacher left or changed school):
+// no listed room and no teacher profile still points at it.
+export async function forgetSchoolIfUnused(schoolId: string): Promise<void> {
+  if (!schoolId) return;
+  if ((await loadDirectory(true)).some((e) => e.schoolId === schoolId)) return;
+  for (const id of await listTeacherIds()) {
+    const t = await loadTeacher(id);
+    if (t && schoolIdOf(t) === schoolId) return;
+  }
+  try {
+    await removeDoc(`${SCHOOLS}${schoolId}`);
+  } catch {
+    /* nothing there */
+  }
+  schoolsCache = null;
+}
+
+const SCHOOLS_MARKER = "000000000000"; // written once the registry has been built from the teachers
+
+// Every teacher's school, written into the registry (first run, or maintenance).
+export async function rebuildSchools(): Promise<void> {
+  for (const id of await listTeacherIds()) {
+    const t = await loadTeacher(id);
+    if (t?.school) await rememberSchool(t);
+  }
+  await writeDoc(`${SCHOOLS}${SCHOOLS_MARKER}`, JSON.stringify({ id: SCHOOLS_MARKER, country: "", region: "", city: "", name: "", updatedAt: new Date().toISOString() }));
+  schoolsCache = null;
+}
+
+export async function loadSchools(fresh = false): Promise<SchoolEntry[]> {
+  if (!fresh && schoolsCache && Date.now() - schoolsCache.at < SCHOOLS_CACHE_MS) return schoolsCache.entries;
+  let ids = await listDocIds(SCHOOLS);
+  if (!ids.includes(SCHOOLS_MARKER)) {
+    // Teachers from before the registry existed: build it from them once (the marker says
+    // it was done, however many schools were saved since).
+    await rebuildSchools();
+    ids = await listDocIds(SCHOOLS);
+  }
+  const entries = (
+    await Promise.all(
+      ids.map(async (id) => {
+        const raw = await readDoc(`${SCHOOLS}${id}`);
+        if (!raw) return null;
+        try {
+          const e = JSON.parse(raw) as SchoolEntry;
+          return e && e.id === id && typeof e.name === "string" && e.name ? { ...e, region: e.region ?? "", city: e.city ?? "" } : null;
+        } catch {
+          return null;
+        }
+      }),
+    )
+  ).filter((e): e is SchoolEntry => e !== null);
+  schoolsCache = { at: Date.now(), entries };
+  return entries;
+}
+
+// Every word must appear in "name region city"; schools with more listed rooms first.
+export function searchSchools(schools: SchoolEntry[], directory: DirectoryEntry[], query: string, country?: string | null): SchoolHit[] {
+  const words = query.toLowerCase().normalize("NFKC").split(/[\s,·]+/).map(placeKey).filter(Boolean);
+  if (words.length === 0) return [];
+  const rooms = new Map<string, number>();
+  for (const e of directory) rooms.set(e.schoolId, (rooms.get(e.schoolId) ?? 0) + 1);
+  return schools
+    .filter((s) => !country || s.country === country)
+    .filter((s) => {
+      const all = `${placeKey(s.name)} ${placeKey(s.region)} ${placeKey(s.city)}`;
+      return words.every((w) => all.includes(w));
+    })
+    .map((s) => ({ ...s, rooms: rooms.get(s.id) ?? 0 }))
+    .sort((a, b) => b.rooms - a.rooms || a.name.localeCompare(b.name))
+    .slice(0, MAX_HITS);
 }
 
 async function dropEntry(id: string): Promise<void> {
@@ -348,27 +484,46 @@ export async function rebuildDirectory(): Promise<DirectoryEntry[]> {
     if (directoryEntry(room, teachers.get(room.teacherId) ?? null)) live.add(id);
   }
   for (const id of await listDocIds(DIRECTORY)) if (!live.has(id)) await dropEntry(id);
+  await rebuildSchools();
   return loadDirectory(true);
 }
 
 const fold = (s: string) => s.toLowerCase().normalize("NFKC").replace(/[\s\-_.,·()]/g, "");
 
-// Every word of the query has to appear somewhere in "school grade class room-name"; the
-// best school-name matches come first, then the most recently active rooms.
+// The rooms listed for one school, or for exactly one grade and class of it (an empty
+// grade or class then has to be empty too): exact, before any limit, so a teacher's "is
+// this class already listed?" cannot miss or be fooled by a neighbouring class.
+export function matchDirectory(entries: DirectoryEntry[], schoolId: string, grade?: string, classLabel?: string): DirectoryHit[] {
+  const same = (a: string, b: string) => fold(a) === fold(b);
+  const exact = grade !== undefined || classLabel !== undefined;
+  return entries
+    .filter((e) => e.schoolId === schoolId && (!exact || (same(e.grade, grade ?? "") && same(e.classLabel, classLabel ?? ""))))
+    .slice(0, MAX_HITS)
+    .map((e) => {
+      const { teacherId: _t, ...hit } = e;
+      void _t;
+      return hit;
+    });
+}
+
+// Every word of the query has to appear somewhere in "school region city grade class
+// room-name"; the best school-name matches come first, then the rooms with the most
+// recent notice.
 export function searchDirectory(entries: DirectoryEntry[], query: string, country?: string | null): DirectoryHit[] {
   const words = query.toLowerCase().normalize("NFKC").split(/[\s,·]+/).map(fold).filter(Boolean);
   if (words.length === 0) return [];
+  const active = (e: DirectoryEntry) => e.lastPostAt ?? e.updatedAt;
   const scored = entries
     .filter((e) => !country || !e.country || e.country === country)
     .map((e) => {
       const school = fold(e.school);
-      const all = `${school} ${fold(e.grade)} ${fold(e.classLabel)} ${fold(e.name)}`;
+      const all = `${school} ${fold(e.region)} ${fold(e.city)} ${fold(e.grade)} ${fold(e.classLabel)} ${fold(e.name)}`;
       if (!words.every((w) => all.includes(w))) return null;
       const score = words.filter((w) => school.includes(w)).length * 2 + (school.startsWith(words[0]) ? 1 : 0);
       return { e, score };
     })
     .filter((x): x is { e: DirectoryEntry; score: number } => x !== null)
-    .sort((a, b) => b.score - a.score || (a.e.updatedAt < b.e.updatedAt ? 1 : -1))
+    .sort((a, b) => b.score - a.score || (active(a.e) < active(b.e) ? 1 : -1))
     .slice(0, MAX_HITS);
   return scored.map(({ e }) => {
     const { teacherId: _t, ...hit } = e;
@@ -504,6 +659,8 @@ export async function loadMemberFamilies(room: RoomRecord): Promise<FamilyRecord
 // gets it once): translates it once per result language the families read, writes it onto
 // each list, and records it in every room. Saves the rooms, not the teacher.
 export async function sendPost(teacher: TeacherRecord, rooms: RoomRecord[], post: RoomPost): Promise<{ delivered: number; items: number; languages: string[]; members: number }> {
+  // A draft may have waited; the post is dated when it goes out.
+  post.ts = new Date().toISOString();
   const seen = new Map<string, { fam: FamilyRecord; room: RoomRecord }>();
   for (const room of rooms) for (const fam of await loadMemberFamilies(room)) if (!seen.has(fam.id)) seen.set(fam.id, { fam, room });
   const families = [...seen.values()];
@@ -535,6 +692,9 @@ export async function sendPost(teacher: TeacherRecord, rooms: RoomRecord[], post
     addPost(room, post);
     await saveRoom(room);
   }
+  // "last notice" in the directory follows.
+  const listed = rooms.filter((r) => r.listed);
+  if (listed.length) await syncDirectory(teacher, listed);
   return { delivered, items, languages, members: families.length };
 }
 
@@ -682,11 +842,11 @@ export function roomView(room: RoomRecord): RoomView {
 export function teacherView(teacher: TeacherRecord, rooms: RoomRecord[]): TeacherView {
   const { keyHash: _k, ...rest } = teacher;
   void _k;
-  return { ...rest, rooms: rooms.map(roomView), postCap: teacherPostCap() };
+  return { ...rest, rooms: rooms.map(roomView), postCap: teacherPostCap(), schoolId: schoolIdOf(teacher) };
 }
 
 export function roomPublic(room: RoomRecord, teacher: TeacherRecord | null): RoomPublic {
-  return { id: room.id, name: room.name, description: room.description, teacherName: teacher?.name ?? "", school: teacher?.school ?? "", grade: room.grade, classLabel: room.classLabel, listed: room.listed && Boolean(teacher?.school), memberCount: room.members.length, postCount: room.posts.length, language: teacher?.settings.language ?? "en" };
+  return { id: room.id, name: room.name, description: room.description, teacherName: teacher?.name ?? "", school: teacher?.school ?? "", region: teacher?.region ?? "", city: teacher?.city ?? "", grade: room.grade, classLabel: room.classLabel, listed: room.listed && Boolean(teacher?.school), memberCount: room.members.length, postCount: room.posts.length, language: teacher?.settings.language ?? "en" };
 }
 
 // ---- storage ----
@@ -702,6 +862,8 @@ export async function loadTeacher(id: string): Promise<TeacherRecord | null> {
     rec.usage ??= {};
     rec.name = sanitizeName(rec.name);
     rec.school = sanitizeSchool(rec.school);
+    rec.region = sanitizePlace(rec.region);
+    rec.city = sanitizePlace(rec.city);
     rec.settings = sanitizeSettings(rec.settings, defaultSettings());
     return rec;
   } catch {
