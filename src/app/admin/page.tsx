@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import type { Stats } from "@/lib/admin";
+import type { RoomStats } from "@/lib/rooms";
 import type { Run } from "@/lib/ops";
 import { BTN_PRIMARY, BTN_SECONDARY, BTN_SMALL, CARD, INPUT } from "@/lib/ui";
 
@@ -9,6 +10,7 @@ import { BTN_PRIMARY, BTN_SECONDARY, BTN_SMALL, CARD, INPUT } from "@/lib/ui";
 
 type Payload = {
   stats: Stats;
+  rooms?: RoomStats;
   runs: Record<string, Run[]>;
   server: { storage: string; features: Record<string, boolean>; extractModel: string; assistModel: string; classifyModel: string; dailyCap: number };
   ms: number;
@@ -177,6 +179,9 @@ export default function AdminPage() {
             <Kpi label="Plans" value={`${s.plans.family} / ${s.plans.free}`} sub="family / free" />
             <Kpi label="Gmail" value={s.gmail.connected} sub={`${s.gmail.paused} paused`} />
             <Kpi label="Weekly summary on" value={s.digest.on} sub={`${s.invites.live} live invite links`} />
+            {data.rooms && (
+              <Kpi label="Class rooms" value={`${data.rooms.rooms} / ${data.rooms.teachers}`} sub={`rooms / teachers · ${data.rooms.members} following · ${data.rooms.posts} posts (${data.rooms.posts7d} this week) · ${data.rooms.delivered} deliveries`} />
+            )}
           </div>
 
           <section className={`${CARD} mt-4`}>

@@ -1,4 +1,5 @@
 import { adminEnabled, computeStats, familySummary, isAdminRequest } from "@/lib/admin";
+import { listRoomIds, listTeacherIds, loadRoom, roomStats, type RoomRecord } from "@/lib/rooms";
 import { features, listFamilyIds, loadFamily, readOps, storageMode, type FamilyRecord } from "@/lib/store";
 
 export const runtime = "nodejs";
@@ -28,11 +29,20 @@ export async function GET(req: Request) {
     if (rec) records.push(rec);
   }
   const stats = computeStats(records, new Date(), ids.length > MAX_FAMILIES);
+  const teacherIds = await listTeacherIds();
+  const roomIds = await listRoomIds();
+  const rooms: RoomRecord[] = [];
+  for (const id of roomIds.slice(0, MAX_FAMILIES)) {
+    const room = await loadRoom(id);
+    if (room) rooms.push(room);
+  }
+  const roomNumbers = roomStats(teacherIds.length, rooms);
   const runs = (await readOps<Record<string, unknown>>("runs")) ?? {};
   return Response.json(
     {
       ok: true,
       stats,
+      rooms: roomNumbers,
       runs,
       server: {
         storage: storageMode(),

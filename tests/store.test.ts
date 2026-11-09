@@ -132,7 +132,7 @@ describe("store", () => {
 
   it("hands out invite links that expire and member keys that open the family", () => {
     const { record, key } = createFamily();
-    const now = new Date("2026-11-06T10:00:00Z");
+    const now = new Date(); // toView() checks liveness against the real clock
     const made = createInvite(record, now)!;
     expect(made.token).toMatch(/^[0-9a-f]{12}.[0-9a-f]{32}$/);
     expect(liveInvites(record, now)).toHaveLength(1);
@@ -149,7 +149,7 @@ describe("store", () => {
     expect(liveInvites(record, now)).toHaveLength(0);
     // expiry
     const again = createInvite(record, now)!;
-    const later = new Date("2026-11-10T10:00:00Z");
+    const later = new Date(now.getTime() + 4 * 86400000);
     expect(acceptInvite(record, parseInviteToken(again.token)!.secret, later)).toBe(false);
     expect(acceptInvite(record, "0".repeat(32), now)).toBe(false);
     // at most five live links

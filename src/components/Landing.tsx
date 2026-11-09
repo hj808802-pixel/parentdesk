@@ -45,6 +45,14 @@ export default function Landing({ compact = false }: { compact?: boolean }) {
             <p className="mt-1 text-sm text-zinc-700 dark:text-zinc-300">{t.landing.autoBody}</p>
           </section>
 
+          <section className={`${CARD} mt-4 border-emerald-200 bg-emerald-50 dark:border-emerald-900 dark:bg-emerald-950/40`}>
+            <p className="font-semibold">{t.landing.teachTitle}</p>
+            <p className="mt-1 text-sm text-zinc-700 dark:text-zinc-300">{t.landing.teachBody}</p>
+            <Link href={localePath(locale, "/teach")} className={`${BTN_SECONDARY} mt-3`}>
+              {t.landing.teachCta}
+            </Link>
+          </section>
+
           <section className="mt-12 grid gap-6 sm:grid-cols-2">
             <div>
               <h2 className="text-lg font-semibold">{t.landing.promiseTitle}</h2>

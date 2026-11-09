@@ -8,7 +8,7 @@ import { findDuplicate } from "./dedupe";
 import { isHhMm, isIsoDate } from "./dates";
 import { isLocale } from "./i18n/locales";
 import { billingEnabled, canUse, planLimits, planOf } from "./plan";
-import { ITEM_TYPES, isOutputLanguage, type Extraction, type ItemType } from "./schema";
+import { ITEM_TYPES, isOutputLanguage, type ExtractedItem, type Extraction, type ItemType } from "./schema";
 import { CHILD_COLORS, MAX_CHILDREN, type Child, type FamilyRecord, type FamilyView, type Features, type Invite, type Item, type Settings, type Source, type SourceKind } from "./types";
 
 export * from "./types";
@@ -331,6 +331,23 @@ async function removeRaw(key: string): Promise<void> {
   }
 }
 
+// Other document kinds (teachers, class rooms in lib/rooms.ts) share the same storage.
+// `key` is "<folder>/<id>" with a folder name of letters and an id of hex characters.
+const DOC_KEY = /^[a-z]{1,20}\/[0-9a-f]{12}$/;
+
+export async function readDoc(key: string): Promise<string | null> {
+  return DOC_KEY.test(key) ? readRaw(key) : null;
+}
+
+export async function writeDoc(key: string, body: string): Promise<void> {
+  if (!DOC_KEY.test(key)) throw new Error("bad document key");
+  await writeRaw(key, body);
+}
+
+export async function removeDoc(key: string): Promise<void> {
+  if (DOC_KEY.test(key)) await removeRaw(key);
+}
+
 export async function loadFamily(id: string): Promise<FamilyRecord | null> {
   if (!/^[0-9a-f]{12}$/.test(id)) return null;
   const raw = await readRaw(`${FAMILIES}${id}`);
@@ -356,6 +373,7 @@ function normalize(rec: FamilyRecord): FamilyRecord {
   rec.invites ??= [];
   rec.digest ??= null;
   rec.counters ??= {};
+  rec.rooms ??= [];
   rec.settings = sanitizeSettings(rec.settings, defaultSettings());
   return rec;
 }
@@ -456,18 +474,34 @@ function clampInt(x: unknown, lo: number, hi: number, fallback: number): number 
   return typeof x === "number" && Number.isFinite(x) ? Math.min(hi, Math.max(lo, Math.round(x))) : fallback;
 }
 
-// Items the family already has are skipped (the same newsletter photographed twice, a trip
-// that was in last week's e-mail and today's chat message). When nothing is new the notice
-// is not recorded either; the caller reports the skipped count.
-export function addExtraction(
-  rec: FamilyRecord,
-  extraction: Extraction,
-  kind: SourceKind,
-  pages: number,
-  hintChildId?: string | null,
-): { source: Source; items: Item[]; skipped: number } {
-  const now = new Date().toISOString();
-  const source: Source = {
+// An item as the extractor returns it, sanitised, before it belongs to a family: no id,
+// no children, no status. Teachers' room posts are stored in this shape and turned into
+// items for each family that follows the room (lib/rooms.ts).
+export type ItemDraft = Omit<Item, "id" | "sourceId" | "childIds" | "status" | "createdAt" | "updatedAt">;
+
+export function draftItem(it: ExtractedItem, defaultCurrency: string): ItemDraft {
+  return {
+    type: ITEM_TYPES.includes(it.type) ? it.type : "info",
+    title: it.title.slice(0, 160),
+    description: it.description.slice(0, 1000),
+    date: isIsoDate(it.date) ? it.date : null,
+    end_date: isIsoDate(it.end_date) ? it.end_date : null,
+    time: isHhMm(it.time) ? it.time : null,
+    end_time: isHhMm(it.end_time) ? it.end_time : null,
+    all_day: it.all_day || !isHhMm(it.time),
+    location: it.location ? it.location.slice(0, 200) : null,
+    amount: typeof it.amount === "number" && Number.isFinite(it.amount) ? it.amount : null,
+    currency: it.currency && /^[A-Z]{3}$/.test(it.currency) ? it.currency : it.amount != null ? defaultCurrency : null,
+    bring: it.bring.slice(0, 12).map((b) => b.slice(0, 80)),
+    requires_action: Boolean(it.requires_action),
+    action_text: it.action_text ? it.action_text.slice(0, 200) : null,
+    confidence: it.confidence,
+    quote: it.quote ? it.quote.slice(0, 300) : null,
+  };
+}
+
+export function sourceFromExtraction(extraction: Extraction, kind: SourceKind, pages: number, now: string = new Date().toISOString()): Source {
+  return {
     id: newId(5),
     ts: now,
     kind,
@@ -480,46 +514,46 @@ export function addExtraction(
     messagesSeen: clampInt(extraction.source.messages_seen, 1, 500, 1),
     messagesUsed: clampInt(extraction.source.messages_used, 0, 500, 1),
   };
-  const byName = new Map(rec.children.map((c) => [c.name.toLowerCase(), c.id]));
-  const candidates: Item[] = extraction.items.slice(0, 40).map((it) => {
-    const matched = it.children.map((n) => byName.get(n.trim().toLowerCase())).filter((x): x is string => Boolean(x));
-    const childIds = matched.length ? [...new Set(matched)] : hintChildId && rec.children.some((c) => c.id === hintChildId) ? [hintChildId] : [];
-    return {
-      id: newId(5),
-      sourceId: source.id,
-      type: ITEM_TYPES.includes(it.type) ? it.type : "info",
-      title: it.title.slice(0, 160),
-      description: it.description.slice(0, 1000),
-      date: isIsoDate(it.date) ? it.date : null,
-      end_date: isIsoDate(it.end_date) ? it.end_date : null,
-      time: isHhMm(it.time) ? it.time : null,
-      end_time: isHhMm(it.end_time) ? it.end_time : null,
-      all_day: it.all_day || !isHhMm(it.time),
-      location: it.location ? it.location.slice(0, 200) : null,
-      amount: typeof it.amount === "number" && Number.isFinite(it.amount) ? it.amount : null,
-      currency: it.currency && /^[A-Z]{3}$/.test(it.currency) ? it.currency : it.amount != null ? rec.settings.currency : null,
-      bring: it.bring.slice(0, 12).map((b) => b.slice(0, 80)),
-      requires_action: Boolean(it.requires_action),
-      action_text: it.action_text ? it.action_text.slice(0, 200) : null,
-      confidence: it.confidence,
-      quote: it.quote ? it.quote.slice(0, 300) : null,
-      childIds,
-      status: "open",
-      createdAt: now,
-      updatedAt: now,
-    };
-  });
+}
+
+// Items the family already has are skipped (the same newsletter photographed twice, a trip
+// that was in last week's e-mail and today's chat message). When nothing is new the notice
+// is not recorded either; the caller reports the skipped count. `countUsage` is off for
+// notices the family did not extract itself (a teacher's post).
+export function commitItems(rec: FamilyRecord, source: Source, drafts: { draft: ItemDraft; childIds: string[] }[], countUsage = true): { items: Item[]; skipped: number } {
+  const now = source.ts;
   const items: Item[] = [];
   let skipped = 0;
-  for (const c of candidates) {
-    if (findDuplicate(c, rec.items)) skipped++;
-    else items.push(c);
+  for (const { draft, childIds } of drafts.slice(0, 40)) {
+    const candidate: Item = { ...draft, id: newId(5), sourceId: source.id, childIds, status: "open", createdAt: now, updatedAt: now };
+    if (findDuplicate(candidate, rec.items)) skipped++;
+    else items.push(candidate);
   }
-  if (items.length === 0) return { source, items, skipped };
+  if (items.length === 0) return { items, skipped };
   rec.sources.push(source);
   rec.items.push(...items);
-  const month = now.slice(0, 7);
-  rec.usage[month] = (rec.usage[month] ?? 0) + 1;
+  if (countUsage) {
+    const month = now.slice(0, 7);
+    rec.usage[month] = (rec.usage[month] ?? 0) + 1;
+  }
+  return { items, skipped };
+}
+
+export function addExtraction(
+  rec: FamilyRecord,
+  extraction: Extraction,
+  kind: SourceKind,
+  pages: number,
+  hintChildId?: string | null,
+): { source: Source; items: Item[]; skipped: number } {
+  const source = sourceFromExtraction(extraction, kind, pages);
+  const byName = new Map(rec.children.map((c) => [c.name.toLowerCase(), c.id]));
+  const hint = hintChildId && rec.children.some((c) => c.id === hintChildId) ? [hintChildId] : [];
+  const drafts = extraction.items.slice(0, 40).map((it) => {
+    const matched = it.children.map((n) => byName.get(n.trim().toLowerCase())).filter((x): x is string => Boolean(x));
+    return { draft: draftItem(it, rec.settings.currency), childIds: matched.length ? [...new Set(matched)] : hint };
+  });
+  const { items, skipped } = commitItems(rec, source, drafts);
   return { source, items, skipped };
 }
 
@@ -548,16 +582,21 @@ export function applyItemPatch(item: Item, patch: Record<string, unknown>): Item
 // Every family id in the store (the daily crons and the admin page walk them). Fine for a
 // beta; a real index comes with a database.
 export async function listFamilyIds(): Promise<string[]> {
+  return listDocIds(FAMILIES);
+}
+
+// Every id under a folder ("families/", "teachers/", "rooms/").
+export async function listDocIds(folder: string): Promise<string[]> {
   switch (storageMode()) {
     case "local": {
-      const dir = path.join(process.env.LOCAL_DATA_DIR as string, "families");
+      const dir = path.join(process.env.LOCAL_DATA_DIR as string, folder);
       return fs.existsSync(dir) ? fs.readdirSync(dir).filter((f) => /^[0-9a-f]{12}\.json$/.test(f)).map((f) => f.slice(0, 12)) : [];
     }
     case "blob": {
       const ids: string[] = [];
       let cursor: string | undefined;
       do {
-        const page = await list({ prefix: `${ROOT}${FAMILIES}`, cursor, limit: 1000 });
+        const page = await list({ prefix: `${ROOT}${folder}`, cursor, limit: 1000 });
         for (const b of page.blobs) {
           const m = /([0-9a-f]{12})\.json$/.exec(b.pathname);
           if (m) ids.push(m[1]);
@@ -567,6 +606,6 @@ export async function listFamilyIds(): Promise<string[]> {
       return ids;
     }
     default:
-      return [...memory.keys()].filter((k) => k.startsWith(FAMILIES)).map((k) => k.slice(FAMILIES.length));
+      return [...memory.keys()].filter((k) => k.startsWith(folder)).map((k) => k.slice(folder.length));
   }
 }

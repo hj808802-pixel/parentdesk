@@ -12,6 +12,7 @@ import { LOCALE_TAGS, localePath, regionName } from "@/lib/i18n/locales";
 import { OUTPUT_LANGUAGES } from "@/lib/schema";
 import { CHILD_COLORS, MAX_CHILDREN, type Child, type Settings } from "@/lib/types";
 import { BTN_PRIMARY, BTN_SECONDARY, BTN_SMALL, CARD, INPUT } from "@/lib/ui";
+import ChildChips from "./ChildChips";
 
 export default function SettingsView() {
   const { locale, t } = useI18n();
@@ -39,6 +40,7 @@ export default function SettingsView() {
   const [invite, setInvite] = useState<{ url: string; expiresAt: string } | null>(null);
   const [inviteBusy, setInviteBusy] = useState(false);
   const [inviteError, setInviteError] = useState(false);
+  const [roomBusy, setRoomBusy] = useState<string | null>(null);
 
   // The form is a draft of the server document: reload it whenever the document changes.
   useEffect(() => {
@@ -234,6 +236,28 @@ export default function SettingsView() {
   const countryOptions = COUNTRIES.map((c) => ({ code: c.code, label: c.code === "XX" ? t.settings.countryOther : regionName(c.code, LOCALE_TAGS[locale], c.name) })).sort((a, b) =>
     a.code === "XX" ? 1 : b.code === "XX" ? -1 : a.label.localeCompare(b.label, LOCALE_TAGS[locale]),
   );
+  async function toggleRoomChild(roomId: string, current: string[], childId: string) {
+    setRoomBusy(roomId);
+    try {
+      const next = current.includes(childId) ? current.filter((x) => x !== childId) : [...current, childId];
+      const res = await api.roomChildren(roomId, next);
+      setFamily(res.family);
+    } finally {
+      setRoomBusy(null);
+    }
+  }
+
+  async function leaveRoom(roomId: string) {
+    if (!window.confirm(t.settings.roomLeaveConfirm)) return;
+    setRoomBusy(roomId);
+    try {
+      const res = await api.roomLeave(roomId);
+      setFamily(res.family);
+    } finally {
+      setRoomBusy(null);
+    }
+  }
+
   const month = new Date().toISOString().slice(0, 7);
 
   return (
@@ -499,6 +523,37 @@ export default function SettingsView() {
 
             <h3 className="mt-5 text-sm font-semibold">{t.settings.shareTitle}</h3>
             <p className="mt-1 text-sm text-zinc-600 dark:text-zinc-400">{t.settings.shareAppBody}</p>
+          </section>
+
+          <section className={`${CARD} mt-4`}>
+            <h2 className="font-semibold">{t.settings.rooms}</h2>
+            <p className="mt-1 text-sm text-zinc-600 dark:text-zinc-400">{t.settings.roomsBody}</p>
+            {(family.rooms ?? []).length === 0 ? (
+              <p className="mt-3 text-sm text-zinc-500">{t.settings.roomsEmpty}</p>
+            ) : (
+              <ul className="mt-3 grid gap-3">
+                {(family.rooms ?? []).map((r) => (
+                  <li key={r.roomId} className="rounded-xl border border-zinc-200 p-3 dark:border-zinc-800">
+                    <p dir="auto" className="font-medium">{r.name}</p>
+                    {r.teacherName && <p dir="auto" className="text-xs text-zinc-500">{r.teacherName}</p>}
+                    {family.children.length > 0 && (
+                      <div className="mt-2 flex flex-wrap items-center gap-2 text-xs">
+                        <span className="text-zinc-500">{t.settings.roomChildren}</span>
+                        <ChildChips childrenList={family.children} selected={r.childIds} onToggle={(id) => void toggleRoomChild(r.roomId, r.childIds, id)} />
+                      </div>
+                    )}
+                    <button type="button" disabled={roomBusy === r.roomId} className={`${BTN_SMALL} mt-3 text-red-600 dark:text-red-400`} onClick={() => leaveRoom(r.roomId)}>
+                      {t.settings.roomLeave}
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            )}
+            <p className="mt-3 text-xs text-zinc-500">
+              <Link href={localePath(locale, "/teach")} className="underline underline-offset-4">
+                {t.settings.roomTeacherLink}
+              </Link>
+            </p>
           </section>
 
           <section className={`${CARD} mt-4`}>

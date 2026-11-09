@@ -115,6 +115,25 @@ export const ClassifySchema = z.object({
 });
 export type Classify = z.infer<typeof ClassifySchema>;
 
+// A teacher's room post, translated for the families whose result language differs
+// (lib/rooms.ts). Only the free-text fields travel; dates and amounts stay as extracted.
+export const TranslatedPostSchema = z.object({
+  title: z.string().describe("The notice title in the target language."),
+  summary: z.string().describe("The summary in the target language."),
+  items: z
+    .array(
+      z.object({
+        title: z.string(),
+        description: z.string(),
+        action_text: z.string().nullable(),
+        location: z.string().nullable().describe("Translated only when it is a description such as 'school gym'; a proper name stays as written."),
+        bring: z.array(z.string()),
+      }),
+    )
+    .describe("One entry per input item, in the same order."),
+});
+export type TranslatedPost = z.infer<typeof TranslatedPostSchema>;
+
 export function isOutputLanguage(x: unknown): x is OutputLanguage {
   return typeof x === "string" && OUTPUT_LANGUAGES.some((l) => l.code === x);
 }

@@ -19,7 +19,7 @@ export type Settings = {
 
 export type Child = { id: string; name: string; color: string };
 
-export type SourceKind = "upload" | "paste" | "email" | "sample" | "share" | "gmail";
+export type SourceKind = "upload" | "paste" | "email" | "sample" | "share" | "gmail" | "room";
 
 export type Source = {
   id: string;
@@ -35,6 +35,9 @@ export type Source = {
   // input such as a chat export). Absent on records written before v0.2.
   messagesSeen?: number;
   messagesUsed?: number;
+  // Set when the notice arrived through a teacher's class room (lib/rooms.ts).
+  roomId?: string;
+  postId?: string;
 };
 
 export type ItemStatus = "open" | "done" | "dismissed";
@@ -96,6 +99,10 @@ export type BillingView = Omit<Billing, "customerId" | "subscriptionId" | "lastE
 // A partner invite link: the family keeps a hash of the token, the link carries the token.
 export type Invite = { hash: string; createdAt: string; expiresAt: string; uses: number; maxUses: number };
 
+// A class room this family follows (lib/rooms.ts). The teacher's posts land on the list
+// tagged with these children. Only the room's id and name are kept here.
+export type RoomSubscription = { roomId: string; name: string; teacherName: string; childIds: string[]; joinedAt: string; lastPostId: string | null };
+
 // Weekly summary e-mail state.
 export type DigestState = { lastSentAt: string | null; lastWeeklyAt: string | null; lastError: string | null };
 
@@ -124,6 +131,7 @@ export type FamilyRecord = {
   invites?: Invite[];
   digest?: DigestState | null;
   counters?: Record<string, number>; // "ask", "reply", "gmail_scan", "digest" -> lifetime counts (ops only)
+  rooms?: RoomSubscription[];
 };
 
 // What the browser sees: no hashes or secrets beyond the read-only feed token.

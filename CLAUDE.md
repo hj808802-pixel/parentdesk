@@ -15,17 +15,17 @@ School notices (photo, PDF, pasted text, shared message, Gmail) → events, dead
 
 ## Stack and layout
 Next.js 16 App Router + Turbopack, React 19, Tailwind 4, TypeScript, zod 4, `@anthropic-ai/sdk` (structured output via `betaZodOutputFormat`), `@vercel/blob` (one private JSON per family under `parentdesk/families/`, ops docs under `parentdesk/ops/`), vitest.
-- `src/app/[locale]/…` pages (10 UI locales: en bare path, ko es ja zh fr de pt it vi prefixed; routing in `src/proxy.ts`), `src/app/admin` (English-only operator console, outside locale routing), `src/app/api/…` route handlers.
-- `src/lib/`: `extract.ts` (model prompt + country packs from `knowledge/countries/*.md`), `schema.ts` (zod shapes, 21 result languages), `store.ts` + `types.ts` (family document, keys, invites, views), `plan.ts` (Free/Family gating; everything is Family while Stripe keys are unset), `stripe.ts`, `digest.ts`, `gmail.ts`, `assist.ts`, `dedupe.ts`, `admin.ts`, `ops.ts`, `i18n/*.ts` (dictionaries; `en.ts` is the source of truth and the parity test fails when a key is missing anywhere).
-- Design rules to keep: no accounts (family key `pd_<id>_<secret>` in an HttpOnly cookie, hashes on the server, member keys from invite links), minimal child data (first name + colour only), uploads never stored, results shown with `dir="auto"`.
+- `src/app/[locale]/…` pages (10 UI locales: en bare path, ko es ja zh fr de pt it vi prefixed; routing in `src/proxy.ts`; `/teach` is the teacher desk, `/join` handles both `?i=` partner invites and `?r=` room links), `src/app/admin` (English-only operator console, outside locale routing), `src/app/api/…` route handlers (`api/teacher/*` teacher side, `api/rooms/*` parent side of class rooms).
+- `src/lib/`: `extract.ts` (model prompt + country packs from `knowledge/countries/*.md`), `schema.ts` (zod shapes, 21 result languages), `store.ts` + `types.ts` (family document, keys, invites, views), `rooms.ts` (teachers, class rooms, posts, fan-out delivery; documents `teachers/<id>` and `rooms/<id>`), `plan.ts` (Free/Family gating; everything is Family while Stripe keys are unset), `stripe.ts`, `digest.ts`, `gmail.ts`, `assist.ts` (ask, reply, inbox classifier, post translation), `dedupe.ts`, `admin.ts`, `ops.ts`, `i18n/*.ts` (dictionaries; `en.ts` is the source of truth and the parity test fails when a key is missing anywhere).
+- Design rules to keep: no accounts (family key `pd_<id>_<secret>` and teacher key `pdt_<id>_<secret>` in HttpOnly cookies, hashes on the server, member keys from invite links), minimal child data (first name + colour only), uploads never stored, results shown with `dir="auto"`. Teachers never see family ids or names, only counts; a room post costs one extraction plus one translation per result language.
 - Models: extraction `EXTRACT_MODEL` (claude-opus-5-5), assistant `ASSIST_MODEL` (claude-sonnet-5-5), inbox classifier `CLASSIFY_MODEL` (claude-haiku-5-5). Every model path has a mock when no key is set.
 
 ## Commands
 ```
 npm run dev -- -p 3002        # local, with the API key in the environment (see Secrets)
-npm test                      # vitest (60+ tests; i18n parity, store, plan, stripe, digest, admin, gmail, dedupe, dates, ics)
+npm test                      # vitest (67 tests; i18n parity, store, rooms, plan, stripe, digest, admin, gmail, dedupe, dates, ics)
 npm run lint && npm run typecheck && npm run build
-node scripts/errorcheck.mjs --url http://localhost:3002   # 87 API error-path checks, no model calls
+node scripts/errorcheck.mjs --url http://localhost:3002   # 132 API error-path checks, no model calls (restart the dev server first if a previous run hit the 60/hour IP limiter)
 node scripts/linkcheck.mjs  --url http://localhost:3002   # every page in every locale, internal links, API status codes
 ```
 Run both scripts against production too after a deploy (default URL is production). Local families are JSON files under `data/families/`; edit them to simulate states (usage caps, billing) instead of spending model calls.
@@ -38,4 +38,4 @@ Run both scripts against production too after a deploy (default URL is productio
 - Verify in the browser pane (viewport 375 px for phone checks) before declaring UI work done.
 
 ## Status (2026-11-09)
-v0.4 deployed. User-side work remaining: Stripe account and price ids, a domain + Resend for the weekly summary and e-mail forwarding, Google app verification before leaving Testing mode, real 가정통신문 checks on the phone. Later ideas: KV-based rate limiting, RTL UI locales, school-side dashboard.
+v0.5 deployed: class rooms for teachers (`/teach`, `lib/rooms.ts`, plan doc §21). v0.4 before it. User-side work remaining: Stripe account and price ids, a domain + Resend for the weekly summary and e-mail forwarding, Google app verification before leaving Testing mode, real 가정통신문 checks on the phone. Later ideas: translate room posts for languages that join later, QR code for room links, KV-based rate limiting, RTL UI locales.

@@ -19,10 +19,14 @@ const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 
 const results = [];
 let cookie = "";
+let teacherCookie = "";
 
 async function call(method, p, { body, headers = {}, json, form, redirect = "manual", useCookie = true } = {}) {
   const h = { ...headers };
-  if (useCookie && cookie) h.cookie = cookie;
+  if (useCookie) {
+    const jar = [cookie, teacherCookie].filter(Boolean);
+    if (jar.length) h.cookie = jar.join("; ");
+  }
   let b = body;
   if (json !== undefined) {
     h["content-type"] = "application/json";
@@ -41,6 +45,10 @@ async function call(method, p, { body, headers = {}, json, form, redirect = "man
   if (useCookie && sc && /pd_family=/.test(sc)) {
     const m = /pd_family=([^;]*)/.exec(sc);
     cookie = m && m[1] ? `pd_family=${m[1]}` : "";
+  }
+  if (useCookie && sc && /pd_teacher=/.test(sc)) {
+    const m = /pd_teacher=([^;]*)/.exec(sc);
+    teacherCookie = m && m[1] ? `pd_teacher=${m[1]}` : "";
   }
   return { status: res.status, data, text, headers: res.headers };
 }
@@ -101,6 +109,20 @@ expect("admin login: off or bad token", await call("POST", "/api/admin/login", {
 expect("admin login: not json", await call("POST", "/api/admin/login", { json: "{" }), [401, 404]);
 expect("admin stats: off or unauthorized", await call("GET", "/api/admin/stats"), [401, 404]);
 expect("admin stats: forged cookie", await call("GET", "/api/admin/stats", { headers: { cookie: `pd_admin=${"0".repeat(64)}` }, useCookie: false }), [401, 404]);
+expect("teacher: get without cookie", await call("GET", "/api/teacher"), 404);
+expect("teacher: patch without cookie", await call("PATCH", "/api/teacher", { json: { name: "x" } }), 404);
+expect("teacher: create needs a name", await call("POST", "/api/teacher", { json: { name: "  " } }), 400);
+expect("teacher: create not json", await call("POST", "/api/teacher", { json: "{" }), 400);
+expect("teacher join: malformed key", await call("POST", "/api/teacher/join", { json: { key: "pdt_short" } }), 400);
+expect("teacher join: unknown key", await call("POST", "/api/teacher/join", { json: { key: `pdt_${"0".repeat(12)}_${"0".repeat(24)}` } }), 404);
+expect("teacher rooms: no teacher", await call("POST", "/api/teacher/rooms", { json: { name: "Room" } }), 404);
+expect("teacher room patch: no teacher", await call("PATCH", "/api/teacher/rooms/abc", { json: { name: "x" } }), 404);
+expect("teacher room post: no teacher", await call("POST", "/api/teacher/rooms/abc/post", { form: new FormData() }), 404);
+expect("room join: malformed token", await call("GET", "/api/rooms/join?r=abc"), 400);
+expect("room join: unknown token", await call("GET", `/api/rooms/join?r=${"0".repeat(12)}.${"0".repeat(16)}`), 404);
+expect("room join: post malformed", await call("POST", "/api/rooms/join", { json: { token: "abc" } }), 400);
+expect("room: patch without family", await call("PATCH", "/api/rooms/abc", { json: { childIds: [] } }), 404);
+expect("room: leave without family", await call("DELETE", "/api/rooms/abc"), 404);
 expect("extract: GET not allowed", await call("GET", "/api/extract"), 405);
 expect("extract: not a form", await call("POST", "/api/extract", { json: {} }), 400);
 expect("extract: empty form", await call("POST", "/api/extract", { form: new FormData() }), 400);
@@ -141,6 +163,7 @@ expect("page: /en redirects to bare path", await call("GET", "/en/items"), 308, 
 }
 expect("page: pricing", await call("GET", "/pricing", { redirect: "follow", headers: { "accept-language": "en" } }), 200, (r) => r.text.includes("Family"));
 expect("page: join without token", await call("GET", "/join", { redirect: "follow", headers: { "accept-language": "en" } }), 200);
+expect("page: teachers", await call("GET", "/teach", { redirect: "follow", headers: { "accept-language": "en" } }), 200, (r) => r.text.includes("teacher"));
 expect("page: admin console shell", await call("GET", "/admin", { redirect: "follow" }), 200, (r) => r.text.includes("admin"));
 expect("page: admin is not localised", await call("GET", "/ko/admin", { redirect: "follow" }), 404);
 expect("manifest: declares the share target", await call("GET", "/manifest.webmanifest"), 200, (r) => Boolean(r.data?.share_target?.action === "/api/share"));
@@ -194,6 +217,65 @@ if (key) {
     expect("join: invite dead after three uses", await call("POST", "/api/family/join", { json: { invite: token } }), 404);
     cookie = mine;
   }
+  // ---- class rooms: a teacher, a room, this family following it ----
+  const tCreated = await call("POST", "/api/teacher", { json: { name: "Ms. Test", locale: "fr", timezone: "Europe/Paris" } });
+  const tKey = tCreated.data?.key;
+  expect("teacher: create", tCreated, 200, (r) => /^pdt_[0-9a-f]{12}_[0-9a-f]{24}$/.test(r.data?.key ?? "") && r.data.teacher?.name === "Ms. Test" && !("keyHash" in r.data.teacher) && Boolean(teacherCookie));
+  if (tKey) {
+    expect("teacher: get with cookie", await call("GET", "/api/teacher"), 200, (r) => r.data.teacher.rooms.length === 0 && r.data.teacher.postCap > 0);
+    expect("teacher: patch invalid json", await call("PATCH", "/api/teacher", { json: "{" }), 400);
+    expect("teacher: empty name rejected", await call("PATCH", "/api/teacher", { json: { name: " " } }), 400);
+    expect("teacher rooms: empty name", await call("POST", "/api/teacher/rooms", { json: { name: "" } }), 400);
+    const roomRes = await call("POST", "/api/teacher/rooms", { json: { name: "  Room   12 " } });
+    expect("teacher rooms: create", roomRes, 200, (r) => r.data.teacher.rooms.length === 1 && r.data.teacher.rooms[0].name === "Room 12" && /^[0-9a-f]{12}\.[0-9a-f]{16}$/.test(r.data.teacher.rooms[0].joinToken) && !("joinSecret" in r.data.teacher.rooms[0]));
+    const room = roomRes.data?.teacher?.rooms?.[0];
+    if (room) {
+      expect("teacher room post: unknown room", await call("POST", `/api/teacher/rooms/${"0".repeat(12)}/post`, { form: new FormData() }), 404);
+      expect("teacher room post: not a form", await call("POST", `/api/teacher/rooms/${room.id}/post`, { json: {} }), 400);
+      expect("teacher room post: empty", await call("POST", `/api/teacher/rooms/${room.id}/post`, { form: new FormData() }), 400);
+      {
+        const f = new FormData();
+        f.set("text", "short");
+        expect("teacher room post: text too short", await call("POST", `/api/teacher/rooms/${room.id}/post`, { form: f }), 400);
+      }
+      {
+        const f = new FormData();
+        f.set("text", bigText);
+        expect("teacher room post: text too long", await call("POST", `/api/teacher/rooms/${room.id}/post`, { form: f }), 413);
+      }
+      {
+        const f = new FormData();
+        f.append("files", file(100, "text/plain", "n.txt"));
+        expect("teacher room post: unsupported type", await call("POST", `/api/teacher/rooms/${room.id}/post`, { form: f }), 400);
+      }
+      expect("room join: info", await call("GET", `/api/rooms/join?r=${room.joinToken}`), 200, (r) => r.data.room?.name === "Room 12" && r.data.room.teacherName === "Ms. Test" && r.data.following === false);
+      expect("room join: wrong secret", await call("GET", `/api/rooms/join?r=${room.id}.${"f".repeat(16)}`), 404);
+      const joined = await call("POST", "/api/rooms/join", { json: { token: room.joinToken, childIds: ["nope"] } });
+      expect("room join: family follows the room", joined, 200, (r) => r.data.family?.rooms?.length === 1 && r.data.family.rooms[0].roomId === room.id && r.data.family.rooms[0].childIds.length === 0 && r.data.key === undefined);
+      expect("room join: info shows following", await call("GET", `/api/rooms/join?r=${room.joinToken}`), 200, (r) => r.data.following === true);
+      expect("teacher: room counts the member", await call("GET", "/api/teacher"), 200, (r) => r.data.teacher.rooms[0].memberCount === 1);
+      expect("room: children of unknown room", await call("PATCH", `/api/rooms/${"0".repeat(12)}`, { json: { childIds: [] } }), 404);
+      expect("room: children patch", await call("PATCH", `/api/rooms/${room.id}`, { json: { childIds: [] } }), 200);
+      const rotated = await call("PATCH", `/api/teacher/rooms/${room.id}`, { json: { rotate: true } });
+      expect("teacher room: rotate changes the token", rotated, 200, (r) => r.data.teacher.rooms[0].joinToken !== room.joinToken);
+      expect("room join: old token dead after rotate", await call("GET", `/api/rooms/join?r=${room.joinToken}`), 404);
+      expect("room: leave", await call("DELETE", `/api/rooms/${room.id}`), 200, (r) => r.data.family.rooms.length === 0);
+      expect("room: leave twice", await call("DELETE", `/api/rooms/${room.id}`), 404);
+      expect("teacher room: delete", await call("DELETE", `/api/teacher/rooms/${room.id}`), 200, (r) => r.data.teacher.rooms.length === 0);
+      expect("teacher room: delete unknown", await call("DELETE", `/api/teacher/rooms/${room.id}`), 404);
+    }
+    const savedTeacher = teacherCookie;
+    expect("teacher leave: clears the cookie", await call("POST", "/api/teacher/leave"), 200, (r) => /pd_teacher=;/.test(r.headers.get("set-cookie") ?? ""));
+    teacherCookie = "";
+    expect("teacher: gone after leave", await call("GET", "/api/teacher"), 404);
+    expect("teacher join: own key restores the desk", await call("POST", "/api/teacher/join", { json: { key: tKey } }), 200, (r) => r.data.teacher.name === "Ms. Test" && Boolean(teacherCookie));
+    if (!teacherCookie) teacherCookie = savedTeacher;
+    expect("teacher: delete", await call("DELETE", "/api/teacher"), 200);
+    teacherCookie = savedTeacher;
+    expect("teacher: gone after delete", await call("GET", "/api/teacher"), 404);
+    teacherCookie = "";
+  }
+
   const fam = (await call("GET", "/api/family")).data.family;
   const feed = await call("GET", `/api/calendar/${fam.feedToken}.ics`, { useCookie: false });
   expect("calendar: feed works without cookie", feed, 200, (r) => r.text.includes("BEGIN:VCALENDAR") && (r.headers.get("content-type") ?? "").includes("text/calendar"));

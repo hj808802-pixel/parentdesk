@@ -2,7 +2,8 @@ import Anthropic from "@anthropic-ai/sdk";
 import { betaZodOutputFormat } from "@anthropic-ai/sdk/helpers/beta/zod";
 import { weekday } from "./dates";
 import { ASSIST_MODEL, CLASSIFY_MODEL, LANGUAGE_NAMES, isMock } from "./extract";
-import { AskSchema, ClassifySchema, ReplySchema, type Ask, type Classify, type Reply } from "./schema";
+import { AskSchema, ClassifySchema, ReplySchema, TranslatedPostSchema, type Ask, type Classify, type Reply } from "./schema";
+import type { ItemDraft } from "./store";
 import type { FamilyRecord, Item, Source } from "./types";
 
 // The three smaller model jobs next to extraction: answering a parent's question from the
@@ -174,4 +175,59 @@ export async function classifyEmails(heads: MailHead[], fallback: (h: MailHead) 
   if (!parsed) throw new Error("no structured output");
   const picked = [...new Set(parsed.school.filter((i) => Number.isInteger(i) && i >= 0 && i < heads.length))];
   return { picked, model: response.model, mock: false };
+}
+
+const TRANSLATE_RULES = `You translate one school notice that a teacher posted through ParentDesk, so that a family who reads another language gets the same dates and to-dos in theirs.
+
+- Translate every free-text field into the target language: the title, the summary, and for each item its title, description, action_text and bring list. Keep the meaning exact; do not add, drop or reorder items. Return exactly one entry per item, in the given order.
+- Keep proper names (the school, a museum, a person), amounts, dates and times as they are. A place that is a description ("school gym", "front gate") is translated; a proper name is not.
+- Keep the school's own name for an event in parentheses when it helps the parent recognise it on the paper.
+- Use the register a school uses with parents in the target language (Korean 존댓말, Japanese です・ます, German Sie).`;
+
+export type PostText = { title: string; summary: string; items: ItemDraft[] };
+
+// One call per target language; the result keeps every non-text field of the items.
+export async function translatePost(post: PostText, fromLanguage: string, toLanguage: string): Promise<{ result: PostText; model: string; mock: boolean }> {
+  if (isMock()) {
+    const tag = `[${toLanguage}] `;
+    return {
+      result: { title: tag + post.title, summary: tag + post.summary, items: post.items.map((it) => ({ ...it, title: tag + it.title })) },
+      model: "mock",
+      mock: true,
+    };
+  }
+  const client = new Anthropic();
+  const listing = post.items
+    .map((it, i) => `#${i} title: ${it.title}\n   description: ${it.description}\n   action_text: ${it.action_text ?? "(null)"}\n   location: ${it.location ?? "(null)"}\n   bring: ${it.bring.length ? it.bring.join(" | ") : "(none)"}`)
+    .join("\n");
+  const response = await client.beta.messages.parse({
+    model: ASSIST_MODEL,
+    max_tokens: 4000,
+    system: [{ type: "text", text: TRANSLATE_RULES }],
+    messages: [
+      {
+        role: "user",
+        content: [
+          { type: "text", text: `Source language: ${languageName(fromLanguage)}. Target language: ${languageName(toLanguage)}.` },
+          { type: "text", text: `<notice>\nTitle: ${post.title}\nSummary: ${post.summary}\n</notice>\n<items>\n${listing}\n</items>` },
+        ],
+      },
+    ],
+    output_config: { effort: "low", format: betaZodOutputFormat(TranslatedPostSchema) },
+  });
+  const parsed = response.parsed_output;
+  if (!parsed) throw new Error("no structured output");
+  const items = post.items.map((it, i) => {
+    const tr = parsed.items[i];
+    if (!tr) return it;
+    return {
+      ...it,
+      title: (tr.title || it.title).slice(0, 160),
+      description: (tr.description || it.description).slice(0, 1000),
+      action_text: it.action_text ? (tr.action_text || it.action_text).slice(0, 200) : null,
+      location: it.location ? (tr.location || it.location).slice(0, 200) : null,
+      bring: tr.bring.length === it.bring.length ? tr.bring.map((b) => b.slice(0, 80)) : it.bring,
+    };
+  });
+  return { result: { title: (parsed.title || post.title).slice(0, 160), summary: (parsed.summary || post.summary).slice(0, 1200), items }, model: response.model, mock: false };
 }

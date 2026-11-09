@@ -22,7 +22,7 @@ const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const UA = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0 Safari/537.36";
 
 const PREFIXES = ["", "/ko", "/es", "/ja", "/zh", "/fr", "/de", "/pt", "/it", "/vi"];
-const PAGES = ["/", "/add", "/items", "/sources", "/settings", "/pricing", "/join", "/privacy", "/terms"];
+const PAGES = ["/", "/add", "/items", "/sources", "/settings", "/pricing", "/join", "/teach", "/privacy", "/terms"];
 const STATIC = ["/manifest.webmanifest", "/robots.txt", "/sitemap.xml", "/favicon.ico", "/og.png", "/icon-192.png", "/icon-512.png", "/apple-touch-icon.png", "/sample-notice.png"];
 
 async function get(url, opts = {}) {
@@ -105,6 +105,10 @@ await check("share: GET redirects to add", `${BASE}/api/share`, { noBody: true }
 await check("google start: off or no family", `${BASE}/api/google/start`, {}, [200, 404]);
 await check("google scan: off or no family", `${BASE}/api/google/scan`, { method: "POST" }, [404]);
 await check("cron: needs secret", `${BASE}/api/cron/scan`, {}, [401, 404]);
+await check("teacher: none", `${BASE}/api/teacher`, {}, [404]);
+await check("teacher join: bad key", `${BASE}/api/teacher/join`, json(JSON.stringify({ key: "nope" })), [400]);
+await check("room join: bad token", `${BASE}/api/rooms/join?r=nope`, {}, [400]);
+await check("room: no family", `${BASE}/api/rooms/abc`, { method: "DELETE" }, [404]);
 
 const badPages = pages.filter((p) => p.status !== 200 || p.error);
 const badInternal = internalResults.filter((p) => !p.ok);

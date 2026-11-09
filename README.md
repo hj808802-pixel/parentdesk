@@ -26,10 +26,10 @@ Next.js 16 (App Router) · React 19 · Tailwind 4 · TypeScript · zod · Anthro
 
 ```
 knowledge/countries/        country packs (markdown, read at request time)
-src/app/[locale]/           pages: / (week), /add, /items, /sources, /settings, /privacy, /terms
-src/app/api/                extract, share, ask, family (+join, leave, rotate-feed), items/[id] (+reply), sources/[id], calendar/[feed], inbound, google/{start,callback,scan,disconnect}, cron/scan, health
-src/components/             HomeView, AddNotice, ItemCard, ItemsView, SourcesView, SettingsView, Landing, …
-src/lib/                    extract (Claude), assist (ask, reply, inbox classifier), gmail, dedupe, crypto, store (family document), schema, countries, dates, ics, ratelimit, i18n/*
+src/app/[locale]/           pages: / (week), /add, /items, /sources, /settings, /teach (teachers), /join, /pricing, /privacy, /terms
+src/app/api/                extract, share, ask, family (+join, leave, rotate-feed, invite), items/[id] (+reply), sources/[id], calendar/[feed], inbound, google/{start,callback,scan,disconnect}, teacher (+join, leave, rooms, rooms/[id], rooms/[id]/post), rooms/{join,[id]}, billing/*, digest/*, cron/{scan,digest}, admin/*, health
+src/components/             HomeView, AddNotice, ItemCard, ItemsView, SourcesView, SettingsView, TeachView, JoinView, Landing, …
+src/lib/                    extract (Claude), assist (ask, reply, inbox classifier, post translation), rooms (teachers and class rooms), gmail, dedupe, crypto, store (family document), plan, stripe, digest, admin, schema, countries, dates, ics, ratelimit, i18n/*
 integrations/               Cloudflare Email Worker for e-mail forwarding
 scripts/linkcheck.mjs       page/link/API sweep of a deployment
 tests/                      vitest
@@ -72,6 +72,10 @@ node scripts/errorcheck.mjs --url http://localhost:3000   # error paths, no mode
 - **Invite links** (`POST /api/family/invite`, `/join?i=<family>.<secret>`): the record keeps a hash; a link works 3 times for 3 days, at most 5 live. A device that joins gets a member key of its own (same format; up to 10 hashes per family).
 - **Admin console** (`/admin`, `ADMIN_TOKEN` of 16+ characters): the token is exchanged for an HttpOnly cookie holding its hash; `/api/admin/stats` walks the family documents and returns counts only (families, items, notices per day, plans, Gmail, digest, countries, languages, lifetime counters, last cron runs from `ops/runs.json`) plus a per-family summary without item text or child names. Lives outside the locale routing and is never indexed.
 
+## Class rooms for teachers (v0.5)
+
+A teacher opens a desk at `/teach` (no account: a teacher key `pdt_<id>_<secret>` in an HttpOnly cookie, hash on the server), opens a room per class and shares its link (`/join?r=<room id>.<secret>`). Parents who open the link pick the children in that class and follow the room; a browser without a family gets one created on the spot. When the teacher posts a notice (text, photo or PDF), it is extracted **once** in the teacher's language, translated **once per result language** the following families use (`translatePost`, Sonnet, free-text fields only), and written onto every family's list with the right children attached. Late joiners get the room's posts of the last 30 days. Teachers see only how many families follow; families see the teacher's name and the room's name. Documents: `teachers/<id>`, `rooms/<id>`; the family document keeps a `rooms[]` subscription list. Caps: `TEACHER_MONTHLY_POSTS` (default 100) posts per teacher per month, 10 rooms per teacher, 300 families per room.
+
 ## Deploy (Vercel)
 
 1. Import the repository, framework Next.js.
@@ -83,7 +87,10 @@ node scripts/errorcheck.mjs --url http://localhost:3000   # error paths, no mode
 ```
 Family { id, keyHash, feedSecret, inboundCode, settings{country, language, timezone, dateOrder, currency, weekStart, familyName}, children[], sources[], items[], usage{} }
 Child  { id, name, color }
-Source { id, ts, kind: upload|paste|email|sample, title, sender, summary, language, pages, questions[] }
+Source { id, ts, kind: upload|paste|email|sample|share|gmail|room, title, sender, summary, language, pages, questions[], roomId?, postId? }
+Family.rooms[] { roomId, name, teacherName, childIds[], joinedAt, lastPostId }
+Teacher { id, keyHash, name, settings, roomIds[], usage{} }          # teachers/<id>
+Room    { id, teacherId, name, joinSecret, members[{familyId}], posts[{ id, ts, title, summary, language, items[ItemDraft], translations{lang}, delivered }] }   # rooms/<id>
 Item   { id, sourceId, type: event|deadline|todo|payment|consent|info, title, description, date, end_date, time, end_time, all_day,
          location, amount, currency, bring[], requires_action, action_text, confidence, quote, childIds[], status: open|done|dismissed }
 ```
@@ -94,4 +101,4 @@ One extraction is roughly 3–6K input tokens (notice + cached rules and country
 
 ## Status
 
-v0.4 beta (2026-11-06): extraction, assistant, auto-collect channels, 10 UI languages, plans and Stripe billing, weekly summary e-mail, partner invite links, admin console. Billing and e-mail sending switch on when their keys are set. Not yet: school-side dashboard. See the plan in the author's notes.
+v0.5 beta (2026-11-09): extraction, assistant, auto-collect channels, 10 UI languages, plans and Stripe billing, weekly summary e-mail, partner invite links, admin console, and class rooms for teachers (one post, every following family's list in its own language). Billing and e-mail sending switch on when their keys are set. Not yet: translations for languages that join a room later, QR codes for room links. See the plan in the author's notes.

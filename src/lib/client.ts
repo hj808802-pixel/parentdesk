@@ -1,9 +1,14 @@
+import type { RoomPost, RoomPublic, TeacherView } from "./rooms";
 import type { FamilyView, Item, PlanLimits } from "./types";
 
 // Thin fetch helpers for the browser. Every call carries the HttpOnly family cookie.
 
 export type ApiError = { ok: false; error: string; retry_after?: number };
 export type FamilyResponse = { ok: true; family: FamilyView; key?: string };
+export type TeacherResponse = { ok: true; teacher: TeacherView; key?: string };
+export type RoomInfoResponse = { ok: true; room: RoomPublic; following: boolean; childIds: string[] };
+export type RoomJoinResponse = FamilyResponse & { room: RoomPublic; backfilled: { posts: number; items: number } };
+export type RoomPostResponse = { ok: true; saved: boolean; school_related: boolean; summary?: string; post?: RoomPost; delivered?: number; members?: number; languages?: string[]; teacher?: TeacherView; mock: boolean };
 
 export class ApiFailure extends Error {
   constructor(
@@ -48,7 +53,56 @@ export const api = {
   digestSend: () => call<{ ok: true; family: FamilyView }>("/api/digest/send", { method: "POST" }),
   digestPreview: () => call<{ ok: true; subject: string; text: string; count: number }>("/api/digest/preview"),
   health: () => call<{ ok: true; billing: boolean; digest: boolean; limits: PlanLimits }>("/api/health"),
+  // class rooms: the parent side
+  roomInfo: (token: string) => call<RoomInfoResponse>(`/api/rooms/join?r=${encodeURIComponent(token)}`),
+  roomJoin: (token: string, childIds: string[], init: { locale?: string; timezone?: string }) => call<RoomJoinResponse>("/api/rooms/join", { method: "POST", body: JSON.stringify({ token, childIds, ...init }) }),
+  roomChildren: (roomId: string, childIds: string[]) => call<FamilyResponse>(`/api/rooms/${roomId}`, { method: "PATCH", body: JSON.stringify({ childIds }) }),
+  roomLeave: (roomId: string) => call<FamilyResponse>(`/api/rooms/${roomId}`, { method: "DELETE" }),
+  // class rooms: the teacher side
+  teacher: () => call<TeacherResponse>("/api/teacher"),
+  createTeacher: (init: { name: string; locale?: string; timezone?: string; settings?: Record<string, unknown> }) => call<TeacherResponse>("/api/teacher", { method: "POST", body: JSON.stringify(init) }),
+  updateTeacher: (patch: Record<string, unknown>) => call<TeacherResponse>("/api/teacher", { method: "PATCH", body: JSON.stringify(patch) }),
+  deleteTeacher: () => call<{ ok: true }>("/api/teacher", { method: "DELETE" }),
+  joinTeacher: (key: string) => call<TeacherResponse>("/api/teacher/join", { method: "POST", body: JSON.stringify({ key }) }),
+  leaveTeacher: () => call<{ ok: true }>("/api/teacher/leave", { method: "POST" }),
+  createRoom: (name: string) => call<TeacherResponse & { roomId: string }>("/api/teacher/rooms", { method: "POST", body: JSON.stringify({ name }) }),
+  updateRoom: (id: string, patch: { name?: string; rotate?: boolean }) => call<TeacherResponse>(`/api/teacher/rooms/${id}`, { method: "PATCH", body: JSON.stringify(patch) }),
+  deleteRoom: (id: string) => call<TeacherResponse>(`/api/teacher/rooms/${id}`, { method: "DELETE" }),
 };
+
+// The teacher key is shown on the teacher page so the desk can be opened on another
+// device; the server keeps only a hash.
+const TEACHER_KEY_STORAGE = "pd_teacher_key";
+
+export function rememberTeacherKey(key: string | undefined | null) {
+  if (!key) return;
+  try {
+    window.localStorage.setItem(TEACHER_KEY_STORAGE, key);
+  } catch {
+    /* storage unavailable */
+  }
+}
+
+export function readTeacherKey(): string {
+  try {
+    return window.localStorage.getItem(TEACHER_KEY_STORAGE) ?? "";
+  } catch {
+    return "";
+  }
+}
+
+export function forgetTeacherKey() {
+  try {
+    window.localStorage.removeItem(TEACHER_KEY_STORAGE);
+  } catch {
+    /* ignore */
+  }
+}
+
+export function roomJoinUrl(token: string, path: string): string {
+  const origin = typeof window !== "undefined" ? window.location.origin : "";
+  return `${origin}${path}?r=${token}`;
+}
 
 // The family key is shown in Settings so a partner can join. The server keeps only a hash,
 // so the browser that received the key remembers it here.

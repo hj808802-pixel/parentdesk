@@ -110,6 +110,9 @@ export default async function RootLayout({ children, params }: Props) {
                 <Link href={localePath(locale, "/pricing")} className="underline underline-offset-4">
                   {t.nav.pricing}
                 </Link>
+                <Link href={localePath(locale, "/teach")} className="underline underline-offset-4">
+                  {t.nav.teach}
+                </Link>
                 <Link href={localePath(locale, "/privacy")} className="underline underline-offset-4">
                   {t.nav.privacy}
                 </Link>
