@@ -1,3 +1,4 @@
+import { countryOf, isCountry } from "./countries";
 import type { SettingsSuggestion } from "./schema";
 import { CHILD_COLORS, MAX_CHILDREN, type Child, type Settings } from "./types";
 
@@ -64,6 +65,9 @@ export type ChangeKey = "familyName" | "country" | "language" | "timezone" | "cu
 export type Change = { key: ChangeKey; from: string; to: string };
 
 const sameName = (a: string, b: string) => a.trim().toLowerCase() === b.trim().toLowerCase();
+// The same rule as the server (store.ts isEmail); an address that fails it is not proposed.
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+export const isValidEmail = (x: string) => x.length <= 120 && EMAIL_RE.test(x);
 
 // Turns the assistant's suggestion into the settings and children to save, plus the list
 // of changes shown to the parent before anything is applied. Only fields the suggestion
@@ -78,7 +82,16 @@ export function applySuggestion(settings: Settings, children: Child[], s: Settin
   };
   const p = s.settings;
   if (p.familyName != null && p.familyName.trim()) set("familyName", p.familyName.trim().slice(0, 60), "familyName", settings.familyName, p.familyName.trim().slice(0, 60));
-  if (p.country) set("country", p.country.toUpperCase(), "country", settings.country, p.country.toUpperCase());
+  if (p.country && isCountry(p.country.toUpperCase()) && p.country.toUpperCase() !== settings.country) {
+    const c = countryOf(p.country);
+    set("country", c.code, "country", settings.country, c.code);
+    // What the server derives from a new country, shown here so the parent sees it too;
+    // anything the request names explicitly wins below.
+    if (!p.timezone) set("timezone", c.timezone, "timezone", settings.timezone, c.timezone);
+    if (!p.currency) set("currency", c.currency, "currency", settings.currency, c.currency);
+    if (!p.dateOrder) set("dateOrder", c.dateOrder, "dateOrder", settings.dateOrder, c.dateOrder);
+    if (!p.weekStartsOn) set("weekStart", c.weekStart, "weekStart", String(settings.weekStart), String(c.weekStart));
+  }
   if (p.language) set("language", p.language, "language", settings.language, p.language);
   if (p.timezone) set("timezone", p.timezone, "timezone", settings.timezone, p.timezone);
   if (p.currency && /^[A-Za-z]{3}$/.test(p.currency)) set("currency", p.currency.toUpperCase(), "currency", settings.currency, p.currency.toUpperCase());
@@ -86,8 +99,10 @@ export function applySuggestion(settings: Settings, children: Child[], s: Settin
   if (p.weekStartsOn) set("weekStart", p.weekStartsOn === "sunday" ? 0 : 1, "weekStart", String(settings.weekStart), p.weekStartsOn === "sunday" ? "0" : "1");
   if (p.digestEmail != null) {
     const e = p.digestEmail.trim().toLowerCase();
-    set("digestEmail", e, "digestEmail", settings.digestEmail, e);
-    if (e && p.digest == null) set("digest", true, "digest", settings.digest ? "on" : "off", "on");
+    if (e === "" || isValidEmail(e)) {
+      set("digestEmail", e, "digestEmail", settings.digestEmail, e);
+      if (e && p.digest == null) set("digest", true, "digest", settings.digest ? "on" : "off", "on");
+    }
   }
   if (p.digest != null) set("digest", p.digest && Boolean(next.digestEmail), "digest", settings.digest ? "on" : "off", p.digest && next.digestEmail ? "on" : "off");
   if (p.members) {

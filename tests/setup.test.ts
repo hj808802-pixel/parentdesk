@@ -37,13 +37,24 @@ describe("easy setup", () => {
     };
     const out = applySuggestion(record.settings, record.children, s);
     expect(out.settings.country).toBe("JP");
-    expect(out.settings.weekStart).toBe(1); // Korea starts on Sunday by default
+    expect(out.settings.timezone).toBe("Asia/Tokyo"); // derived from the new country, shown in the preview
+    expect(out.settings.currency).toBe("JPY");
+    expect(out.settings.weekStart).toBe(1); // asked for explicitly (Japan would default to Sunday)
     expect(out.settings.digestEmail).toBe("mom@example.com");
     expect(out.settings.digest).toBe(true); // an address switches the summary on
     expect(out.settings.members).toEqual(["엄마", "아빠"]);
     expect(out.children.map((c) => c.name)).toEqual(["민준이", "서연"]); // renamed, then added once (the repeat is dropped)
     expect(out.children[0].id).toBe("c1");
-    expect(out.changes.map((c) => c.key)).toEqual(["country", "weekStart", "digestEmail", "digest", "members", "childRename", "childAdd"]);
+    expect(out.changes.map((c) => c.key)).toEqual(["country", "timezone", "currency", "weekStart", "digestEmail", "digest", "members", "childRename", "childAdd"]);
+  });
+
+  it("does not propose an address the server would refuse, nor switch the summary on for it", () => {
+    const { record } = createFamily();
+    const out = applySuggestion(record.settings, record.children, { ...empty, settings: { ...empty.settings, digestEmail: "not-an-address" } });
+    expect(out.changes).toEqual([]);
+    expect(out.settings.digest).toBe(false);
+    const same = applySuggestion(record.settings, record.children, { ...empty, settings: { ...empty.settings, country: record.settings.country } });
+    expect(same.changes).toEqual([]); // the same country again changes nothing
   });
 
   it("changes nothing when the suggestion is empty", () => {

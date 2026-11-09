@@ -3,14 +3,15 @@ import { suggestSettings } from "@/lib/assist";
 import { todayIn } from "@/lib/dates";
 import { isLocale } from "@/lib/i18n/locales";
 import { allowRequest, clientIp } from "@/lib/ratelimit";
-import { bumpCounter, familyFromRequest, saveFamily } from "@/lib/store";
+import { familyFromRequest } from "@/lib/store";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
 
 // "Add my second child Mia", "we moved to Japan": the assistant turns plain words into a
 // settings suggestion. Nothing is changed here; the browser shows the changes and saves
-// them through the ordinary family PATCH once the parent agrees.
+// them through the ordinary family PATCH once the parent agrees. Nothing is written here,
+// so a save made while the model is running is never overwritten.
 export async function POST(req: Request) {
   const rec = await familyFromRequest(req);
   if (!rec) return Response.json({ ok: false, error: "no_family" }, { status: 404 });
@@ -24,8 +25,6 @@ export async function POST(req: Request) {
   const started = Date.now();
   try {
     const out = await suggestSettings(rec, text, locale, todayIn(rec.settings.timezone));
-    bumpCounter(rec, "setup");
-    await saveFamily(rec);
     console.log(JSON.stringify({ event: "setup", family: rec.id, ms: Date.now() - started, model: out.model, mock: out.mock }));
     return Response.json({ ok: true, ...out.result, mock: out.mock });
   } catch (e) {

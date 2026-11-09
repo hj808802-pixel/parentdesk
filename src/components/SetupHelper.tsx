@@ -9,13 +9,14 @@ import { LOCALE_TAGS, regionName } from "@/lib/i18n/locales";
 import { COUNTRIES } from "@/lib/countries";
 import { OUTPUT_LANGUAGES, type SetupSection } from "@/lib/schema";
 import { applySuggestion, type Change } from "@/lib/setup";
+import type { SettingsSuggestion } from "@/lib/schema";
 import { BTN_PRIMARY, BTN_SECONDARY, BTN_SMALL, CARD, INPUT } from "@/lib/ui";
 
 // "Add my second child" in the parent's own words. The assistant proposes, the parent
 // sees every change as "field: before → after" and taps Apply; only then is it saved
 // through the ordinary settings route.
 
-type Proposal = { reply: string; section: SetupSection | null; settings: ReturnType<typeof applySuggestion>["settings"]; children: ReturnType<typeof applySuggestion>["children"]; changes: Change[] };
+type Proposal = { familyId: string; raw: SettingsSuggestion };
 
 export default function SetupHelper({ onGo }: { onGo: (section: SetupSection) => void }) {
   const { locale, t } = useI18n();
@@ -37,8 +38,7 @@ export default function SetupHelper({ onGo }: { onGo: (section: SetupSection) =>
     setApplied(false);
     try {
       const res = await api.assistSettings(body, locale);
-      const plan = applySuggestion(family.settings, family.children, res);
-      setProposal({ reply: res.reply, section: res.section, ...plan });
+      setProposal({ familyId: family.id, raw: res });
     } catch (e) {
       const code = e instanceof ApiFailure ? e.code : "generic";
       const dict = t.add.errors as Record<string, string>;
@@ -48,11 +48,15 @@ export default function SetupHelper({ onGo }: { onGo: (section: SetupSection) =>
     }
   }
 
+  // Always against the family as it is now: a save made in between is kept, and a proposal
+  // made for another family is ignored.
+  const current = proposal && family && proposal.familyId === family.id ? { reply: proposal.raw.reply, section: proposal.raw.section, ...applySuggestion(family.settings, family.children, proposal.raw) } : null;
+
   async function apply() {
-    if (!proposal || applying) return;
+    if (!current || applying) return;
     setApplying(true);
     try {
-      const res = await api.updateFamily({ settings: { ...proposal.settings, locale }, children: proposal.children });
+      const res = await api.updateFamily({ settings: { ...current.settings, locale }, children: current.children });
       setFamily(res.family);
       setProposal(null);
       setText("");
@@ -113,13 +117,13 @@ export default function SetupHelper({ onGo }: { onGo: (section: SetupSection) =>
           {t.settings.setup.aiApplied}
         </p>
       )}
-      {proposal && (
+      {current && (
         <div className="mt-3 rounded-xl border border-indigo-200 bg-indigo-50 p-3 text-sm dark:border-indigo-900 dark:bg-indigo-950/40" aria-live="polite">
-          <p dir="auto">{proposal.reply}</p>
-          {proposal.changes.length > 0 ? (
+          <p dir="auto">{current.reply}</p>
+          {current.changes.length > 0 ? (
             <>
               <ul className="mt-2 grid gap-1">
-                {proposal.changes.map((c, i) => (
+                {current.changes.map((c, i) => (
                   <li key={i} dir="auto" className="flex flex-wrap gap-x-2">
                     <span className="font-medium">{t.settings.setup.fields[c.key]}:</span>
                     {c.from && c.to ? (
@@ -142,11 +146,11 @@ export default function SetupHelper({ onGo }: { onGo: (section: SetupSection) =>
               </div>
             </>
           ) : (
-            <p className="mt-1 text-xs text-zinc-500">{proposal.section ? "" : t.settings.setup.aiNoChange}</p>
+            <p className="mt-1 text-xs text-zinc-500">{current.section ? "" : t.settings.setup.aiNoChange}</p>
           )}
-          {proposal.section && (
-            <button type="button" className={`${BTN_SMALL} mt-2`} onClick={() => onGo(proposal.section as SetupSection)}>
-              {fmt(t.settings.setup.aiOpen, { section: t.settings.setup.sections[proposal.section] })}
+          {current.section && (
+            <button type="button" className={`${BTN_SMALL} mt-2`} onClick={() => onGo(current.section as SetupSection)}>
+              {fmt(t.settings.setup.aiOpen, { section: t.settings.setup.sections[current.section] })}
             </button>
           )}
         </div>
