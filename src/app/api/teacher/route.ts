@@ -1,5 +1,5 @@
 import { allowRequest, clientIp } from "@/lib/ratelimit";
-import { clearTeacherCookie, createTeacher, deleteRoom, deleteTeacher, loadRooms, sanitizeName, sanitizeSchool, saveTeacher, teacherCookie, teacherFromRequest, teacherView } from "@/lib/rooms";
+import { clearTeacherCookie, createTeacher, deleteRoom, deleteTeacher, loadRooms, removeFromDirectory, sanitizeName, sanitizeSchool, saveTeacher, syncDirectory, teacherCookie, teacherFromRequest, teacherView } from "@/lib/rooms";
 import { isHttps, sanitizeSettings } from "@/lib/store";
 
 export const runtime = "nodejs";
@@ -49,14 +49,19 @@ export async function PATCH(req: Request) {
   if (typeof body.school === "string") teacher.school = sanitizeSchool(body.school);
   if (body.settings) teacher.settings = sanitizeSettings(body.settings, teacher.settings);
   await saveTeacher(teacher);
-  return Response.json({ ok: true, teacher: teacherView(teacher, await loadRooms(teacher)) });
+  // The directory shows the school, the teacher's name and country: keep it in step.
+  const rooms = await loadRooms(teacher);
+  if (rooms.some((r) => r.listed)) await syncDirectory(teacher, rooms);
+  return Response.json({ ok: true, teacher: teacherView(teacher, rooms) });
 }
 
 export async function DELETE(req: Request) {
   const teacher = await teacherFromRequest(req);
   if (teacher) {
-    for (const room of await loadRooms(teacher)) await deleteRoom(room.id);
+    const rooms = await loadRooms(teacher);
+    for (const room of rooms) await deleteRoom(room.id);
     await deleteTeacher(teacher.id);
+    await removeFromDirectory(rooms.map((r) => r.id));
   }
   return Response.json({ ok: true }, { headers: { "set-cookie": clearTeacherCookie(isHttps(req)) } });
 }

@@ -8,6 +8,7 @@
 const HOURLY_CAP_PER_FAMILY = Number(process.env.HOURLY_CAP_PER_FAMILY ?? 20);
 const HOURLY_CAP_PER_IP = Number(process.env.HOURLY_CAP_PER_IP ?? 60);
 const DAILY_CAP = Number(process.env.DAILY_CAP ?? 500);
+const HOURLY_LOOKUPS_PER_IP = Number(process.env.HOURLY_LOOKUPS_PER_IP ?? 120);
 
 const HOUR = 60 * 60 * 1000;
 
@@ -64,6 +65,17 @@ export function allowRequest(keys: { ip: string; family: string | null }): Gate 
   if (buckets.size > 10000) {
     for (const [k, v] of buckets) if (now - v.windowStart > HOUR) buckets.delete(k);
   }
+  return { ok: true };
+}
+
+// Cheap public reads (the class directory): a per-IP hourly cap of their own, outside the
+// daily cap, so searching can never use up the model budget of the families on the instance.
+export function allowLookup(ip: string): Gate {
+  const now = Date.now();
+  const key = `lookup:${ip}`;
+  const g = check(key, HOURLY_LOOKUPS_PER_IP, now);
+  if (!g.ok) return { ok: false, reason: "rate_limited", retryAfterSec: g.retryAfterSec };
+  bump(key, now);
   return { ok: true };
 }
 

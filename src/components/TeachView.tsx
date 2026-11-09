@@ -10,6 +10,7 @@ import { fmt } from "@/lib/i18n";
 import { LOCALE_TAGS, localePath, regionName } from "@/lib/i18n/locales";
 import { shrinkImage } from "@/lib/image";
 import type { RoomPost, RoomView, TeacherView } from "@/lib/rooms";
+import { gradeClassLabel } from "@/lib/rooms-ui";
 import { NOTICE_KINDS, OUTPUT_LANGUAGES, type NoticeKind } from "@/lib/schema";
 import { BTN_PRIMARY, BTN_SECONDARY, BTN_SMALL, CARD, INPUT, TYPE_STYLES } from "@/lib/ui";
 
@@ -34,6 +35,9 @@ export default function TeachView() {
   const [keyInput, setKeyInput] = useState("");
   const [keyError, setKeyError] = useState(false);
   const [newRoom, setNewRoom] = useState("");
+  const [newGrade, setNewGrade] = useState("");
+  const [newClass, setNewClass] = useState("");
+  const [newListed, setNewListed] = useState(true);
   const [roomError, setRoomError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [profile, setProfile] = useState<{ name: string; school: string; language: string; country: string; timezone: string } | null>(null);
@@ -120,9 +124,11 @@ export default function TeachView() {
     setBusy(true);
     setRoomError(null);
     try {
-      const res = await api.createRoom(newRoom.trim());
+      const res = await api.createRoom(newRoom.trim(), { grade: newGrade.trim(), classLabel: newClass.trim(), listed: newListed });
       setTeacher(res.teacher);
       setNewRoom("");
+      setNewGrade("");
+      setNewClass("");
     } catch (err) {
       setRoomError(errorText(err instanceof ApiFailure ? err.code : "generic"));
     } finally {
@@ -206,13 +212,28 @@ export default function TeachView() {
         <form onSubmit={addRoom} className={`${CARD} mt-4`}>
           <label className="grid gap-1 text-sm">
             <span className="text-xs text-zinc-500">{t.teach.newRoom}</span>
-            <div className="flex flex-col gap-2 sm:flex-row">
-              <input className={INPUT} value={newRoom} onChange={(e) => setNewRoom(e.target.value)} placeholder={t.teach.newRoomPlaceholder} maxLength={60} />
-              <button type="submit" className={`${BTN_PRIMARY} shrink-0`} disabled={busy || !newRoom.trim()}>
-                {t.teach.addRoom}
-              </button>
-            </div>
+            <input className={INPUT} value={newRoom} onChange={(e) => setNewRoom(e.target.value)} placeholder={t.teach.newRoomPlaceholder} maxLength={60} />
           </label>
+          <div className="mt-2 grid grid-cols-2 gap-2">
+            <label className="grid gap-1 text-sm">
+              <span className="text-xs text-zinc-500">{t.teach.grade}</span>
+              <input className={INPUT} value={newGrade} onChange={(e) => setNewGrade(e.target.value)} placeholder={t.teach.gradePlaceholder} maxLength={12} />
+            </label>
+            <label className="grid gap-1 text-sm">
+              <span className="text-xs text-zinc-500">{t.teach.classLabel}</span>
+              <input className={INPUT} value={newClass} onChange={(e) => setNewClass(e.target.value)} placeholder={t.teach.classPlaceholder} maxLength={20} />
+            </label>
+          </div>
+          <label className="mt-3 flex items-start gap-2 text-sm">
+            <input type="checkbox" className="mt-1" checked={newListed && Boolean(teacher.school)} disabled={!teacher.school} onChange={(e) => setNewListed(e.target.checked)} />
+            <span>
+              {t.teach.listed}
+              <span className="block text-xs text-zinc-500">{teacher.school ? t.teach.listedBody : t.teach.listedHint}</span>
+            </span>
+          </label>
+          <button type="submit" className={`${BTN_PRIMARY} mt-3`} disabled={busy || !newRoom.trim()}>
+            {t.teach.addRoom}
+          </button>
           {roomError && <p className="mt-2 text-sm text-red-600 dark:text-red-400">{roomError}</p>}
         </form>
       </section>
@@ -469,6 +490,29 @@ function RoomCard({
     }
   }
 
+  async function editClass() {
+    const grade = window.prompt(t.teach.grade, room.grade);
+    if (grade === null) return;
+    const classLabel = window.prompt(t.teach.classLabel, room.classLabel);
+    if (classLabel === null) return;
+    if (grade.trim() === room.grade && classLabel.trim() === room.classLabel) return;
+    setBusy("room");
+    try {
+      onTeacher((await api.updateRoom(room.id, { grade: grade.trim(), classLabel: classLabel.trim() })).teacher);
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  async function setListed(listed: boolean) {
+    setBusy("room");
+    try {
+      onTeacher((await api.updateRoom(room.id, { listed })).teacher);
+    } finally {
+      setBusy(null);
+    }
+  }
+
   async function close() {
     if (!window.confirm(t.teach.deleteRoomConfirm)) return;
     setBusy("room");
@@ -507,12 +551,15 @@ function RoomCard({
         <div className="min-w-0">
           <h3 dir="auto" className="text-lg font-semibold">{room.name}</h3>
           <p dir="auto" className="text-xs text-zinc-500">
-            {fmt(t.teach.following, { n: room.memberCount })} · {[teacher.school, teacher.name].filter(Boolean).join(" · ")}
+            {fmt(t.teach.following, { n: room.memberCount })} · {[teacher.school, gradeClassLabel(t, room.grade, room.classLabel), teacher.name].filter(Boolean).join(" · ")}
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
           <button type="button" className={BTN_SMALL} disabled={roomBusy} onClick={rename}>
             {t.teach.rename}
+          </button>
+          <button type="button" className={BTN_SMALL} disabled={roomBusy} onClick={editClass}>
+            {t.teach.editClass}
           </button>
           <button type="button" className={`${BTN_SMALL} text-red-600 dark:text-red-400`} disabled={roomBusy} onClick={close}>
             {t.teach.deleteRoom}
@@ -549,6 +596,18 @@ function RoomCard({
           {t.teach.rotate}
         </button>
       </div>
+      <p className="mt-4 text-xs font-semibold uppercase tracking-wide text-zinc-500">{t.teach.code}</p>
+      <div className="mt-1 flex flex-wrap items-center gap-2">
+        <code className="rounded-lg bg-zinc-100 px-3 py-2 text-lg font-bold tracking-[0.3em] dark:bg-zinc-800">{room.joinCode}</code>
+        <button type="button" className={BTN_SECONDARY} onClick={() => copy(room.joinCode, `code-${room.id}`)}>
+          {copied === `code-${room.id}` ? t.common.copied : t.teach.copyCode}
+        </button>
+        <label className="inline-flex items-center gap-2 text-sm">
+          <input type="checkbox" checked={room.listed} disabled={roomBusy || !teacher.school} onChange={(e) => void setListed(e.target.checked)} />
+          {t.teach.listed}
+        </label>
+      </div>
+      <p className="mt-1 text-xs text-zinc-500">{teacher.school ? t.teach.codeHint : t.teach.listedHint}</p>
       {showQr && (
         <figure className="mt-3 inline-block rounded-xl border border-zinc-200 bg-white p-3 dark:border-zinc-700">
           {/* eslint-disable-next-line @next/next/no-img-element -- an SVG the server draws for this room */}

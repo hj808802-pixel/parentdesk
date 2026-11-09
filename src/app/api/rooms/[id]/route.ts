@@ -1,4 +1,4 @@
-import { loadRoom, sanitizeChildIds, saveRoom, unsubscribe } from "@/lib/rooms";
+import { loadRoom, sanitizeChildIds, saveRoom, touchDirectory, unsubscribe } from "@/lib/rooms";
 import { familyFromRequest, saveFamily, toView } from "@/lib/store";
 
 export const runtime = "nodejs";
@@ -27,6 +27,9 @@ export async function DELETE(req: Request, { params }: { params: Promise<{ id: s
   const room = await loadRoom(id);
   unsubscribe(rec, room, id);
   await saveFamily(rec);
-  if (room) await saveRoom(room);
+  if (room) {
+    await saveRoom(room);
+    await touchDirectory(room);
+  }
   return Response.json({ ok: true, family: toView(rec) });
 }

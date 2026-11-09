@@ -1,4 +1,4 @@
-import type { RoomPost, RoomPublic, TeacherView } from "./rooms";
+import type { DirectoryHit, RoomPost, RoomPublic, TeacherView } from "./rooms";
 import type { SettingsSuggestion } from "./schema";
 import type { FamilyView, Item, PlanLimits } from "./types";
 
@@ -61,7 +61,10 @@ export const api = {
   health: () => call<{ ok: true; billing: boolean; digest: boolean; limits: PlanLimits }>("/api/health"),
   // class rooms: the parent side
   roomInfo: (token: string) => call<RoomInfoResponse>(`/api/rooms/join?r=${encodeURIComponent(token)}`),
+  roomInfoById: (id: string) => call<RoomInfoResponse>(`/api/rooms/join?id=${encodeURIComponent(id)}`),
   roomJoin: (token: string, childIds: string[], init: { locale?: string; timezone?: string }) => call<RoomJoinResponse>("/api/rooms/join", { method: "POST", body: JSON.stringify({ token, childIds, ...init }) }),
+  roomJoinByCode: (roomId: string, code: string, childIds: string[], init: { locale?: string; timezone?: string }) => call<RoomJoinResponse>("/api/rooms/join", { method: "POST", body: JSON.stringify({ roomId, code, childIds, ...init }) }),
+  roomSearch: (q: string, country?: string) => call<{ ok: true; rooms: DirectoryHit[] }>(`/api/rooms/search?q=${encodeURIComponent(q)}${country ? `&country=${encodeURIComponent(country)}` : ""}`),
   roomChildren: (roomId: string, childIds: string[]) => call<FamilyResponse>(`/api/rooms/${roomId}`, { method: "PATCH", body: JSON.stringify({ childIds }) }),
   roomLeave: (roomId: string) => call<FamilyResponse>(`/api/rooms/${roomId}`, { method: "DELETE" }),
   // class rooms: the teacher side
@@ -71,8 +74,8 @@ export const api = {
   deleteTeacher: () => call<{ ok: true }>("/api/teacher", { method: "DELETE" }),
   joinTeacher: (key: string) => call<TeacherResponse>("/api/teacher/join", { method: "POST", body: JSON.stringify({ key }) }),
   leaveTeacher: () => call<{ ok: true }>("/api/teacher/leave", { method: "POST" }),
-  createRoom: (name: string) => call<TeacherResponse & { roomId: string }>("/api/teacher/rooms", { method: "POST", body: JSON.stringify({ name }) }),
-  updateRoom: (id: string, patch: { name?: string; rotate?: boolean; description?: string }) => call<TeacherResponse>(`/api/teacher/rooms/${id}`, { method: "PATCH", body: JSON.stringify(patch) }),
+  createRoom: (name: string, details: { grade?: string; classLabel?: string; listed?: boolean } = {}) => call<TeacherResponse & { roomId: string }>("/api/teacher/rooms", { method: "POST", body: JSON.stringify({ name, ...details }) }),
+  updateRoom: (id: string, patch: { name?: string; rotate?: boolean; description?: string; grade?: string; classLabel?: string; listed?: boolean }) => call<TeacherResponse>(`/api/teacher/rooms/${id}`, { method: "PATCH", body: JSON.stringify(patch) }),
   deleteRoom: (id: string) => call<TeacherResponse>(`/api/teacher/rooms/${id}`, { method: "DELETE" }),
   roomDraftSend: (roomId: string, draftId: string, body: { drop: number[]; targets: string[] }) => call<RoomSendResponse>(`/api/teacher/rooms/${roomId}/drafts/${draftId}`, { method: "POST", body: JSON.stringify(body) }),
   roomDraftDiscard: (roomId: string, draftId: string) => call<TeacherResponse>(`/api/teacher/rooms/${roomId}/drafts/${draftId}`, { method: "DELETE" }),

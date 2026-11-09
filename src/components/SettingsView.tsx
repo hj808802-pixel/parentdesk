@@ -584,6 +584,9 @@ export default function SettingsView() {
                   ))}
                 </ul>
               )}
+              <Link href={localePath(locale, "/join")} className={`${BTN_SECONDARY} mt-3`}>
+                {t.join.findLink}
+              </Link>
               <p className="mt-3 text-xs text-zinc-500">
                 <Link href={localePath(locale, "/teach")} className="underline underline-offset-4">
                   {t.settings.roomTeacherLink}

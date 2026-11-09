@@ -131,6 +131,12 @@ expect("teacher post recall: no teacher", await call("DELETE", "/api/teacher/roo
 expect("teacher compose: no teacher", await call("POST", "/api/teacher/rooms/abc/compose", { json: { facts: "trip friday" } }), 404);
 expect("teacher translate: no teacher", await call("POST", "/api/teacher/translate", { json: { text: "hola" } }), 404);
 expect("room join: malformed token", await call("GET", "/api/rooms/join?r=abc"), 400);
+expect("room search: no query", await call("GET", "/api/rooms/search"), 400);
+expect("room search: query too short", await call("GET", "/api/rooms/search?q=a"), 400);
+expect("room search: nothing matches", await call("GET", "/api/rooms/search?q=zzqqxxnothing"), 200, (r) => Array.isArray(r.data.rooms) && r.data.rooms.length === 0);
+expect("room join by id: malformed", await call("GET", "/api/rooms/join?id=abc"), 400);
+expect("room join by id: unknown", await call("GET", `/api/rooms/join?id=${"0".repeat(12)}`), 404);
+expect("room join by code: malformed", await call("POST", "/api/rooms/join", { json: { roomId: "abc", code: "x", childIds: [] } }), 400);
 expect("room join: unknown token", await call("GET", `/api/rooms/join?r=${"0".repeat(12)}.${"0".repeat(16)}`), 404);
 expect("room join: post malformed", await call("POST", "/api/rooms/join", { json: { token: "abc" } }), 400);
 expect("room: patch without family", await call("PATCH", "/api/rooms/abc", { json: { childIds: [] } }), 404);
@@ -284,10 +290,21 @@ if (key) {
       expect("teacher draft discard: unknown draft", await call("DELETE", `/api/teacher/rooms/${room.id}/drafts/${"0".repeat(10)}`), 404);
       expect("teacher post recall: unknown post", await call("DELETE", `/api/teacher/rooms/${room.id}/posts/${"0".repeat(10)}`), 404);
       expect("teacher room: note saved and capped", await call("PATCH", `/api/teacher/rooms/${room.id}`, { json: { description: "  Office   hours " + "x".repeat(400) } }), 200, (r) => r.data.teacher.rooms[0].description.startsWith("Office hours x") && r.data.teacher.rooms[0].description.length === 300);
-      expect("room join: info", await call("GET", `/api/rooms/join?r=${room.joinToken}`), 200, (r) => r.data.room?.name === "Room 12" && r.data.room.teacherName === "Ms. Test" && r.data.room.school === "Oak Street Elementary" && r.data.room.description.startsWith("Office hours") && r.data.following === false);
+      const details = await call("PATCH", `/api/teacher/rooms/${room.id}`, { json: { grade: " 3 ", classLabel: "2", listed: true } });
+      expect("teacher room: class details and listing", details, 200, (r) => r.data.teacher.rooms[0].grade === "3" && r.data.teacher.rooms[0].classLabel === "2" && r.data.teacher.rooms[0].listed === true && /^[A-HJ-NP-Z2-9]{6}$/.test(r.data.teacher.rooms[0].joinCode));
+      const code = details.data?.teacher?.rooms?.[0]?.joinCode ?? "";
+      expect("room search: finds the listed room by school and grade", await call("GET", "/api/rooms/search?q=oak%20street%203"), 200, (r) => r.data.rooms.some((h) => h.id === room.id && h.grade === "3" && !("teacherId" in h)));
+      expect("room search: other grade does not match", await call("GET", "/api/rooms/search?q=oak%20street%207"), 200, (r) => !r.data.rooms.some((h) => h.id === room.id));
+      expect("room join by id: listed room info", await call("GET", `/api/rooms/join?id=${room.id}`), 200, (r) => r.data.room.grade === "3" && r.data.room.listed === true && r.data.following === false);
+      expect("room join by code: wrong code", await call("POST", "/api/rooms/join", { json: { roomId: room.id, code: "ZZZZZZ", childIds: [] } }), 403, (r) => r.data.error === "bad_code");
+      expect("room join by code: right code, typed loosely", await call("POST", "/api/rooms/join", { json: { roomId: room.id, code: ` ${code.toLowerCase()} `, childIds: [] } }), 200, (r) => r.data.family?.rooms?.length === 1 && r.data.family.rooms[0].roomId === room.id);
+      expect("teacher room: unlisted", await call("PATCH", `/api/teacher/rooms/${room.id}`, { json: { listed: false } }), 200, (r) => r.data.teacher.rooms[0].listed === false);
+      expect("room search: unlisted room is gone", await call("GET", "/api/rooms/search?q=oak%20street%203"), 200, (r) => !r.data.rooms.some((h) => h.id === room.id));
+      expect("room join by id: unlisted room hidden", await call("GET", `/api/rooms/join?id=${room.id}`), 404);
+      expect("room join: info", await call("GET", `/api/rooms/join?r=${room.joinToken}`), 200, (r) => r.data.room?.name === "Room 12" && r.data.room.teacherName === "Ms. Test" && r.data.room.school === "Oak Street Elementary" && r.data.room.description.startsWith("Office hours") && r.data.following === true); // joined with the class code above
       expect("room join: wrong secret", await call("GET", `/api/rooms/join?r=${room.id}.${"f".repeat(16)}`), 404);
       const joined = await call("POST", "/api/rooms/join", { json: { token: room.joinToken, childIds: ["nope"] } });
-      expect("room join: family follows the room", joined, 200, (r) => r.data.family?.rooms?.length === 1 && r.data.family.rooms[0].roomId === room.id && r.data.family.rooms[0].school === "Oak Street Elementary" && r.data.family.rooms[0].childIds.length === 0 && r.data.key === undefined);
+      expect("room join: family follows the room (already following from the code join)", joined, 200, (r) => r.data.family?.rooms?.length === 1 && r.data.family.rooms[0].roomId === room.id && r.data.family.rooms[0].school === "Oak Street Elementary" && r.data.family.rooms[0].childIds.length === 0 && r.data.key === undefined);
       expect("room join: info shows following", await call("GET", `/api/rooms/join?r=${room.joinToken}`), 200, (r) => r.data.following === true);
       expect("teacher: room counts the member", await call("GET", "/api/teacher"), 200, (r) => r.data.teacher.rooms[0].memberCount === 1);
       expect("room: children of unknown room", await call("PATCH", `/api/rooms/${"0".repeat(12)}`, { json: { childIds: [] } }), 404);

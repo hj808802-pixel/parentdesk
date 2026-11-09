@@ -342,7 +342,12 @@ export default function DashboardView() {
           </Link>
         </div>
         {rooms.length === 0 ? (
-          <p className="mt-2 text-sm text-zinc-600 dark:text-zinc-400">{t.dash.roomsEmpty}</p>
+          <>
+            <p className="mt-2 text-sm text-zinc-600 dark:text-zinc-400">{t.dash.roomsEmpty}</p>
+            <Link href={localePath(locale, "/join")} className={`${BTN_SECONDARY} mt-3`}>
+              {t.join.findLink}
+            </Link>
+          </>
         ) : (
           <ul className="mt-3 divide-y divide-zinc-100 dark:divide-zinc-800">
             {rooms.map((r) => {

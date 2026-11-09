@@ -1,27 +1,42 @@
 import { translatePost } from "@/lib/assist";
 import { allowRequest, clientIp } from "@/lib/ratelimit";
-import { backfill, loadRoom, loadTeacher, parseJoinToken, postsNeedingTranslation, recentPosts, roomPublic, sanitizeChildIds, saveRoom, senderOf, subscribe, verifyJoinSecret } from "@/lib/rooms";
+import { backfill, loadRoom, loadTeacher, parseJoinToken, postsNeedingTranslation, recentPosts, roomPublic, sanitizeChildIds, saveRoom, senderOf, subscribe, touchDirectory, verifyJoinCode, verifyJoinSecret } from "@/lib/rooms";
 import { createFamily, familyCookie, familyFromRequest, isHttps, saveFamily, toView } from "@/lib/store";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
 
-// A parent opens a room's invite link (/join?r=<room id>.<secret>).
-// GET ?r=: what the room is, before joining. POST { token, childIds }: follow it. A browser
+// A parent opens a room's invite link (/join?r=<room id>.<secret>) or found the room in
+// the directory (/join, "find your class") and has the class code from the teacher.
+// GET ?r=: what the room is, before joining. GET ?id=: the same for a listed room, without
+// the secret. POST { token, childIds } or { roomId, code, childIds }: follow it. A browser
 // without a family gets one created here, as on the first upload; the room's recent posts
 // are written onto the list straight away, translated first when the family reads a
 // language none of the earlier members did (one call per post, a few at most).
 
-async function roomFor(token: unknown) {
+type Found = { status: 400 | 403 | 404 } | { status: 200; room: Awaited<ReturnType<typeof loadRoom>> & object; teacher: Awaited<ReturnType<typeof loadTeacher>> };
+
+async function roomFor(token: unknown): Promise<Found> {
   const parsed = parseJoinToken(token);
-  if (!parsed) return { status: 400 as const };
+  if (!parsed) return { status: 400 };
   const room = await loadRoom(parsed.id);
-  if (!room || !verifyJoinSecret(room, parsed.secret)) return { status: 404 as const };
-  return { status: 200 as const, room, teacher: await loadTeacher(room.teacherId) };
+  if (!room || !verifyJoinSecret(room, parsed.secret)) return { status: 404 };
+  return { status: 200, room, teacher: await loadTeacher(room.teacherId) };
+}
+
+// A listed room by id; the class code is checked only on POST.
+async function listedRoom(id: unknown, code?: unknown): Promise<Found> {
+  if (typeof id !== "string" || !/^[0-9a-f]{12}$/.test(id)) return { status: 400 };
+  const room = await loadRoom(id);
+  const teacher = room ? await loadTeacher(room.teacherId) : null;
+  if (!room || !room.listed || !teacher?.school) return { status: 404 };
+  if (code !== undefined && !verifyJoinCode(room, code)) return { status: 403 };
+  return { status: 200, room, teacher };
 }
 
 export async function GET(req: Request) {
-  const found = await roomFor(new URL(req.url).searchParams.get("r"));
+  const params = new URL(req.url).searchParams;
+  const found = params.get("id") ? await listedRoom(params.get("id")) : await roomFor(params.get("r"));
   if (found.status !== 200) return Response.json({ ok: false, error: "bad_token" }, { status: found.status });
   const rec = await familyFromRequest(req);
   const following = Boolean(rec && (rec.rooms ?? []).some((s) => s.roomId === found.room.id));
@@ -35,8 +50,8 @@ export async function POST(req: Request) {
   if (!gate.ok) return Response.json({ ok: false, error: gate.reason }, { status: 429 });
   const body = (await req.json().catch(() => null)) as Record<string, unknown> | null;
   if (!body) return Response.json({ ok: false, error: "bad_request" }, { status: 400 });
-  const found = await roomFor(body.token);
-  if (found.status !== 200) return Response.json({ ok: false, error: "bad_token" }, { status: found.status });
+  const found = body.roomId !== undefined ? await listedRoom(body.roomId, body.code ?? "") : await roomFor(body.token);
+  if (found.status !== 200) return Response.json({ ok: false, error: found.status === 403 ? "bad_code" : "bad_token" }, { status: found.status });
   const { room, teacher } = found;
 
   const headers: Record<string, string> = {};
@@ -65,6 +80,7 @@ export async function POST(req: Request) {
   }
   await saveFamily(rec);
   await saveRoom(room);
+  if (result.isNew) await touchDirectory(room);
   console.log(JSON.stringify({ event: "room_join", family: rec.id, room: room.id, new: result.isNew, language: rec.settings.language, translated, backfilled: got }));
   return Response.json({ ok: true, family: toView(rec), key, room: roomPublic(room, teacher), backfilled: got }, { headers });
 }

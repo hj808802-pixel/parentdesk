@@ -1,10 +1,11 @@
-import { deleteRoom, loadRoom, loadRooms, rotateJoinSecret, sanitizeDescription, sanitizeName, saveRoom, saveTeacher, teacherFromRequest, teacherView } from "@/lib/rooms";
+import { applyRoomDetails, deleteRoom, loadRoom, loadRooms, removeFromDirectory, rotateJoinSecret, sanitizeDescription, sanitizeName, saveRoom, saveTeacher, syncDirectory, teacherFromRequest, teacherView } from "@/lib/rooms";
 
 export const runtime = "nodejs";
 
 // One of the teacher's rooms. PATCH: { name } renames it, { description } sets the note parents
-// see when they join, { rotate: true } makes a new join link (the old one stops working;
-// families already following stay). DELETE: closes it.
+// see when they join, { grade, classLabel, listed } set what the directory shows and whether
+// the room is in it, { rotate: true } makes a new join link and class code (the old ones stop
+// working; families already following stay). DELETE: closes it.
 
 export async function PATCH(req: Request, { params }: { params: Promise<{ id: string }> }) {
   const teacher = await teacherFromRequest(req);
@@ -20,8 +21,11 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
     room.name = name;
   }
   if (typeof body.description === "string") room.description = sanitizeDescription(body.description);
+  const wasListed = room.listed;
+  applyRoomDetails(room, teacher, { grade: body.grade, classLabel: body.classLabel, listed: body.listed });
   if (body.rotate === true) rotateJoinSecret(room);
   await saveRoom(room);
+  if (room.listed || wasListed) await syncDirectory(teacher, [room]);
   return Response.json({ ok: true, teacher: teacherView(teacher, await loadRooms(teacher)) });
 }
 
@@ -34,5 +38,6 @@ export async function DELETE(req: Request, { params }: { params: Promise<{ id: s
   await deleteRoom(room.id);
   teacher.roomIds = teacher.roomIds.filter((r) => r !== room.id);
   await saveTeacher(teacher);
+  await removeFromDirectory([room.id]);
   return Response.json({ ok: true, teacher: teacherView(teacher, await loadRooms(teacher)) });
 }

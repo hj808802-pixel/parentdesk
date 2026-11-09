@@ -1,4 +1,4 @@
-import { createHash, timingSafeEqual } from "node:crypto";
+import { createHash, randomBytes, timingSafeEqual } from "node:crypto";
 import { todayIn } from "./dates";
 import type { ExtractContext } from "./extract";
 import type { Extraction } from "./schema";
@@ -18,6 +18,11 @@ import type { FamilyRecord, Item, RoomSubscription, Settings, Source } from "./t
 // Documents: teachers/<id> (name, settings, room ids, monthly usage) and rooms/<id>
 // (members, posts). A post stores the extracted items once, plus a translation per result
 // language the members use, so a notice costs one extraction however many families follow.
+//
+// Finding a room: a teacher may list a room (school, grade, class) in the directory, one
+// small document parents search by school name. Finding is not joining: a listed room is
+// joined with the six-character class code the teacher hands out in class (or the link/QR
+// as before), so a stranger who searches the school still cannot follow the class.
 
 export const TEACHER_COOKIE = "pd_teacher";
 const TEACHERS = "teachers/";
@@ -74,6 +79,9 @@ export type RoomRecord = {
   teacherId: string;
   name: string;
   description: string; // optional note parents see on the join page
+  grade: string; // "3", "K", "Year 5": free text, short
+  classLabel: string; // "2", "B", "Blue": free text, short
+  listed: boolean; // in the directory parents search (needs the teacher's school name)
   joinSecret: string;
   createdAt: string;
   updatedAt: string;
@@ -82,12 +90,17 @@ export type RoomRecord = {
   drafts: RoomPost[]; // extracted, waiting for the teacher to check and send
 };
 
-// What the teacher's browser sees: no member ids, the join token to build the link.
-export type RoomView = Omit<RoomRecord, "joinSecret" | "members"> & { memberCount: number; joinToken: string };
+// What the teacher's browser sees: no member ids, the join token to build the link, the
+// class code to hand out.
+export type RoomView = Omit<RoomRecord, "joinSecret" | "members"> & { memberCount: number; joinToken: string; joinCode: string };
 export type TeacherView = Omit<TeacherRecord, "keyHash"> & { rooms: RoomView[]; postCap: number };
 
 // What a parent sees before joining.
-export type RoomPublic = { id: string; name: string; description: string; teacherName: string; school: string; memberCount: number; postCount: number; language: string };
+export type RoomPublic = { id: string; name: string; description: string; teacherName: string; school: string; grade: string; classLabel: string; listed: boolean; memberCount: number; postCount: number; language: string };
+
+// One line of the directory parents search. Counts only, never who follows.
+export type DirectoryEntry = { id: string; teacherId: string; school: string; grade: string; classLabel: string; name: string; teacherName: string; country: string; members: number; updatedAt: string };
+export type DirectoryHit = Omit<DirectoryEntry, "teacherId">;
 
 // Who a post comes from, as families see it. A TeacherRecord fits.
 export type Sender = { name: string; school: string };
@@ -146,6 +159,32 @@ export function rotateJoinSecret(room: RoomRecord) {
   room.joinSecret = newId(8);
 }
 
+// The class code: six characters without the look-alikes (0/O, 1/I), derived from the join
+// secret, so it needs no storage, is stable, and changes with the link when the teacher
+// asks for a new one.
+const CODE_CHARS = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+export const CODE_LENGTH = 6;
+
+export function joinCodeOf(room: Pick<RoomRecord, "joinSecret">): string {
+  const digest = createHash("sha256").update(`code:${room.joinSecret}`).digest();
+  let out = "";
+  for (let i = 0; i < CODE_LENGTH; i++) out += CODE_CHARS[digest[i] % CODE_CHARS.length];
+  return out;
+}
+
+// What a parent typed, as the code is written: upper case, no spaces or dashes, 0/O and 1/I folded.
+export function normalizeCode(x: unknown): string {
+  if (typeof x !== "string") return "";
+  return x.toUpperCase().replace(/[^A-Z0-9]/g, "").replace(/0/g, "O").replace(/[1I]/g, "L").replace(/O/g, "Q").slice(0, CODE_LENGTH);
+}
+
+export function verifyJoinCode(room: Pick<RoomRecord, "joinSecret">, code: unknown): boolean {
+  const given = normalizeCode(code);
+  return given.length === CODE_LENGTH && same(normalizeCode(joinCodeOf(room)), given);
+}
+
+void randomBytes;
+
 // ---- cookies ----
 
 export function parseTeacherCookie(cookieHeader: string | null): { id: string; secret: string } | null {
@@ -184,6 +223,24 @@ export function sanitizeDescription(x: unknown): string {
   return typeof x === "string" ? x.replace(/\s+/g, " ").trim().slice(0, 300) : "";
 }
 
+export function sanitizeGrade(x: unknown): string {
+  return typeof x === "string" ? x.replace(/\s+/g, " ").trim().slice(0, 12) : "";
+}
+
+export function sanitizeClassLabel(x: unknown): string {
+  return typeof x === "string" ? x.replace(/\s+/g, " ").trim().slice(0, 20) : "";
+}
+
+export type RoomDetails = { grade?: unknown; classLabel?: unknown; listed?: unknown };
+
+// Applies the class details a teacher sent; listing needs a school name on the teacher.
+export function applyRoomDetails(room: RoomRecord, teacher: TeacherRecord, d: RoomDetails) {
+  if (d.grade !== undefined) room.grade = sanitizeGrade(d.grade);
+  if (d.classLabel !== undefined) room.classLabel = sanitizeClassLabel(d.classLabel);
+  if (typeof d.listed === "boolean") room.listed = d.listed && Boolean(teacher.school);
+  if (!teacher.school) room.listed = false;
+}
+
 export function createTeacher(init: { name?: unknown; school?: unknown; locale?: string | null; timezone?: string | null; settings?: Partial<Settings> } = {}): { record: TeacherRecord; key: string } {
   const now = new Date().toISOString();
   const id = newId(6);
@@ -202,14 +259,122 @@ export function createTeacher(init: { name?: unknown; school?: unknown; locale?:
   return { record, key: makeTeacherKey(id, secret) };
 }
 
-export function createRoom(teacher: TeacherRecord, name: unknown): RoomRecord | null {
+export function createRoom(teacher: TeacherRecord, name: unknown, details: RoomDetails = {}): RoomRecord | null {
   if (teacher.roomIds.length >= MAX_ROOMS_PER_TEACHER) return null;
   const clean = sanitizeName(name);
   if (!clean) return null;
   const now = new Date().toISOString();
-  const room: RoomRecord = { id: newId(6), teacherId: teacher.id, name: clean, description: "", joinSecret: newId(8), createdAt: now, updatedAt: now, members: [], posts: [], drafts: [] };
+  const room: RoomRecord = { id: newId(6), teacherId: teacher.id, name: clean, description: "", grade: "", classLabel: "", listed: false, joinSecret: newId(8), createdAt: now, updatedAt: now, members: [], posts: [], drafts: [] };
+  applyRoomDetails(room, teacher, details);
   teacher.roomIds = [...teacher.roomIds, room.id];
   return room;
+}
+
+// ---- the directory parents search ----
+//
+// One small document per listed room (directory/<room id>): writing one room's entry never
+// touches another teacher's, and unlisting removes the document, so the directory can never
+// show a room that is no longer listed. A search lists the folder and reads the entries,
+// behind a short per-instance cache so a burst of searches costs one read.
+
+const DIRECTORY = "directory/";
+const MAX_HITS = 20;
+const DIRECTORY_CACHE_MS = 30_000;
+let directoryCache: { at: number; entries: DirectoryEntry[] } | null = null;
+
+export function directoryEntry(room: RoomRecord, teacher: TeacherRecord | null): DirectoryEntry | null {
+  if (!room.listed || !teacher || !teacher.school || teacher.id !== room.teacherId) return null;
+  return { id: room.id, teacherId: teacher.id, school: teacher.school, grade: room.grade, classLabel: room.classLabel, name: room.name, teacherName: teacher.name, country: teacher.settings.country, members: room.members.length, updatedAt: room.updatedAt };
+}
+
+async function readEntry(id: string): Promise<DirectoryEntry | null> {
+  const raw = await readDoc(`${DIRECTORY}${id}`);
+  if (!raw) return null;
+  try {
+    const e = JSON.parse(raw) as DirectoryEntry;
+    return e && e.id === id && typeof e.school === "string" ? e : null;
+  } catch {
+    return null;
+  }
+}
+
+async function dropEntry(id: string): Promise<void> {
+  try {
+    await removeDoc(`${DIRECTORY}${id}`);
+  } catch {
+    /* nothing there */
+  }
+}
+
+export async function loadDirectory(fresh = false): Promise<DirectoryEntry[]> {
+  if (!fresh && directoryCache && Date.now() - directoryCache.at < DIRECTORY_CACHE_MS) return directoryCache.entries;
+  const ids = await listDocIds(DIRECTORY);
+  const entries = (await Promise.all(ids.map(readEntry))).filter((e): e is DirectoryEntry => e !== null);
+  directoryCache = { at: Date.now(), entries };
+  return entries;
+}
+
+// Writes or removes these rooms' entries. Called whenever something an entry shows changes:
+// the room, its members, the teacher's name, school or country.
+export async function syncDirectory(teacher: TeacherRecord | null, rooms: RoomRecord[]): Promise<void> {
+  for (const room of rooms) {
+    const entry = directoryEntry(room, teacher);
+    if (entry) await writeDoc(`${DIRECTORY}${room.id}`, JSON.stringify(entry));
+    else await dropEntry(room.id);
+  }
+  directoryCache = null;
+}
+
+export async function removeFromDirectory(ids: string[]): Promise<void> {
+  for (const id of ids) await dropEntry(id);
+  directoryCache = null;
+}
+
+// A family joined or left: the entry's count follows (listed rooms only).
+export async function touchDirectory(room: RoomRecord): Promise<void> {
+  if (!room.listed) return;
+  await syncDirectory(await loadTeacher(room.teacherId), [room]);
+}
+
+// Walks every room once (maintenance): writes the listed ones, removes everything else.
+export async function rebuildDirectory(): Promise<DirectoryEntry[]> {
+  const teachers = new Map<string, TeacherRecord | null>();
+  const live = new Set<string>();
+  for (const id of await listRoomIds()) {
+    const room = await loadRoom(id);
+    if (!room) continue;
+    if (!teachers.has(room.teacherId)) teachers.set(room.teacherId, await loadTeacher(room.teacherId));
+    await syncDirectory(teachers.get(room.teacherId) ?? null, [room]);
+    if (directoryEntry(room, teachers.get(room.teacherId) ?? null)) live.add(id);
+  }
+  for (const id of await listDocIds(DIRECTORY)) if (!live.has(id)) await dropEntry(id);
+  return loadDirectory(true);
+}
+
+const fold = (s: string) => s.toLowerCase().normalize("NFKC").replace(/[\s\-_.,·()]/g, "");
+
+// Every word of the query has to appear somewhere in "school grade class room-name"; the
+// best school-name matches come first, then the most recently active rooms.
+export function searchDirectory(entries: DirectoryEntry[], query: string, country?: string | null): DirectoryHit[] {
+  const words = query.toLowerCase().normalize("NFKC").split(/[\s,·]+/).map(fold).filter(Boolean);
+  if (words.length === 0) return [];
+  const scored = entries
+    .filter((e) => !country || !e.country || e.country === country)
+    .map((e) => {
+      const school = fold(e.school);
+      const all = `${school} ${fold(e.grade)} ${fold(e.classLabel)} ${fold(e.name)}`;
+      if (!words.every((w) => all.includes(w))) return null;
+      const score = words.filter((w) => school.includes(w)).length * 2 + (school.startsWith(words[0]) ? 1 : 0);
+      return { e, score };
+    })
+    .filter((x): x is { e: DirectoryEntry; score: number } => x !== null)
+    .sort((a, b) => b.score - a.score || (a.e.updatedAt < b.e.updatedAt ? 1 : -1))
+    .slice(0, MAX_HITS);
+  return scored.map(({ e }) => {
+    const { teacherId: _t, ...hit } = e;
+    void _t;
+    return hit;
+  });
 }
 
 // May this teacher post one more notice this month?
@@ -511,7 +676,7 @@ export function unsubscribe(rec: FamilyRecord, room: RoomRecord | null, roomId: 
 export function roomView(room: RoomRecord): RoomView {
   const { joinSecret: _s, members, posts, ...rest } = room;
   void _s;
-  return { ...rest, posts: posts.slice(-POSTS_IN_VIEW), memberCount: members.length, joinToken: joinTokenOf(room) };
+  return { ...rest, posts: posts.slice(-POSTS_IN_VIEW), memberCount: members.length, joinToken: joinTokenOf(room), joinCode: joinCodeOf(room) };
 }
 
 export function teacherView(teacher: TeacherRecord, rooms: RoomRecord[]): TeacherView {
@@ -521,7 +686,7 @@ export function teacherView(teacher: TeacherRecord, rooms: RoomRecord[]): Teache
 }
 
 export function roomPublic(room: RoomRecord, teacher: TeacherRecord | null): RoomPublic {
-  return { id: room.id, name: room.name, description: room.description, teacherName: teacher?.name ?? "", school: teacher?.school ?? "", memberCount: room.members.length, postCount: room.posts.length, language: teacher?.settings.language ?? "en" };
+  return { id: room.id, name: room.name, description: room.description, teacherName: teacher?.name ?? "", school: teacher?.school ?? "", grade: room.grade, classLabel: room.classLabel, listed: room.listed && Boolean(teacher?.school), memberCount: room.members.length, postCount: room.posts.length, language: teacher?.settings.language ?? "en" };
 }
 
 // ---- storage ----
@@ -564,6 +729,9 @@ export async function loadRoom(id: string): Promise<RoomRecord | null> {
     room.posts ??= [];
     room.drafts ??= [];
     room.description = sanitizeDescription(room.description);
+    room.grade = sanitizeGrade(room.grade);
+    room.classLabel = sanitizeClassLabel(room.classLabel);
+    room.listed = room.listed === true;
     for (const p of [...room.posts, ...room.drafts]) p.translations ??= {};
     return room;
   } catch {
