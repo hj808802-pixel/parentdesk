@@ -12,7 +12,8 @@ export const de: Dict = {
     beta: "Beta",
     week: "Termine",
     home: "Start",
-    add: "Hinzufügen",
+    calendar: "Kalender",
+    add: "Dokument hinzufügen",
     items: "Einträge",
     sources: "Briefe",
     settings: "Einstellungen",
@@ -597,6 +598,13 @@ export const de: Dict = {
     ask: "Im Zweifel die Schule fragen",
     error: "Konnte gerade nicht erklären. Bitte erneut versuchen.",
     disclaimer: "Erklärt aus dem Wortlaut des Elternbriefs. Der Brief der Schule gilt.",
+  },
+  calendar: {
+    title: "Kalender",
+    today: "Heute",
+    empty: "An diesem Tag ist nichts.",
+    prev: "Voriger Monat",
+    next: "Nächster Monat",
   },
   legal: {
     privacyTitle: "Datenschutzhinweis (Beta)",

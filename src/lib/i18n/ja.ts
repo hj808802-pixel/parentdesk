@@ -12,7 +12,8 @@ export const ja: Dict = {
     beta: "ベータ",
     week: "予定",
     home: "ホーム",
-    add: "追加",
+    calendar: "カレンダー",
+    add: "書類を追加",
     items: "項目",
     sources: "お便り",
     settings: "設定",
@@ -597,6 +598,13 @@ export const ja: Dict = {
     ask: "不明な点は学校に確認を",
     error: "今は説明を作れませんでした。もう一度お試しください。",
     disclaimer: "お知らせに書かれた内容だけをもとに説明しています。学校のお知らせが優先です。",
+  },
+  calendar: {
+    title: "カレンダー",
+    today: "今日",
+    empty: "この日は予定がありません。",
+    prev: "前の月",
+    next: "次の月",
   },
   legal: {
     privacyTitle: "プライバシーに関するお知らせ（ベータ）",

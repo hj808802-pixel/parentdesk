@@ -13,7 +13,8 @@ export const en = {
     beta: "beta",
     week: "Schedule",
     home: "Home",
-    add: "Add",
+    calendar: "Calendar",
+    add: "Add document",
     items: "Items",
     sources: "Notices",
     settings: "Settings",
@@ -71,7 +72,7 @@ export const en = {
     actions: {
       add: "Add a notice",
       week: "Schedule",
-      calendar: "Calendar feed",
+      calendar: "Calendar",
       teach: "For teachers",
     },
     next: "Coming up",
@@ -600,6 +601,13 @@ export const en = {
     ask: "If unsure, ask the school",
     error: "Could not explain right now. Please try again.",
     disclaimer: "Explained from the notice's own words. The school's notice is the authority.",
+  },
+  calendar: {
+    title: "Calendar",
+    today: "Today",
+    empty: "Nothing on this day.",
+    prev: "Previous month",
+    next: "Next month",
   },
   legal: {
     privacyTitle: "Privacy notice (beta)",

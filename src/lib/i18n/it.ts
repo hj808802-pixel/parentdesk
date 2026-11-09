@@ -12,7 +12,8 @@ export const it: Dict = {
     beta: "beta",
     week: "Agenda",
     home: "Home",
-    add: "Aggiungi",
+    calendar: "Calendario",
+    add: "Aggiungi documento",
     items: "Elementi",
     sources: "Circolari",
     settings: "Impostazioni",
@@ -599,6 +600,13 @@ export const it: Dict = {
     ask: "In caso di dubbio chiedi alla scuola",
     error: "Impossibile spiegare adesso. Riprova.",
     disclaimer: "Spiegato a partire dal testo della comunicazione. La comunicazione della scuola fa fede.",
+  },
+  calendar: {
+    title: "Calendario",
+    today: "Oggi",
+    empty: "Niente in questo giorno.",
+    prev: "Mese precedente",
+    next: "Mese successivo",
   },
   legal: {
     privacyTitle: "Informativa sulla privacy (beta)",

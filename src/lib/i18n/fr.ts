@@ -12,7 +12,8 @@ export const fr: Dict = {
     beta: "bêta",
     week: "Agenda",
     home: "Accueil",
-    add: "Ajouter",
+    calendar: "Calendrier",
+    add: "Ajouter un document",
     items: "Éléments",
     sources: "Mots",
     settings: "Réglages",
@@ -597,6 +598,13 @@ export const fr: Dict = {
     ask: "En cas de doute, demandez à l'école",
     error: "Impossible d'expliquer pour le moment. Réessayez.",
     disclaimer: "Expliqué à partir du mot lui-même. Le mot de l'école fait foi.",
+  },
+  calendar: {
+    title: "Calendrier",
+    today: "Aujourd'hui",
+    empty: "Rien ce jour-là.",
+    prev: "Mois précédent",
+    next: "Mois suivant",
   },
   legal: {
     privacyTitle: "Avis de confidentialité (bêta)",

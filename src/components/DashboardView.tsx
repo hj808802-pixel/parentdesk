@@ -86,7 +86,7 @@ export default function DashboardView() {
   const actions = [
     { href: "/add", label: t.dash.actions.add, icon: "＋", primary: true },
     { href: "/week", label: t.dash.actions.week, icon: "▣", primary: false },
-    { href: "/settings#calendar", label: t.dash.actions.calendar, icon: "◷", primary: false },
+    { href: "/calendar", label: t.dash.actions.calendar, icon: "▦", primary: false },
     { href: "/teach", label: t.dash.actions.teach, icon: "✎", primary: false },
   ];
 
@@ -212,12 +212,12 @@ export default function DashboardView() {
             <p className="mt-1 text-3xl font-bold tabular-nums">{summary.thisWeek}</p>
             <p className="text-xs text-zinc-500">{t.dash.thisWeekSub}</p>
           </Link>
-          <Link href={localePath(locale, "/items")} className={`${CARD} block`}>
+          <Link href={localePath(locale, "/week")} className={`${CARD} block`}>
             <p className="text-xs text-zinc-500">{t.dash.toPay}</p>
             <p className="mt-1 truncate text-2xl font-bold tabular-nums">{payText}</p>
             <p className="text-xs text-zinc-500">{fmt(t.dash.toPaySub, { n: summary.toPay.count })}</p>
           </Link>
-          <Link href={localePath(locale, "/items")} className={`${CARD} block`}>
+          <Link href={localePath(locale, "/week")} className={`${CARD} block`}>
             <p className="text-xs text-zinc-500">{t.dash.toSign}</p>
             <p className="mt-1 text-3xl font-bold tabular-nums">{summary.toSign}</p>
             <p className="text-xs text-zinc-500">{fmt(t.dash.toSignSub, { n: summary.toSign })}</p>

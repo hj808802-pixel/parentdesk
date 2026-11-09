@@ -12,7 +12,8 @@ export const vi: Dict = {
     beta: "beta",
     week: "Lịch",
     home: "Trang chủ",
-    add: "Thêm",
+    calendar: "Lịch",
+    add: "Thêm tài liệu",
     items: "Mục",
     sources: "Thông báo",
     settings: "Cài đặt",
@@ -599,6 +600,13 @@ export const vi: Dict = {
     ask: "Nếu chưa rõ, hãy hỏi trường",
     error: "Hiện không thể giải thích. Vui lòng thử lại.",
     disclaimer: "Giải thích dựa trên chính nội dung thông báo. Thông báo của trường là căn cứ.",
+  },
+  calendar: {
+    title: "Lịch",
+    today: "Hôm nay",
+    empty: "Ngày này không có gì.",
+    prev: "Tháng trước",
+    next: "Tháng sau",
   },
   legal: {
     privacyTitle: "Thông báo về quyền riêng tư (beta)",

@@ -12,7 +12,8 @@ export const es: Dict = {
     beta: "beta",
     week: "Agenda",
     home: "Inicio",
-    add: "Añadir",
+    calendar: "Calendario",
+    add: "Añadir documento",
     items: "Elementos",
     sources: "Circulares",
     settings: "Ajustes",
@@ -597,6 +598,13 @@ export const es: Dict = {
     ask: "Si tienes dudas, pregunta al centro",
     error: "No se pudo explicar ahora. Inténtalo de nuevo.",
     disclaimer: "Explicado a partir del propio aviso. El aviso del centro es la referencia.",
+  },
+  calendar: {
+    title: "Calendario",
+    today: "Hoy",
+    empty: "Nada este día.",
+    prev: "Mes anterior",
+    next: "Mes siguiente",
   },
   legal: {
     privacyTitle: "Aviso de privacidad (beta)",

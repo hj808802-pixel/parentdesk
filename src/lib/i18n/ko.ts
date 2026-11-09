@@ -12,7 +12,8 @@ export const ko: Dict = {
     beta: "베타",
     week: "일정",
     home: "홈",
-    add: "추가",
+    calendar: "캘린더",
+    add: "문서 추가",
     items: "항목",
     sources: "안내문",
     settings: "설정",
@@ -69,7 +70,7 @@ export const ko: Dict = {
     actions: {
       add: "안내문 추가",
       week: "일정",
-      calendar: "캘린더 피드",
+      calendar: "캘린더",
       teach: "선생님용",
     },
     next: "다가오는 일정",
@@ -597,6 +598,13 @@ export const ko: Dict = {
     ask: "확실하지 않으면 학교에 물어보세요",
     error: "지금은 설명을 만들 수 없습니다. 다시 시도해 주세요.",
     disclaimer: "안내문에 적힌 내용만으로 풀어 쓴 것입니다. 학교 안내문이 항상 우선입니다.",
+  },
+  calendar: {
+    title: "캘린더",
+    today: "오늘",
+    empty: "이 날은 비어 있습니다.",
+    prev: "이전 달",
+    next: "다음 달",
   },
   legal: {
     privacyTitle: "개인정보 처리 안내 (베타)",

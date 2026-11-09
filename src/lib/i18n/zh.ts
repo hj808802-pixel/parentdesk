@@ -12,7 +12,8 @@ export const zh: Dict = {
     beta: "测试版",
     week: "日程",
     home: "首页",
-    add: "添加",
+    calendar: "日历",
+    add: "添加文件",
     items: "事项",
     sources: "通知",
     settings: "设置",
@@ -69,7 +70,7 @@ export const zh: Dict = {
     actions: {
       add: "添加通知",
       week: "日程",
-      calendar: "日历订阅",
+      calendar: "日历",
       teach: "教师专区",
     },
     next: "即将到来",
@@ -597,6 +598,13 @@ export const zh: Dict = {
     ask: "不确定时请问学校",
     error: "现在无法解释，请稍后再试。",
     disclaimer: "仅根据通知原文进行解释。以学校通知为准。",
+  },
+  calendar: {
+    title: "日历",
+    today: "今天",
+    empty: "这一天没有安排。",
+    prev: "上个月",
+    next: "下个月",
   },
   legal: {
     privacyTitle: "隐私声明（测试版）",

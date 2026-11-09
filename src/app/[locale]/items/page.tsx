@@ -1,12 +1,8 @@
-import type { Metadata } from "next";
-import ItemsView from "@/components/ItemsView";
-import { getDict } from "@/lib/i18n";
+import { redirect } from "next/navigation";
+import { DEFAULT_LOCALE, isLocale, localePath } from "@/lib/i18n/locales";
 
-export async function generateMetadata({ params }: { params: Promise<{ locale: string }> }): Promise<Metadata> {
-  const t = getDict((await params).locale);
-  return { title: t.items.title, robots: { index: false } };
-}
-
-export default function ItemsPage() {
-  return <ItemsView />;
+// The flat item list merged into the schedule (filters live there now); old links follow.
+export default async function ItemsPage({ params }: { params: Promise<{ locale: string }> }) {
+  const raw = (await params).locale;
+  redirect(localePath(isLocale(raw) ? raw : DEFAULT_LOCALE, "/week"));
 }
