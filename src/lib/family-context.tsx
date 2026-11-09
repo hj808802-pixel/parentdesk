@@ -42,7 +42,7 @@ export function FamilyProvider({ children }: { children: ReactNode }) {
     // Optimistic: apply locally, then reconcile with the server's copy.
     setFamily((f) => (f ? { ...f, items: f.items.map((it) => (it.id === id ? { ...it, ...patch } : it)) } : f));
     const res = await api.patchItem(id, patch);
-    setFamily((f) => (f ? { ...f, items: f.items.map((it) => (it.id === id ? res.item : it)) } : f));
+    setFamily((f) => (f ? { ...f, items: [...f.items.map((it) => (it.id === id ? res.item : it)), ...(res.next && !f.items.some((it) => it.id === res.next?.id) ? [res.next] : [])] } : f));
   }, []);
 
   const removeItem = useCallback(async (id: string) => {

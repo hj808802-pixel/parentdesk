@@ -35,6 +35,9 @@ export const ExtractedItemSchema = z.object({
   children: z
     .array(z.string())
     .describe("Names copied exactly from the provided child list that this item applies to. Empty means the whole family or unknown."),
+  recurrence: z
+    .enum(["none", "daily", "weekly", "biweekly", "monthly"])
+    .describe("How often this repeats when the communication states a rule (PE every Tuesday: weekly; library books every other Monday: biweekly). 'none' for one-off items."),
   confidence: Confidence.describe(
     "high: stated plainly in the notice. medium: inferred (a weekday without a date, 'next week', a date without a year). low: a guess.",
   ),

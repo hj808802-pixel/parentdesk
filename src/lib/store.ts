@@ -5,11 +5,11 @@ import { del, get, list, put } from "@vercel/blob";
 import { countryOf, guessCountry, isCountry, isTimezone } from "./countries";
 import { cryptoReady } from "./crypto";
 import { findDuplicate } from "./dedupe";
-import { isHhMm, isIsoDate } from "./dates";
+import { addDays, isHhMm, isIsoDate } from "./dates";
 import { isLocale } from "./i18n/locales";
 import { billingEnabled, canUse, planLimits, planOf } from "./plan";
 import { ITEM_TYPES, isOutputLanguage, type ExtractedItem, type Extraction, type ItemType } from "./schema";
-import { CHILD_COLORS, MAX_CHILDREN, type Child, type FamilyRecord, type FamilyView, type Features, type Invite, type Item, type Settings, type Source, type SourceKind } from "./types";
+import { CHILD_COLORS, MAX_CHILDREN, RECURRENCES, type Child, type FamilyRecord, type FamilyView, type Features, type Invite, type Item, type Recurrence, type Settings, type Source, type SourceKind } from "./types";
 
 export * from "./types";
 
@@ -108,6 +108,7 @@ export function defaultSettings(locale?: string | null, timezone?: string | null
     locale: isLocale(locale) ? locale : "", // empty = not known yet (records from before v0.4)
     digest: false,
     digestEmail: "",
+    members: [],
   };
 }
 
@@ -137,6 +138,8 @@ export function sanitizeSettings(input: unknown, current: Settings): Settings {
     if (e === "" || isEmail(e)) next.digestEmail = e;
   }
   if (!next.digestEmail) next.digest = false;
+  if (Array.isArray(o.members)) next.members = [...new Set(o.members.filter((m): m is string => typeof m === "string").map((m) => m.trim().slice(0, 20)).filter(Boolean))].slice(0, 6);
+  next.members ??= [];
   return next;
 }
 
@@ -497,6 +500,7 @@ export function draftItem(it: ExtractedItem, defaultCurrency: string): ItemDraft
     action_text: it.action_text ? it.action_text.slice(0, 200) : null,
     confidence: it.confidence,
     quote: it.quote ? it.quote.slice(0, 300) : null,
+    ...(it.recurrence && it.recurrence !== "none" ? { recurrence: it.recurrence } : {}),
   };
 }
 
@@ -575,7 +579,28 @@ export function applyItemPatch(item: Item, patch: Record<string, unknown>): Item
   if (typeof patch.type === "string" && (ITEM_TYPES as readonly string[]).includes(patch.type)) next.type = patch.type as ItemType;
   if (Array.isArray(patch.childIds)) next.childIds = patch.childIds.filter((x): x is string => typeof x === "string").slice(0, MAX_CHILDREN);
   if (Array.isArray(patch.bring)) next.bring = patch.bring.filter((x): x is string => typeof x === "string").slice(0, 12).map((b) => b.slice(0, 80));
+  if (patch.owner === null) delete next.owner;
+  else if (typeof patch.owner === "string" && patch.owner.trim()) next.owner = patch.owner.trim().slice(0, 20);
+  if (patch.recurrence === null) delete next.recurrence;
+  else if (typeof patch.recurrence === "string" && (RECURRENCES as readonly string[]).includes(patch.recurrence)) next.recurrence = patch.recurrence as Recurrence;
   next.updatedAt = new Date().toISOString();
+  return next;
+}
+
+// The next time a repeating item comes round, as a fresh open item: ticking "library books
+// every Monday" off makes next Monday's. Null for one-off or undated items.
+export function nextOccurrence(item: Item, now: string = new Date().toISOString()): Item | null {
+  if (!item.recurrence || !item.date) return null;
+  const shift = (iso: string): string => {
+    if (item.recurrence === "monthly") {
+      const d = new Date(`${iso}T00:00:00Z`);
+      d.setUTCMonth(d.getUTCMonth() + 1);
+      return d.toISOString().slice(0, 10);
+    }
+    return addDays(iso, item.recurrence === "daily" ? 1 : item.recurrence === "weekly" ? 7 : 14);
+  };
+  const next: Item = { ...item, id: newId(5), date: shift(item.date), end_date: item.end_date ? shift(item.end_date) : null, status: "open", createdAt: now, updatedAt: now };
+  delete next.roomItemIndex;
   return next;
 }
 

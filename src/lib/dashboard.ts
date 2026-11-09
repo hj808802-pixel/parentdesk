@@ -124,3 +124,17 @@ export function findClashes(items: Item[], max = 5): Clash[] {
   }
   return out;
 }
+
+// ---- things to pack later in the fortnight (after tomorrow) ----
+
+export function bringAhead(items: Item[], todayIso: string, days = 14): Item[] {
+  const after = addDays(todayIso, 1);
+  const until = addDays(todayIso, days);
+  return items.filter((it) => it.status === "open" && it.bring.length > 0 && it.date && it.date > after && it.date <= until).sort(byDate);
+}
+
+// Open items whose date is more than `grace` days past: clutter to clear in one go.
+export function staleOpen(items: Item[], todayIso: string, grace = 7): Item[] {
+  const cutoff = addDays(todayIso, -grace);
+  return items.filter((it) => it.status === "open" && it.date && it.date < cutoff).sort(byDate);
+}

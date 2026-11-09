@@ -1,5 +1,5 @@
 import { applyTally, loadRoom, saveRoom } from "@/lib/rooms";
-import { applyItemPatch, familyFromRequest, saveFamily } from "@/lib/store";
+import { applyItemPatch, familyFromRequest, nextOccurrence, saveFamily } from "@/lib/store";
 
 export const runtime = "nodejs";
 
@@ -17,6 +17,15 @@ export async function PATCH(req: Request, { params }: Params) {
   if (Array.isArray(patch.childIds)) patch.childIds = patch.childIds.filter((c) => typeof c === "string" && validChild.has(c));
   const before = rec.items[idx];
   rec.items[idx] = applyItemPatch(before, patch);
+  // A repeating item ticked off comes back for its next date, unless that one already exists.
+  let next = null;
+  if (before.status !== "done" && rec.items[idx].status === "done") {
+    const n = nextOccurrence(rec.items[idx]);
+    if (n && !rec.items.some((it) => it.date === n.date && it.title === n.title)) {
+      rec.items.push(n);
+      next = n;
+    }
+  }
   await saveFamily(rec);
   // An item a class room delivered: tell the room's post how many families ticked it off
   // (counts only, never who). Best effort; the parent's change is already saved.
@@ -35,7 +44,7 @@ export async function PATCH(req: Request, { params }: Params) {
       }
     }
   }
-  return Response.json({ ok: true, item: rec.items[idx] });
+  return Response.json({ ok: true, item: rec.items[idx], next });
 }
 
 export async function DELETE(req: Request, { params }: Params) {

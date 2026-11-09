@@ -91,6 +91,7 @@ await check("family: none", `${BASE}/api/family`, {}, [404]);
 await check("family: patch without cookie", `${BASE}/api/family`, { method: "PATCH", headers: { "content-type": "application/json" }, body: "{}" }, [404]);
 await check("join: bad key", `${BASE}/api/family/join`, json(JSON.stringify({ key: "nope" })), [400]);
 await check("items: no family", `${BASE}/api/items/abc`, { method: "PATCH", headers: { "content-type": "application/json" }, body: "{}" }, [404]);
+await check("items bulk: no family", `${BASE}/api/items/bulk`, json(JSON.stringify({ ids: ["a"], status: "done" })), [404]);
 await check("sources: no family", `${BASE}/api/sources/abc`, { method: "DELETE" }, [404]);
 await check("calendar: bad token", `${BASE}/api/calendar/nope.ics`, {}, [404]);
 await check("inbound: off or unauthorized", `${BASE}/api/inbound`, json("{}"), [401, 404]);

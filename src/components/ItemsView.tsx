@@ -86,7 +86,7 @@ export default function ItemsView() {
       ) : (
         <div className="mt-2 grid gap-3">
           {items.map((it) => (
-            <ItemCard key={it.id} item={it} childrenList={family.children} timezone={family.settings.timezone} onPatch={patchItem} onRemove={removeItem} />
+            <ItemCard key={it.id} item={it} childrenList={family.children} timezone={family.settings.timezone} members={family.settings.members} onPatch={patchItem} onRemove={removeItem} />
           ))}
         </div>
       )}

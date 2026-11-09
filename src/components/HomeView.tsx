@@ -99,7 +99,7 @@ export default function HomeView() {
           <h2 className="text-sm font-semibold uppercase tracking-wide text-rose-700 dark:text-rose-300">{t.home.needsAction}</h2>
           <div className="mt-2 grid gap-3">
             {needsAction.map((it) => (
-              <ItemCard key={it.id} item={it} childrenList={family.children} timezone={family.settings.timezone} onPatch={patchItem} onRemove={removeItem} />
+              <ItemCard key={it.id} item={it} childrenList={family.children} timezone={family.settings.timezone} members={family.settings.members} onPatch={patchItem} onRemove={removeItem} />
             ))}
           </div>
         </section>
@@ -114,7 +114,7 @@ export default function HomeView() {
               <h2 className={`text-sm font-semibold uppercase tracking-wide ${b === "overdue" ? "text-red-600 dark:text-red-400" : "text-zinc-500"}`}>{t.home.buckets[b]}</h2>
               <div className="mt-2 grid gap-3">
                 {items.map((it) => (
-                  <ItemCard key={it.id} item={it} childrenList={family.children} timezone={family.settings.timezone} onPatch={patchItem} onRemove={removeItem} />
+                  <ItemCard key={it.id} item={it} childrenList={family.children} timezone={family.settings.timezone} members={family.settings.members} onPatch={patchItem} onRemove={removeItem} />
                 ))}
               </div>
             </section>

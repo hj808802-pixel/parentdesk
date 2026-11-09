@@ -15,6 +15,7 @@ export type Settings = {
   locale: string; // UI language the family uses (i18n LOCALES); the weekly summary is written in it
   digest: boolean; // weekly summary e-mail switched on
   digestEmail: string; // where it goes; empty = not set
+  members: string[]; // the adults who share the load ("Mom", "Dad", "Grandma"), for the owner chips
 };
 
 export type Child = { id: string; name: string; color: string };
@@ -42,6 +43,9 @@ export type Source = {
 
 export type ItemStatus = "open" | "done" | "dismissed";
 
+export const RECURRENCES = ["daily", "weekly", "biweekly", "monthly"] as const;
+export type Recurrence = (typeof RECURRENCES)[number];
+
 export type Item = {
   id: string;
   sourceId: string;
@@ -66,6 +70,8 @@ export type Item = {
   createdAt: string;
   updatedAt: string;
   roomItemIndex?: number; // for items a class room delivered: the line of the teacher's post, so done/dismissed can be counted back
+  recurrence?: Recurrence; // stated rule (PE every Tuesday); ticking it off creates the next occurrence
+  owner?: string; // who in the family takes care of it (one of settings.members)
 };
 
 // Gmail auto-collect (lib/gmail.ts). The refresh token is sealed with lib/crypto.ts and

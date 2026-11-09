@@ -11,7 +11,7 @@ Live: https://parentdesk-app.vercel.app
 1. **Capture**: photo, PDF, screenshot, pasted text (a whole chat export works: the model keeps only the school messages and reports how many it used), the Android share sheet, e-mail forwarding to a per-family address, or a connected Gmail inbox checked once a day.
 2. **Extract**: Claude reads the notice with the family's country pack (date order, currency, school-year habits, local vocabulary) and returns structured items (`src/lib/schema.ts`).
 3. **Act**: the home screen (today at a glance, what is next, latest notices, class rooms), the week view, "needs your action", per-child filters, one-tap done/dismiss, Google Calendar links, `.ics` downloads and a read-only **calendar feed** (`/api/calendar/<token>.ics`) with reminders that Google, Apple and Outlook calendars refresh on their own. Items the family already has are skipped (`src/lib/dedupe.ts`).
-4. **Ask, explain and reply**: ask the assistant about the list (`/api/ask`, answers only from saved items), have one item explained in plain words with the steps and the local background a newcomer would not know (`/api/items/[id]/explain`), and draft a reply to the school in the notice's language with a translation (`/api/items/[id]/reply`), also straight from a notice's open questions. Nothing is sent from ParentDesk. The home screen adds a week brief, a packing checklist for today and tomorrow, and the week view warns when two children have overlapping times, all without a model call.
+4. **Ask, explain and reply**: ask the assistant about the list (`/api/ask`, answers only from saved items), have one item explained in plain words with the steps and the local background a newcomer would not know (`/api/items/[id]/explain`), and draft a reply to the school in the notice's language with a translation (`/api/items/[id]/reply`), also straight from a notice's open questions. Nothing is sent from ParentDesk. The home screen adds a week brief, a packing checklist for today and tomorrow (with the fortnight ahead and a copy button) and a one-tap clean-up of past-due items; the week view warns when two children have overlapping times; items carry the rhythm the notice states (PE every Tuesday) and roll forward when ticked off; family members can be assigned with one tap; consent and dated items have one-tap reply drafts. All of that without a model call except the drafts.
 
 ## Principles
 
@@ -27,7 +27,7 @@ Next.js 16 (App Router) · React 19 · Tailwind 4 · TypeScript · zod · Anthro
 ```
 knowledge/countries/        country packs (markdown, read at request time)
 src/app/[locale]/           pages: / (landing, or the home screen once a family exists), /week, /add, /items, /sources, /settings, /teach (teachers), /join, /pricing, /privacy, /terms
-src/app/api/                extract, share, ask, family (+join, leave, rotate-feed, invite), items/[id] (+reply, explain), sources/[id], calendar/[feed], inbound, google/{start,callback,scan,disconnect}, teacher (+join, leave, translate, rooms, rooms/[id], rooms/[id]/{post,qr,compose}, rooms/[id]/drafts/[draftId], rooms/[id]/posts/[postId]), rooms/{join,[id]}, billing/*, digest/*, cron/{scan,digest}, admin/*, health
+src/app/api/                extract, share, ask, family (+join, leave, rotate-feed, invite), items/[id] (+reply, explain), items/bulk, sources/[id], calendar/[feed], inbound, google/{start,callback,scan,disconnect}, teacher (+join, leave, translate, rooms, rooms/[id], rooms/[id]/{post,qr,compose}, rooms/[id]/drafts/[draftId], rooms/[id]/posts/[postId]), rooms/{join,[id]}, billing/*, digest/*, cron/{scan,digest}, admin/*, health
 src/components/             HomeView, AddNotice, ItemCard, ItemsView, SourcesView, SettingsView, TeachView, JoinView, Landing, …
 src/lib/                    extract (Claude), assist (ask, reply, explain, inbox classifier, post translation, notice writer, parent-message helper), rooms (teachers and class rooms), dashboard (home numbers, brief, packing list, clashes), gmail, dedupe, crypto, store (family document), plan, stripe, digest, admin, schema, countries, dates, ics, ratelimit, i18n/*
 integrations/               Cloudflare Email Worker for e-mail forwarding
@@ -92,7 +92,8 @@ Family.rooms[] { roomId, name, teacherName, childIds[], joinedAt, lastPostId }
 Teacher { id, keyHash, name, school, settings, roomIds[], usage{} }  # teachers/<id>
 Room    { id, teacherId, name, description, joinSecret, members[{familyId}], drafts[RoomPost], posts[{ id, ts, title, summary, language, items[ItemDraft], translations{lang}, delivered }] }   # rooms/<id>
 Item   { id, sourceId, type: event|deadline|todo|payment|consent|info, title, description, date, end_date, time, end_time, all_day,
-         location, amount, currency, bring[], requires_action, action_text, confidence, quote, childIds[], status: open|done|dismissed }
+         location, amount, currency, bring[], requires_action, action_text, confidence, quote, childIds[], status: open|done|dismissed,
+         recurrence?: daily|weekly|biweekly|monthly, owner?, roomItemIndex? }
 ```
 
 ## Cost

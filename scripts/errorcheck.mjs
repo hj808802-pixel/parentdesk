@@ -81,6 +81,7 @@ expect("join: unknown key", await call("POST", "/api/family/join", { json: { key
 expect("rotate-feed: no family", await call("POST", "/api/family/rotate-feed"), 404);
 expect("item patch: no family", await call("PATCH", "/api/items/abc", { json: { status: "done" } }), 404);
 expect("item delete: no family", await call("DELETE", "/api/items/abc"), 404);
+expect("items bulk: no family", await call("POST", "/api/items/bulk", { json: { ids: ["a"], status: "done" } }), 404);
 expect("reply: no family", await call("POST", "/api/items/abc/reply", { json: { intent: "yes" } }), 404);
 expect("explain: no family", await call("POST", "/api/items/abc/explain"), 404);
 expect("ask: no family", await call("POST", "/api/ask", { json: { question: "what is due?" } }), 404);
@@ -198,6 +199,11 @@ if (key) {
   });
   expect("item patch: unknown id", await call("PATCH", "/api/items/zzz", { json: { status: "done" } }), 404);
   expect("item delete: unknown id", await call("DELETE", "/api/items/zzz"), 404);
+  expect("items bulk: not json", await call("POST", "/api/items/bulk", { json: "{" }), 400);
+  expect("items bulk: bad status", await call("POST", "/api/items/bulk", { json: { ids: ["a"], status: "gone" } }), 400);
+  expect("items bulk: unknown ids change nothing", await call("POST", "/api/items/bulk", { json: { ids: ["zzz"], status: "done" } }), 200, (r) => r.data.changed === 0 && Array.isArray(r.data.family?.items));
+  const mem = await call("PATCH", "/api/family", { json: { settings: { members: [" Mom ", "Dad", "", "Mom", 7, "x".repeat(40), "a", "b", "c", "d", "e"] } } });
+  expect("settings: members trimmed, deduped, capped at 6", mem, 200, (r) => r.data.family.settings.members.length === 6 && r.data.family.settings.members[0] === "Mom" && r.data.family.settings.members.every((m) => m.length <= 20));
   expect("reply: unknown item", await call("POST", "/api/items/zzz/reply", { json: { intent: "yes" } }), 404);
   expect("explain: unknown item", await call("POST", "/api/items/zzz/explain"), 404);
   expect("source delete: unknown id", await call("DELETE", "/api/sources/zzz"), 404);

@@ -57,7 +57,7 @@ You receive ONE communication (photos or a PDF of a letter, newsletter, permissi
 
 What to extract
 - Everything a parent must put on a calendar or a to-do list: events (trips, picture day, concerts, sports, parent-teacher meetings, early dismissal, no-school days, holidays, exams, club sessions), deadlines (hand-ins, sign-ups, bookings), payments (fees, trips, lunch money, fundraisers), consent (slips, forms, permissions to sign and return), to-dos (things to prepare or do without a firm date), and at most two "info" items for facts that matter later (a new teacher's name, a changed pickup rule).
-- Recurring things (PE on Tuesdays, library books due every Monday) become ONE item: the first occurrence on or after today as the date, the rule stated in the description.
+- Recurring things (PE on Tuesdays, library books due every Monday) become ONE item: the first occurrence on or after today as the date, the rule stated in the description. Set recurrence to the rhythm of the rule (daily, weekly, biweekly, monthly); "none" for one-off items.
 - Skip pleasantries, thank-yous, general praise, and advertising. One newsletter usually holds 3 to 12 items. Never invent an item that the text does not support.
 - Merge duplicates: the same trip mentioned three times is one event; its money and its slip are separate payment and consent items that share the trip's name.
 
@@ -240,6 +240,7 @@ export function mockExtraction(ctx: ExtractContext): Extraction {
         action_text: "Pack lunch and water, be on time for the bus",
         children: kids,
         confidence: "high",
+        recurrence: "none",
         quote: "Field trip to the Science Museum: Friday. Bus leaves at 8:30 AM sharp.",
       },
       {
@@ -259,6 +260,7 @@ export function mockExtraction(ctx: ExtractContext): Extraction {
         action_text: "Sign and return the slip",
         children: kids,
         confidence: "high",
+        recurrence: "none",
         quote: "Permission slip and $12 due by Wednesday",
       },
       {
@@ -278,6 +280,7 @@ export function mockExtraction(ctx: ExtractContext): Extraction {
         action_text: "Pay 12 USD",
         children: kids,
         confidence: "high",
+        recurrence: "none",
         quote: "Permission slip and $12 due by Wednesday",
       },
       {
@@ -297,6 +300,7 @@ export function mockExtraction(ctx: ExtractContext): Extraction {
         action_text: null,
         children: kids,
         confidence: "high",
+        recurrence: "none",
         quote: "Picture Day is Tuesday",
       },
       {
@@ -316,6 +320,7 @@ export function mockExtraction(ctx: ExtractContext): Extraction {
         action_text: "Book a slot online",
         children: kids,
         confidence: "medium",
+        recurrence: "none",
         quote: "Sign up online by Monday.",
       },
       {
@@ -335,6 +340,7 @@ export function mockExtraction(ctx: ExtractContext): Extraction {
         action_text: "Attend your slot",
         children: kids,
         confidence: "high",
+        recurrence: "none",
         quote: "Parent-teacher conferences: Thursday, 3:30-7:00 PM.",
       },
       {
@@ -354,6 +360,7 @@ export function mockExtraction(ctx: ExtractContext): Extraction {
         action_text: "Put the books in the backpack on Sunday night",
         children: kids,
         confidence: "high",
+        recurrence: "weekly",
         quote: "library books are due every Monday",
       },
       {
@@ -373,6 +380,7 @@ export function mockExtraction(ctx: ExtractContext): Extraction {
         action_text: null,
         children: kids,
         confidence: "high",
+        recurrence: "weekly",
         quote: "PE is Tuesdays and Thursdays - sneakers please!",
       },
       {
@@ -392,6 +400,7 @@ export function mockExtraction(ctx: ExtractContext): Extraction {
         action_text: null,
         children: [],
         confidence: "high",
+        recurrence: "none",
         quote: "No school Thursday and Friday (fall break)",
       },
     ],

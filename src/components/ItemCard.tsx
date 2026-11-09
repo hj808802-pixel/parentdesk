@@ -19,12 +19,14 @@ export default function ItemCard({
   item,
   childrenList,
   timezone,
+  members = [],
   onPatch,
   onRemove,
 }: {
   item: Item;
   childrenList: Child[];
   timezone: string;
+  members?: string[];
   onPatch: (id: string, patch: Patch) => Promise<void>;
   onRemove?: (id: string) => Promise<void>;
 }) {
@@ -34,6 +36,7 @@ export default function ItemCard({
   const [busy, setBusy] = useState(false);
   const [showQuote, setShowQuote] = useState(false);
   const [replying, setReplying] = useState(false);
+  const [quick, setQuick] = useState<"yes" | "absence" | null>(null);
   const [explaining, setExplaining] = useState(false);
   const [draft, setDraft] = useState<Patch>({});
 
@@ -82,12 +85,31 @@ export default function ItemCard({
                 {diff !== null && Math.abs(diff) <= 14 ? ` · ${relative()}` : ""}
               </span>
             )}
+            {item.recurrence && <span className="text-zinc-500">↻ {t.item.recurrence[item.recurrence]}</span>}
             {item.status !== "open" && <span className="text-zinc-500">{t.item.status[item.status]}</span>}
           </div>
           <h3 dir="auto" className={`mt-1 text-base font-semibold ${muted ? "line-through" : ""}`}>{item.title}</h3>
           <div className="mt-1">
             <ChildChips childrenList={childrenList} ids={item.childIds} emptyLabel={childrenList.length ? t.item.noChild : undefined} />
           </div>
+          {members.length > 0 && item.status === "open" && (
+            <div className="no-print mt-1 flex flex-wrap items-center gap-1 text-xs">
+              <span className="text-zinc-500">{t.item.owner}</span>
+              {members.map((m) => (
+                <button
+                  key={m}
+                  type="button"
+                  disabled={busy}
+                  aria-pressed={item.owner === m}
+                  className={`rounded-full border px-2 py-0.5 ${item.owner === m ? "border-zinc-900 bg-zinc-900 text-white dark:border-white dark:bg-white dark:text-zinc-900" : "border-zinc-300 text-zinc-600 dark:border-zinc-700 dark:text-zinc-300"}`}
+                  onClick={() => run({ owner: item.owner === m ? null : m } as unknown as Patch)}
+                >
+                  {m}
+                </button>
+              ))}
+            </div>
+          )}
+          {members.length > 0 && item.status !== "open" && item.owner && <p className="mt-1 text-xs text-zinc-500">{t.item.owner} {item.owner}</p>}
           {item.description && <p dir="auto" className="mt-2 text-sm text-zinc-700 dark:text-zinc-300">{item.description}</p>}
           {item.action_text && <p dir="auto" className="mt-1 text-sm font-medium">→ {item.action_text}</p>}
           {item.amount !== null && <p className="mt-1 text-sm font-semibold">{formatMoney(item.amount, item.currency, tag)}</p>}
@@ -135,6 +157,16 @@ export default function ItemCard({
                   </button>
                 </>
               )}
+              {item.status === "open" && item.type === "consent" && (
+                <button type="button" className={`${BTN_SMALL} border-emerald-600 text-emerald-700 dark:text-emerald-300 ${quick === "yes" ? "bg-zinc-100 dark:bg-zinc-800" : ""}`} onClick={() => setQuick((q) => (q === "yes" ? null : "yes"))}>
+                  ✉ {t.item.quickYes}
+                </button>
+              )}
+              {item.status === "open" && item.date && (item.type === "event" || item.type === "deadline" || item.type === "todo") && (
+                <button type="button" className={`${BTN_SMALL} ${quick === "absence" ? "bg-zinc-100 dark:bg-zinc-800" : ""}`} onClick={() => setQuick((q) => (q === "absence" ? null : "absence"))}>
+                  ✉ {t.item.quickAbsence}
+                </button>
+              )}
               {item.status === "open" && (
                 <button type="button" className={`${BTN_SMALL} ${replying ? "bg-zinc-100 dark:bg-zinc-800" : ""}`} onClick={() => setReplying((r) => !r)}>
                   ✉ {t.reply.button}
@@ -162,6 +194,7 @@ export default function ItemCard({
           )}
 
           {explaining && !editing && <ExplainPanel itemId={item.id} onClose={() => setExplaining(false)} />}
+          {quick && !editing && <ReplyPanel key={quick} itemId={item.id} initialIntent={quick} autoStart onClose={() => setQuick(null)} />}
           {replying && !editing && <ReplyPanel itemId={item.id} onClose={() => setReplying(false)} />}
 
           {editing && (

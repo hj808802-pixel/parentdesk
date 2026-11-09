@@ -2,8 +2,9 @@
 
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
-import { bringList, summarize, weekBrief } from "@/lib/dashboard";
+import { bringAhead, bringList, staleOpen, summarize, weekBrief } from "@/lib/dashboard";
 import { formatDate, formatDateLong, formatMoney, formatTime, todayIn } from "@/lib/dates";
+import { api, writeClipboard } from "@/lib/client";
 import { useFamily } from "@/lib/family-context";
 import { useI18n } from "@/lib/i18n/context";
 import { fmt } from "@/lib/i18n";
@@ -19,7 +20,7 @@ import Landing from "./Landing";
 
 export default function DashboardView() {
   const { locale, t } = useI18n();
-  const { family, loading } = useFamily();
+  const { family, loading, setFamily } = useFamily();
   const tag = LOCALE_TAGS[locale];
   const todayIso = todayIn(family?.settings.timezone ?? "UTC");
   const summary = useMemo(() => (family ? summarize(family.items, family.sources, todayIso, family.settings.weekStart) : null), [family, todayIso]);
@@ -28,6 +29,30 @@ export default function DashboardView() {
     [family, todayIso, tag, t],
   );
   const packing = useMemo(() => (family ? bringList(family.items, todayIso) : []), [family, todayIso]);
+  const ahead = useMemo(() => (family ? bringAhead(family.items, todayIso) : []), [family, todayIso]);
+  const stale = useMemo(() => (family ? staleOpen(family.items, todayIso) : []), [family, todayIso]);
+  const [showAhead, setShowAhead] = useState(false);
+  const [cleaning, setCleaning] = useState(false);
+  const [copiedList, setCopiedList] = useState(false);
+  async function clearStale(status: "done" | "dismissed") {
+    setCleaning(true);
+    try {
+      const res = await api.bulkItems(stale.map((it) => it.id), status);
+      setFamily(res.family);
+    } finally {
+      setCleaning(false);
+    }
+  }
+  async function copyAhead() {
+    if (!family) return;
+    const names = new Map(family.children.map((c) => [c.id, c.name]));
+    const lines = [...packing.map((p) => p.item), ...ahead].map((it) => {
+      const kids = it.childIds.map((id) => names.get(id)).filter(Boolean).join(", ");
+      return `${formatDate(it.date as string, tag)}${kids ? ` · ${kids}` : ""} · ${it.title}: ${it.bring.join(", ")}`;
+    });
+    setCopiedList(await writeClipboard(lines.join("\n")));
+    setTimeout(() => setCopiedList(false), 2500);
+  }
   // Ticks live in this browser only and reset with the day.
   const [ticked, setTicked] = useState<string[]>([]);
   const tickKey = `pd_bring_${todayIso}`;
@@ -103,9 +128,29 @@ export default function DashboardView() {
         </section>
       )}
 
-      {packing.length > 0 && (
+      {stale.length > 0 && (
+        <section className={`${CARD} mt-4 border-amber-200 dark:border-amber-900`} role="status">
+          <p className="font-semibold">{fmt(t.dash.staleTitle, { n: stale.length })}</p>
+          <p className="mt-1 text-sm text-zinc-600 dark:text-zinc-400">{t.dash.staleBody}</p>
+          <div className="mt-3 flex flex-wrap gap-2">
+            <button type="button" className={BTN_SECONDARY} disabled={cleaning} onClick={() => clearStale("done")}>
+              {t.dash.staleDone}
+            </button>
+            <button type="button" className={BTN_SECONDARY} disabled={cleaning} onClick={() => clearStale("dismissed")}>
+              {t.dash.staleDismiss}
+            </button>
+          </div>
+        </section>
+      )}
+
+      {(packing.length > 0 || ahead.length > 0) && (
         <section className={`${CARD} mt-4 border-sky-200 dark:border-sky-900`}>
-          <p className="text-xs font-semibold uppercase tracking-wide text-sky-700 dark:text-sky-300">{t.dash.bring}</p>
+          <div className="flex items-center justify-between gap-2">
+            <p className="text-xs font-semibold uppercase tracking-wide text-sky-700 dark:text-sky-300">{t.dash.bring}</p>
+            <button type="button" className="text-xs underline underline-offset-4" onClick={copyAhead}>
+              {copiedList ? t.common.copied : t.dash.bringCopy}
+            </button>
+          </div>
           <ul className="mt-2 grid gap-3">
             {packing.map(({ item, dayOffset }) => (
               <li key={item.id} className="text-sm">
@@ -131,6 +176,27 @@ export default function DashboardView() {
               </li>
             ))}
           </ul>
+          {ahead.length > 0 && (
+            <div className="mt-3">
+              <button type="button" className="text-sm underline underline-offset-4" onClick={() => setShowAhead((s) => !s)}>
+                {t.dash.bringAhead} ({ahead.length})
+              </button>
+              {showAhead && (
+                <ul className="mt-2 grid gap-2 text-sm">
+                  {ahead.map((it) => (
+                    <li key={it.id}>
+                      <p className="flex flex-wrap items-center gap-2 text-xs text-zinc-500">
+                        <span>{formatDate(it.date as string, tag)}</span>
+                        <span dir="auto" className="font-medium text-zinc-800 dark:text-zinc-200">{it.title}</span>
+                        <ChildChips childrenList={family.children} ids={it.childIds} />
+                      </p>
+                      <p dir="auto" className="mt-0.5">{it.bring.join(", ")}</p>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+          )}
         </section>
       )}
 

@@ -184,7 +184,7 @@ export default function AddNotice() {
           {result.saved && <p className="mt-3 text-sm text-zinc-600 dark:text-zinc-400">{t.add.savedHint}</p>}
           <div className="mt-3 grid gap-3">
             {liveItems.map((it) => (
-              <ItemCard key={it.id} item={it} childrenList={result.family.children} timezone={result.family.settings.timezone} onPatch={patchItem} onRemove={removeItem} />
+              <ItemCard key={it.id} item={it} childrenList={result.family.children} timezone={result.family.settings.timezone} members={result.family.settings.members} onPatch={patchItem} onRemove={removeItem} />
             ))}
           </div>
           <div className="mt-4 flex flex-wrap gap-2">

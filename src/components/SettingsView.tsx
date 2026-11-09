@@ -41,6 +41,7 @@ export default function SettingsView() {
   const [inviteBusy, setInviteBusy] = useState(false);
   const [inviteError, setInviteError] = useState(false);
   const [roomBusy, setRoomBusy] = useState<string | null>(null);
+  const [membersText, setMembersText] = useState("");
 
   // The form is a draft of the server document: reload it whenever the document changes.
   useEffect(() => {
@@ -49,6 +50,7 @@ export default function SettingsView() {
     if (family) {
       setSettings(family.settings);
       setChildren(family.children);
+      setMembersText((family.settings.members ?? []).join(", "));
     }
   }, [family]);
 
@@ -190,7 +192,7 @@ export default function SettingsView() {
     if (!settings) return;
     setSaving(true);
     try {
-      const res = await api.updateFamily({ settings: { ...settings, locale }, children });
+      const res = await api.updateFamily({ settings: { ...settings, locale, members: membersText.split(",").map((m) => m.trim()).filter(Boolean).slice(0, 6) }, children });
       setFamily(res.family);
       setJustSaved(true);
       setTimeout(() => setJustSaved(false), 4000);
@@ -280,6 +282,11 @@ export default function SettingsView() {
             <label className="mt-3 grid gap-1 text-sm">
               <span className="text-xs text-zinc-500">{t.settings.familyName}</span>
               <input className={INPUT} value={settings.familyName} onChange={(e) => setSettings({ ...settings, familyName: e.target.value })} maxLength={60} />
+            </label>
+            <label className="mt-3 grid gap-1 text-sm">
+              <span className="text-xs text-zinc-500">{t.settings.members}</span>
+              <input className={INPUT} value={membersText} placeholder={t.settings.membersPlaceholder} onChange={(e) => setMembersText(e.target.value)} maxLength={140} />
+              <span className="text-xs text-zinc-500">{t.settings.membersHint}</span>
             </label>
             <p className="mt-2 text-xs text-zinc-500">{fmt(t.settings.usage, { n: family.usage[month] ?? 0 })}</p>
           </section>
