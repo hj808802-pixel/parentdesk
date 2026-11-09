@@ -176,8 +176,8 @@ export default function TeachView() {
         <form onSubmit={openWithKey} className={`${CARD} mt-4`}>
           <h2 className="font-semibold">{t.teach.haveKey}</h2>
           <div className="mt-3 flex gap-2">
-            <input className={INPUT} placeholder={t.teach.keyPlaceholder} value={keyInput} onChange={(e) => setKeyInput(e.target.value)} autoComplete="off" spellCheck={false} />
-            <button type="submit" className={BTN_SECONDARY} disabled={!keyInput.trim()}>
+            <input className={`${INPUT} min-w-0`} placeholder={t.teach.keyPlaceholder} value={keyInput} onChange={(e) => setKeyInput(e.target.value)} autoComplete="off" spellCheck={false} />
+            <button type="submit" className={`${BTN_SECONDARY} shrink-0 whitespace-nowrap`} disabled={!keyInput.trim()}>
               {t.teach.open}
             </button>
           </div>

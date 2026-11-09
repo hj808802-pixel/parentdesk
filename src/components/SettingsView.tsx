@@ -361,8 +361,8 @@ export default function SettingsView() {
                   setNewChild("");
                 }}
               >
-                <input className={INPUT} placeholder={t.settings.childName} value={newChild} maxLength={40} onChange={(e) => setNewChild(e.target.value)} />
-                <button type="submit" className={BTN_SECONDARY}>
+                <input className={`${INPUT} min-w-0`} placeholder={t.settings.childName} value={newChild} maxLength={40} onChange={(e) => setNewChild(e.target.value)} />
+                <button type="submit" className={`${BTN_SECONDARY} shrink-0 whitespace-nowrap`}>
                   {t.settings.addChild}
                 </button>
               </form>
@@ -702,8 +702,8 @@ export default function SettingsView() {
             void join();
           }}
         >
-          <input className={INPUT} placeholder={t.settings.joinPlaceholder} value={joinKey} onChange={(e) => setJoinKey(e.target.value)} autoComplete="off" spellCheck={false} />
-          <button type="submit" className={BTN_SECONDARY} disabled={!joinKey.trim()}>
+          <input className={`${INPUT} min-w-0`} placeholder={t.settings.joinPlaceholder} value={joinKey} onChange={(e) => setJoinKey(e.target.value)} autoComplete="off" spellCheck={false} />
+          <button type="submit" className={`${BTN_SECONDARY} shrink-0 whitespace-nowrap`} disabled={!joinKey.trim()}>
             {t.settings.join}
           </button>
         </form>

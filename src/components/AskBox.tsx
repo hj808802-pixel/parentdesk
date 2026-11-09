@@ -49,8 +49,8 @@ export default function AskBox({ childrenList }: { childrenList: Child[] }) {
           void ask(question);
         }}
       >
-        <input className={INPUT} value={question} onChange={(e) => setQuestion(e.target.value)} placeholder={t.ask.placeholder} maxLength={500} aria-label={t.ask.title} />
-        <button type="submit" className={BTN_PRIMARY} disabled={busy || question.trim().length < 2}>
+        <input className={`${INPUT} min-w-0`} value={question} onChange={(e) => setQuestion(e.target.value)} placeholder={t.ask.placeholder} maxLength={500} aria-label={t.ask.title} />
+        <button type="submit" className={`${BTN_PRIMARY} shrink-0 whitespace-nowrap`} disabled={busy || question.trim().length < 2}>
           {busy ? t.ask.working : t.ask.submit}
         </button>
       </form>
