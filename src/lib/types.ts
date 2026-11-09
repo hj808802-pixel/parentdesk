@@ -65,6 +65,7 @@ export type Item = {
   status: ItemStatus;
   createdAt: string;
   updatedAt: string;
+  roomItemIndex?: number; // for items a class room delivered: the line of the teacher's post, so done/dismissed can be counted back
 };
 
 // Gmail auto-collect (lib/gmail.ts). The refresh token is sealed with lib/crypto.ts and

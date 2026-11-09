@@ -122,6 +122,8 @@ expect("teacher room post: no teacher", await call("POST", "/api/teacher/rooms/a
 expect("teacher room qr: no teacher", await call("GET", "/api/teacher/rooms/abc/qr"), 404);
 expect("teacher draft send: no teacher", await call("POST", "/api/teacher/rooms/abc/drafts/xyz", { json: {} }), 404);
 expect("teacher post recall: no teacher", await call("DELETE", "/api/teacher/rooms/abc/posts/xyz"), 404);
+expect("teacher compose: no teacher", await call("POST", "/api/teacher/rooms/abc/compose", { json: { facts: "trip friday" } }), 404);
+expect("teacher translate: no teacher", await call("POST", "/api/teacher/translate", { json: { text: "hola" } }), 404);
 expect("room join: malformed token", await call("GET", "/api/rooms/join?r=abc"), 400);
 expect("room join: unknown token", await call("GET", `/api/rooms/join?r=${"0".repeat(12)}.${"0".repeat(16)}`), 404);
 expect("room join: post malformed", await call("POST", "/api/rooms/join", { json: { token: "abc" } }), 400);
@@ -258,6 +260,10 @@ if (key) {
       }
       expect("teacher room qr: unknown room", await call("GET", `/api/teacher/rooms/${"0".repeat(12)}/qr`), 404);
       expect("teacher room qr: svg of the link", await call("GET", `/api/teacher/rooms/${room.id}/qr?l=ko`), 200, (r) => r.text.startsWith("<svg") && (r.headers.get("content-type") ?? "").includes("image/svg+xml") && /private, no-store/.test(r.headers.get("cache-control") ?? ""));
+      expect("teacher compose: unknown room", await call("POST", `/api/teacher/rooms/${"0".repeat(12)}/compose`, { json: { facts: "trip friday" } }), 404);
+      expect("teacher compose: facts too short", await call("POST", `/api/teacher/rooms/${room.id}/compose`, { json: { facts: "hi" } }), 400);
+      expect("teacher compose: not json", await call("POST", `/api/teacher/rooms/${room.id}/compose`, { json: "{" }), 400);
+      expect("teacher translate: empty", await call("POST", "/api/teacher/translate", { json: { text: "" } }), 400);
       expect("teacher draft send: unknown draft", await call("POST", `/api/teacher/rooms/${room.id}/drafts/${"0".repeat(10)}`, { json: { drop: [], targets: [] } }), 404);
       expect("teacher draft discard: unknown draft", await call("DELETE", `/api/teacher/rooms/${room.id}/drafts/${"0".repeat(10)}`), 404);
       expect("teacher post recall: unknown post", await call("DELETE", `/api/teacher/rooms/${room.id}/posts/${"0".repeat(10)}`), 404);

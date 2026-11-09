@@ -111,6 +111,7 @@ await check("teacher join: bad key", `${BASE}/api/teacher/join`, json(JSON.strin
 await check("room join: bad token", `${BASE}/api/rooms/join?r=nope`, {}, [400]);
 await check("room: no family", `${BASE}/api/rooms/abc`, { method: "DELETE" }, [404]);
 await check("teacher room qr: no teacher", `${BASE}/api/teacher/rooms/abc/qr`, {}, [404]);
+await check("teacher translate: no teacher", `${BASE}/api/teacher/translate`, json(JSON.stringify({ text: "hola" })), [404]);
 
 const badPages = pages.filter((p) => p.status !== 200 || p.error);
 const badInternal = internalResults.filter((p) => !p.ok);

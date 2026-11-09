@@ -1,3 +1,4 @@
+import { applyTally, loadRoom, saveRoom } from "@/lib/rooms";
 import { applyItemPatch, familyFromRequest, saveFamily } from "@/lib/store";
 
 export const runtime = "nodejs";
@@ -14,8 +15,26 @@ export async function PATCH(req: Request, { params }: Params) {
   if (!patch) return Response.json({ ok: false, error: "bad_request" }, { status: 400 });
   const validChild = new Set(rec.children.map((c) => c.id));
   if (Array.isArray(patch.childIds)) patch.childIds = patch.childIds.filter((c) => typeof c === "string" && validChild.has(c));
-  rec.items[idx] = applyItemPatch(rec.items[idx], patch);
+  const before = rec.items[idx];
+  rec.items[idx] = applyItemPatch(before, patch);
   await saveFamily(rec);
+  // An item a class room delivered: tell the room's post how many families ticked it off
+  // (counts only, never who). Best effort; the parent's change is already saved.
+  if (rec.items[idx].status !== before.status && before.roomItemIndex != null) {
+    const source = rec.sources.find((s) => s.id === before.sourceId);
+    if (source?.roomId && source.postId) {
+      try {
+        const room = await loadRoom(source.roomId);
+        const post = room?.posts.find((p) => p.id === source.postId);
+        if (room && post) {
+          applyTally(post, before.roomItemIndex, before.status, rec.items[idx].status);
+          await saveRoom(room);
+        }
+      } catch (e) {
+        console.warn("[items] tally not updated", e instanceof Error ? e.message : e);
+      }
+    }
+  }
   return Response.json({ ok: true, item: rec.items[idx] });
 }
 

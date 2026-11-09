@@ -143,6 +143,27 @@ export const ExplainSchema = z.object({
 });
 export type Explain = z.infer<typeof ExplainSchema>;
 
+// A teacher's notice written from a few facts (lib/assist.ts composeNotice).
+export const NOTICE_KINDS = ["trip", "event", "bring", "payment", "consent", "change", "general"] as const;
+export type NoticeKind = (typeof NOTICE_KINDS)[number];
+
+export const ComposeSchema = z.object({
+  title: z.string().describe("A short title for the notice, in the target language."),
+  notice: z.string().describe("The complete notice, ready to send to parents, in the target language."),
+  missing: z.array(z.string()).describe("Facts the teacher still has to add before sending (a date, a price, a deadline, a place), each a few words. Empty when nothing essential is missing."),
+});
+export type Compose = z.infer<typeof ComposeSchema>;
+
+// A parent's message understood and answered (lib/assist.ts helpParentMessage).
+export const ParentMessageSchema = z.object({
+  language: z.string().describe("BCP 47 code of the language the parent wrote in."),
+  translation: z.string().describe("The parent's message in the teacher's language, faithful and complete."),
+  summary: z.string().describe("One sentence in the teacher's language: what the parent asks or tells, and whether the teacher has to do something."),
+  reply: z.string().describe("A suggested reply in the parent's language, in the polite register a teacher uses with parents there, ready to paste. Placeholders in brackets for facts the teacher must fill in."),
+  reply_translated: z.string().describe("The same reply in the teacher's language."),
+});
+export type ParentMessage = z.infer<typeof ParentMessageSchema>;
+
 export function isOutputLanguage(x: unknown): x is OutputLanguage {
   return typeof x === "string" && OUTPUT_LANGUAGES.some((l) => l.code === x);
 }

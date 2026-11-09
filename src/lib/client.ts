@@ -72,6 +72,8 @@ export const api = {
   deleteRoom: (id: string) => call<TeacherResponse>(`/api/teacher/rooms/${id}`, { method: "DELETE" }),
   roomDraftSend: (roomId: string, draftId: string, body: { drop: number[]; targets: string[] }) => call<RoomSendResponse>(`/api/teacher/rooms/${roomId}/drafts/${draftId}`, { method: "POST", body: JSON.stringify(body) }),
   roomDraftDiscard: (roomId: string, draftId: string) => call<TeacherResponse>(`/api/teacher/rooms/${roomId}/drafts/${draftId}`, { method: "DELETE" }),
+  compose: (roomId: string, body: { kind: string; facts: string; tone: string }) => call<{ ok: true; title: string; notice: string; missing: string[]; mock: boolean }>(`/api/teacher/rooms/${roomId}/compose`, { method: "POST", body: JSON.stringify(body) }),
+  translateParent: (text: string) => call<{ ok: true; language: string; translation: string; summary: string; reply: string; reply_translated: string; mock: boolean }>("/api/teacher/translate", { method: "POST", body: JSON.stringify({ text }) }),
   roomPostRecall: (roomId: string, postId: string) => call<TeacherResponse & { families: number; items: number }>(`/api/teacher/rooms/${roomId}/posts/${postId}`, { method: "DELETE" }),
 };
 

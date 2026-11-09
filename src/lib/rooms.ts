@@ -66,6 +66,7 @@ export type RoomPost = {
   items: ItemDraft[];
   translations: Record<string, PostTranslation>; // result language -> the same post
   delivered: number; // families that received it when it was posted
+  tally?: Record<string, { done: number; dismissed: number }>; // item index -> families that ticked it off or dismissed it (counts only)
 };
 
 export type RoomRecord = {
@@ -287,6 +288,17 @@ export function takeDraft(room: RoomRecord, id: string): RoomPost | null {
   return draft;
 }
 
+// A family ticked a delivered item off (or dismissed it, or opened it again): the post
+// keeps counts per line, never who.
+export function applyTally(post: RoomPost, index: number, from: "open" | "done" | "dismissed", to: "open" | "done" | "dismissed") {
+  if (from === to || !Number.isInteger(index) || index < 0 || index >= post.items.length) return;
+  post.tally ??= {};
+  const key = String(index);
+  const t = (post.tally[key] ??= { done: 0, dismissed: 0 });
+  if (from !== "open") t[from] = Math.max(0, t[from] - 1);
+  if (to !== "open") t[to] += 1;
+}
+
 export function removePost(room: RoomRecord, id: string): boolean {
   const before = room.posts.length;
   room.posts = room.posts.filter((p) => p.id !== id);
@@ -417,7 +429,7 @@ export function deliverPost(rec: FamilyRecord, room: RoomRecord, post: RoomPost,
   const res = commitItems(
     rec,
     source,
-    content.items.map((draft) => ({ draft, childIds })),
+    content.items.map((draft, i) => ({ draft: { ...draft, roomItemIndex: i }, childIds })),
     false,
   );
   sub.lastPostId = post.id;

@@ -2,10 +2,10 @@ import Anthropic from "@anthropic-ai/sdk";
 import { betaZodOutputFormat } from "@anthropic-ai/sdk/helpers/beta/zod";
 import { weekday } from "./dates";
 import { ASSIST_MODEL, CLASSIFY_MODEL, LANGUAGE_NAMES, isMock } from "./extract";
-import { AskSchema, ClassifySchema, ExplainSchema, ReplySchema, TranslatedPostSchema, type Ask, type Classify, type Explain, type Reply } from "./schema";
+import { AskSchema, ClassifySchema, ComposeSchema, ExplainSchema, ParentMessageSchema, ReplySchema, TranslatedPostSchema, type Ask, type Classify, type Compose, type Explain, type NoticeKind, type ParentMessage, type Reply } from "./schema";
 import { countryOf } from "./countries";
 import type { ItemDraft } from "./store";
-import type { FamilyRecord, Item, Source } from "./types";
+import type { FamilyRecord, Item, Settings, Source } from "./types";
 
 // The three smaller model jobs next to extraction: answering a parent's question from the
 // saved list, drafting a reply to the school, and sorting an inbox. Each is one call with
@@ -272,4 +272,99 @@ export async function explainItem(rec: FamilyRecord, item: Item, source: Source 
   if (!response.parsed_output) throw new Error("no structured output");
   const r = response.parsed_output;
   return { result: { ...r, what_to_do: r.what_to_do.slice(0, 4).map((x) => x.slice(0, 200)), explanation: r.explanation.slice(0, 1200) }, model: response.model, mock: false };
+}
+
+// ---- the teacher's side ----
+
+export type TeacherLike = { name: string; school: string; settings: Settings };
+
+export type ComposeInput = { kind: NoticeKind; facts: string; tone: "formal" | "friendly" };
+
+const COMPOSE_RULES = `You write notices from a teacher to the parents of a class, inside ParentDesk. The teacher gives you the facts in a few words; you return a complete notice parents can act on.
+
+- Write in the target language, in the register teachers use with parents in that country (Korean 존댓말 as in a 가정통신문, Japanese です・ます, German Sie, formal Spanish and French). The tone setting shifts it slightly: "formal" is an official letter, "friendly" is a warm class note. No emojis.
+- Structure: a greeting, why you are writing, the details in a clear order (what, when, where, cost, what to bring, how and by when to reply or pay), what parents must do, where to ask, a sign-off with the teacher's name, school and class.
+- Use every fact the teacher gave. Never invent a date, a time, a price, a place or a rule. When an essential fact for this kind of notice is missing, write a bracketed placeholder in the notice, such as [date], and list it in "missing".
+- Write dates with the weekday. Keep it to 120 to 250 words. Plain sentences; a parent reading on a phone must get it in one pass.`;
+
+export async function composeNotice(teacher: TeacherLike, roomName: string, input: ComposeInput, todayIso: string): Promise<{ result: Compose; model: string; mock: boolean }> {
+  const target = languageName(teacher.settings.language);
+  const country = countryOf(teacher.settings.country);
+  const signature = [teacher.school, roomName, teacher.name].filter(Boolean).join(" · ");
+  if (isMock()) {
+    return {
+      result: {
+        title: `(demo) ${input.kind}: ${input.facts.slice(0, 40)}`,
+        notice: `(demo) Dear parents,\n\n${input.facts}\n\nPlease let us know if you have questions.\n\n${signature}`,
+        missing: /\d/.test(input.facts) ? [] : ["date"],
+      },
+      model: "mock",
+      mock: true,
+    };
+  }
+  const client = new Anthropic();
+  const response = await client.beta.messages.parse({
+    model: ASSIST_MODEL,
+    max_tokens: 1500,
+    system: [{ type: "text", text: COMPOSE_RULES }],
+    messages: [
+      {
+        role: "user",
+        content: [
+          {
+            type: "text",
+            text: `<teacher>\nName: ${teacher.name}\nSchool: ${teacher.school || "(not given)"}\nClass: ${roomName}\nCountry: ${country.name} (${country.code})\nTarget language: ${target}\nToday: ${todayIso}\n</teacher>\n<request>\nKind: ${input.kind}\nTone: ${input.tone}\nFacts:\n${input.facts}\n</request>`,
+          },
+        ],
+      },
+    ],
+    output_config: { effort: "low", format: betaZodOutputFormat(ComposeSchema) },
+  });
+  if (!response.parsed_output) throw new Error("no structured output");
+  const r = response.parsed_output;
+  return { result: { title: r.title.slice(0, 160), notice: r.notice.slice(0, 6000), missing: r.missing.slice(0, 6).map((m) => m.slice(0, 80)) }, model: response.model, mock: false };
+}
+
+const PARENT_MESSAGE_RULES = `A teacher received a message from a parent, possibly in a language the teacher does not read. Help the teacher understand it and answer it, inside ParentDesk.
+
+- Translate the message faithfully into the teacher's language; keep names, dates and amounts as written.
+- summary: one sentence in the teacher's language saying what the parent wants and whether the teacher needs to act (reply, confirm, forward to the office).
+- reply: a suggested answer in the parent's language, in the polite register a teacher uses with parents there, three to six sentences, ready to paste. Never invent facts: put what the teacher must decide in brackets, for example [date] or [yes/no].
+- reply_translated: the same reply in the teacher's language, so the teacher knows exactly what they are sending.
+- Do not give medical, legal or financial advice.`;
+
+export async function helpParentMessage(teacher: TeacherLike, text: string, todayIso: string): Promise<{ result: ParentMessage; model: string; mock: boolean }> {
+  const mine = languageName(teacher.settings.language);
+  if (isMock()) {
+    return {
+      result: {
+        language: "und",
+        translation: `(demo) ${text}`,
+        summary: "(demo) A parent wrote to you. Demo mode has no model.",
+        reply: `(demo) Thank you for your message. [your answer]\n${teacher.name}`,
+        reply_translated: `(demo) Thank you for your message. [your answer]`,
+      },
+      model: "mock",
+      mock: true,
+    };
+  }
+  const client = new Anthropic();
+  const response = await client.beta.messages.parse({
+    model: ASSIST_MODEL,
+    max_tokens: 1500,
+    system: [{ type: "text", text: PARENT_MESSAGE_RULES }],
+    messages: [
+      {
+        role: "user",
+        content: [
+          { type: "text", text: `<teacher>\nName: ${teacher.name}\nLanguage: ${mine}\nCountry: ${countryOf(teacher.settings.country).name}\nToday: ${todayIso}\n</teacher>` },
+          { type: "text", text: `<parent_message>\n${text}\n</parent_message>` },
+        ],
+      },
+    ],
+    output_config: { effort: "low", format: betaZodOutputFormat(ParentMessageSchema) },
+  });
+  if (!response.parsed_output) throw new Error("no structured output");
+  const r = response.parsed_output;
+  return { result: { ...r, translation: r.translation.slice(0, 4000), reply: r.reply.slice(0, 3000), reply_translated: r.reply_translated.slice(0, 3000), summary: r.summary.slice(0, 400) }, model: response.model, mock: false };
 }
