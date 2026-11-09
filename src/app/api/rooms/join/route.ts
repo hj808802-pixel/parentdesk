@@ -1,13 +1,16 @@
+import { translatePost } from "@/lib/assist";
 import { allowRequest, clientIp } from "@/lib/ratelimit";
-import { backfill, loadRoom, loadTeacher, parseJoinToken, roomPublic, sanitizeChildIds, saveRoom, subscribe, verifyJoinSecret } from "@/lib/rooms";
+import { backfill, loadRoom, loadTeacher, parseJoinToken, postsNeedingTranslation, recentPosts, roomPublic, sanitizeChildIds, saveRoom, subscribe, verifyJoinSecret } from "@/lib/rooms";
 import { createFamily, familyCookie, familyFromRequest, isHttps, saveFamily, toView } from "@/lib/store";
 
 export const runtime = "nodejs";
+export const maxDuration = 60;
 
 // A parent opens a room's invite link (/join?r=<room id>.<secret>).
 // GET ?r=: what the room is, before joining. POST { token, childIds }: follow it. A browser
 // without a family gets one created here, as on the first upload; the room's recent posts
-// are written onto the list straight away.
+// are written onto the list straight away, translated first when the family reads a
+// language none of the earlier members did (one call per post, a few at most).
 
 async function roomFor(token: unknown) {
   const parsed = parseJoinToken(token);
@@ -47,9 +50,21 @@ export async function POST(req: Request) {
   const teacherName = teacher?.name ?? "";
   const result = subscribe(rec, room, teacherName, sanitizeChildIds(body.childIds, rec));
   if (!result.ok) return Response.json({ ok: false, error: result.reason }, { status: 409, headers });
-  const got = result.isNew ? backfill(rec, room, teacherName) : { posts: 0, items: 0 };
+  let got = { posts: 0, items: 0 };
+  let translated = 0;
+  if (result.isNew) {
+    const pending = postsNeedingTranslation(recentPosts(room), rec.settings.language);
+    const done = await Promise.allSettled(pending.map((p) => translatePost(p, p.language, rec.settings.language)));
+    done.forEach((r, i) => {
+      if (r.status === "fulfilled") {
+        pending[i].translations[rec.settings.language] = r.value.result;
+        translated++;
+      } else console.warn("[room join] translation failed", pending[i].id, r.reason instanceof Error ? r.reason.message : r.reason);
+    });
+    got = backfill(rec, room, teacherName);
+  }
   await saveFamily(rec);
   await saveRoom(room);
-  console.log(JSON.stringify({ event: "room_join", family: rec.id, room: room.id, new: result.isNew, backfilled: got }));
+  console.log(JSON.stringify({ event: "room_join", family: rec.id, room: room.id, new: result.isNew, language: rec.settings.language, translated, backfilled: got }));
   return Response.json({ ok: true, family: toView(rec), key, room: roomPublic(room, teacher), backfilled: got }, { headers });
 }

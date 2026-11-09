@@ -29,6 +29,7 @@ const MAX_POSTS_KEPT = 60;
 const POSTS_IN_VIEW = 30;
 export const BACKFILL_DAYS = 30;
 export const BACKFILL_POSTS = 10;
+export const MAX_LATE_TRANSLATIONS = 5;
 
 export function teacherPostCap(): number {
   const n = Number(process.env.TEACHER_MONTHLY_POSTS);
@@ -315,10 +316,24 @@ export function subscribe(rec: FamilyRecord, room: RoomRecord, teacherName: stri
   return { ok: true, subscription, isNew: true };
 }
 
+// The posts a family that joins now would get: the last few within a month.
+export function recentPosts(room: RoomRecord, now: Date = new Date()): RoomPost[] {
+  const since = new Date(now.getTime() - BACKFILL_DAYS * 86400000).toISOString();
+  return room.posts.filter((p) => p.ts >= since).slice(-BACKFILL_POSTS);
+}
+
+// Among those, the ones not yet written in `language` (newest first, a few at most): the
+// join route translates them before the backfill, so a late joiner reads them too, and
+// the room keeps the translation for the next family with that language.
+export function postsNeedingTranslation(posts: RoomPost[], language: string, max = MAX_LATE_TRANSLATIONS): RoomPost[] {
+  return posts
+    .filter((p) => p.language !== language && !(p.translations[language] && p.translations[language].items.length === p.items.length))
+    .slice(-max);
+}
+
 // A family that joins late gets the room's recent posts (the last few within a month).
 export function backfill(rec: FamilyRecord, room: RoomRecord, teacherName: string, now: Date = new Date()): { posts: number; items: number } {
-  const since = new Date(now.getTime() - BACKFILL_DAYS * 86400000).toISOString();
-  const recent = room.posts.filter((p) => p.ts >= since).slice(-BACKFILL_POSTS);
+  const recent = recentPosts(room, now);
   let posts = 0;
   let items = 0;
   for (const post of recent) {

@@ -314,6 +314,7 @@ function RoomCard({
   const [preparing, setPreparing] = useState(false);
   const [note, setNote] = useState<{ kind: "ok" | "warn" | "error"; text: string; langs?: string } | null>(null);
   const [showPosts, setShowPosts] = useState(false);
+  const [showQr, setShowQr] = useState(false);
   const [openPost, setOpenPost] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -436,10 +437,20 @@ function RoomCard({
             {t.teach.shareLink}
           </button>
         )}
+        <button type="button" className={BTN_SMALL} onClick={() => setShowQr((s) => !s)}>
+          {showQr ? t.teach.hideQr : t.teach.showQr}
+        </button>
         <button type="button" className={BTN_SMALL} disabled={busy} onClick={rotate}>
           {t.teach.rotate}
         </button>
       </div>
+      {showQr && (
+        <figure className="mt-3 inline-block rounded-xl border border-zinc-200 bg-white p-3 dark:border-zinc-700">
+          {/* eslint-disable-next-line @next/next/no-img-element -- an SVG the server draws for this room */}
+          <img src={`/api/teacher/rooms/${room.id}/qr?l=${locale}&v=${room.joinToken.slice(-6)}`} alt={t.teach.link} width={208} height={208} className="h-52 w-52" />
+          <figcaption className="mt-2 max-w-52 text-xs text-zinc-600">{t.teach.qrHint}</figcaption>
+        </figure>
+      )}
 
       <p className="mt-5 text-xs font-semibold uppercase tracking-wide text-zinc-500">{t.teach.post}</p>
       <label className="mt-1 grid gap-1 text-sm">

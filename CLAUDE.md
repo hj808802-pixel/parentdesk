@@ -23,9 +23,9 @@ Next.js 16 App Router + Turbopack, React 19, Tailwind 4, TypeScript, zod 4, `@an
 ## Commands
 ```
 npm run dev -- -p 3002        # local, with the API key in the environment (see Secrets)
-npm test                      # vitest (67 tests; i18n parity, store, rooms, plan, stripe, digest, admin, gmail, dedupe, dates, ics)
+npm test                      # vitest (69 tests; i18n parity, store, rooms, qr, plan, stripe, digest, admin, gmail, dedupe, dates, ics)
 npm run lint && npm run typecheck && npm run build
-node scripts/errorcheck.mjs --url http://localhost:3002   # 132 API error-path checks, no model calls (restart the dev server first if a previous run hit the 60/hour IP limiter)
+node scripts/errorcheck.mjs --url http://localhost:3002   # 135 API error-path checks, no model calls (restart the dev server first if a previous run hit the 60/hour IP limiter)
 node scripts/linkcheck.mjs  --url http://localhost:3002   # every page in every locale, internal links, API status codes
 ```
 Run both scripts against production too after a deploy (default URL is production). Local families are JSON files under `data/families/`; edit them to simulate states (usage caps, billing) instead of spending model calls.
@@ -38,4 +38,4 @@ Run both scripts against production too after a deploy (default URL is productio
 - Verify in the browser pane (viewport 375 px for phone checks) before declaring UI work done.
 
 ## Status (2026-11-09)
-v0.5 deployed: class rooms for teachers (`/teach`, `lib/rooms.ts`, plan doc §21). v0.4 before it. User-side work remaining: Stripe account and price ids, a domain + Resend for the weekly summary and e-mail forwarding, Google app verification before leaving Testing mode, real 가정통신문 checks on the phone. Later ideas: translate room posts for languages that join later, QR code for room links, KV-based rate limiting, RTL UI locales.
+v0.5.1 deployed: class rooms for teachers (`/teach`, `lib/rooms.ts`, plan doc §21), posts translated for late joiners, QR code per room (`lib/qr.ts`). v0.4 before it. User-side work remaining: Stripe account and price ids, a domain + Resend for the weekly summary and e-mail forwarding, Google app verification before leaving Testing mode, real 가정통신문 checks on the phone. Later ideas: KV-based rate limiting, RTL UI locales, per-document version checks for the family JSON (last write wins today), school-side dashboard.

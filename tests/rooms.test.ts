@@ -4,6 +4,8 @@ import { mockExtraction } from "@/lib/extract";
 import {
   addPost,
   backfill,
+  postsNeedingTranslation,
+  recentPosts,
   canPost,
   createRoom,
   createTeacher,
@@ -186,6 +188,23 @@ describe("rooms", () => {
     mine.posts[0].translations.ko = { title: "", summary: "", items: [] };
     const s = roomStats(2, [mine, theirs]);
     expect(s).toEqual({ teachers: 2, rooms: 2, members: 1, posts: 1, posts7d: 1, delivered: 3, languages: 1 });
+  });
+
+  it("tells which recent posts a late joiner still cannot read", () => {
+    const { record: teacher } = createTeacher({ name: "T" }); // language en
+    const room = createRoom(teacher, "R")!;
+    const now = new Date("2026-11-05T12:00:00.000Z");
+    const old = makePost(room, teacher, mockExtraction(ctx), 1, "2026-09-01T10:00:00.000Z");
+    const a = makePost(room, teacher, mockExtraction(ctx), 1, "2026-11-01T10:00:00.000Z");
+    const b = makePost(room, teacher, mockExtraction(ctx), 1, "2026-11-03T10:00:00.000Z");
+    const c = makePost(room, teacher, mockExtraction(ctx), 1, "2026-11-04T10:00:00.000Z");
+    [old, a, b, c].forEach((p) => addPost(room, p));
+    expect(recentPosts(room, now).map((p) => p.id)).toEqual([a.id, b.id, c.id]);
+    b.translations.ko = { title: "b", summary: "b", items: b.items };
+    c.translations.ko = { title: "c", summary: "c", items: c.items.slice(1) }; // incomplete: not trusted
+    expect(postsNeedingTranslation(recentPosts(room, now), "ko").map((p) => p.id)).toEqual([a.id, c.id]);
+    expect(postsNeedingTranslation(recentPosts(room, now), "en")).toEqual([]); // the room's own language
+    expect(postsNeedingTranslation(recentPosts(room, now), "ja", 1).map((p) => p.id)).toEqual([c.id]); // newest first when capped
   });
 
   it("translates a post in demo mode and keeps the item shape", async () => {
