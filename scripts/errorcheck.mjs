@@ -87,6 +87,10 @@ expect("explain: no family", await call("POST", "/api/items/abc/explain"), 404);
 expect("ask: no family", await call("POST", "/api/ask", { json: { question: "what is due?" } }), 404);
 expect("source delete: no family", await call("DELETE", "/api/sources/abc"), 404);
 expect("calendar: garbage token", await call("GET", "/api/calendar/nope.ics"), 404);
+expect("hook: malformed token", await call("POST", "/api/hook/nope", { json: { text: "hello from school" } }), 404);
+expect("hook: unknown token", await call("POST", `/api/hook/${"0".repeat(12)}_${"0".repeat(16)}`, { json: { ping: true } }), 404);
+expect("hook: GET not allowed", await call("GET", `/api/hook/${"0".repeat(12)}_${"0".repeat(16)}`), 405);
+expect("rotate-hook: no family", await call("POST", "/api/family/rotate-hook"), 404);
 expect("calendar: well-formed unknown token", await call("GET", `/api/calendar/${"0".repeat(12)}_${"0".repeat(16)}.ics`), 404);
 expect("inbound: off or unauthorized", await call("POST", "/api/inbound", { json: {} }), [401, 404]);
 expect("cron: no secret", await call("GET", "/api/cron/scan"), [401, 404]);
@@ -303,6 +307,13 @@ if (key) {
   }
 
   const fam = (await call("GET", "/api/family")).data.family;
+  expect("hook: ping works without a cookie", await call("POST", `/api/hook/${fam.hookToken}`, { json: { ping: true }, useCookie: false }), 200, (r) => r.data.ping === true);
+  expect("hook: text too short", await call("POST", `/api/hook/${fam.hookToken}`, { json: { text: "hi" }, useCookie: false }), 400);
+  expect("hook: empty form", await call("POST", `/api/hook/${fam.hookToken}`, { form: new FormData(), useCookie: false }), 400);
+  expect("hook: wrong secret", await call("POST", `/api/hook/${fam.id}_${"f".repeat(16)}`, { json: { ping: true }, useCookie: false }), 404);
+  const rehook = await call("POST", "/api/family/rotate-hook");
+  expect("rotate-hook: token changes", rehook, 200, (r) => r.data.family.hookToken !== fam.hookToken);
+  expect("hook: old address dead after rotate", await call("POST", `/api/hook/${fam.hookToken}`, { json: { ping: true }, useCookie: false }), 404);
   const feed = await call("GET", `/api/calendar/${fam.feedToken}.ics`, { useCookie: false });
   expect("calendar: feed works without cookie", feed, 200, (r) => r.text.includes("BEGIN:VCALENDAR") && (r.headers.get("content-type") ?? "").includes("text/calendar"));
   expect("calendar: wrong secret", await call("GET", `/api/calendar/${fam.id}_${"f".repeat(16)}.ics`, { useCookie: false }), 404);

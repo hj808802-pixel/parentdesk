@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { useSearchParams } from "next/navigation";
-import { api, browserTimezone, feedUrl, forgetKey, readKey, rememberKey, writeClipboard } from "@/lib/client";
+import { api, browserTimezone, feedUrl, forgetKey, hookUrl, readKey, rememberKey, writeClipboard } from "@/lib/client";
 import { COUNTRIES, TIMEZONES, type DateOrder } from "@/lib/countries";
 import { useFamily } from "@/lib/family-context";
 import { useI18n } from "@/lib/i18n/context";
@@ -23,7 +23,9 @@ export default function SettingsView() {
   const [newChild, setNewChild] = useState("");
   const [saving, setSaving] = useState(false);
   const [justSaved, setJustSaved] = useState(false);
-  const [copied, setCopied] = useState<"" | "feed" | "key" | "inbound" | "invite">("");
+  const [copied, setCopied] = useState<"" | "feed" | "key" | "inbound" | "invite" | "hook">("");
+  const [hookNote, setHookNote] = useState<"" | "ok" | "fail">("");
+  const [hookBusy, setHookBusy] = useState(false);
   const [copyFailed, setCopyFailed] = useState(false);
   const [showKey, setShowKey] = useState(false);
   const [joinKey, setJoinKey] = useState("");
@@ -172,7 +174,7 @@ export default function SettingsView() {
     setGmailNote(null);
   }
 
-  async function copy(text: string, what: "feed" | "key" | "inbound" | "invite") {
+  async function copy(text: string, what: "feed" | "key" | "inbound" | "invite" | "hook") {
     const ok = await writeClipboard(text);
     setCopied(ok ? what : "");
     setCopyFailed(!ok);
@@ -238,6 +240,34 @@ export default function SettingsView() {
   const countryOptions = COUNTRIES.map((c) => ({ code: c.code, label: c.code === "XX" ? t.settings.countryOther : regionName(c.code, LOCALE_TAGS[locale], c.name) })).sort((a, b) =>
     a.code === "XX" ? 1 : b.code === "XX" ? -1 : a.label.localeCompare(b.label, LOCALE_TAGS[locale]),
   );
+  // A ping proves the address works without reading anything or calling a model.
+  async function testHook() {
+    if (!family) return;
+    setHookBusy(true);
+    setHookNote("");
+    try {
+      const res = await fetch(hookUrl(family.hookToken), { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ ping: true }) });
+      const body = (await res.json().catch(() => null)) as { ok?: boolean; ping?: boolean } | null;
+      setHookNote(res.ok && body?.ok && body.ping ? "ok" : "fail");
+    } catch {
+      setHookNote("fail");
+    } finally {
+      setHookBusy(false);
+    }
+  }
+
+  async function rotateHookAddress() {
+    if (!window.confirm(t.settings.hookRotateConfirm)) return;
+    setHookBusy(true);
+    try {
+      const res = await api.rotateHook();
+      setFamily(res.family);
+      setHookNote("");
+    } finally {
+      setHookBusy(false);
+    }
+  }
+
   async function toggleRoomChild(roomId: string, current: string[], childId: string) {
     setRoomBusy(roomId);
     try {
@@ -478,6 +508,39 @@ export default function SettingsView() {
           <section className={`${CARD} mt-4`}>
             <h2 className="font-semibold">{t.settings.auto}</h2>
             <p className="mt-1 text-sm text-zinc-600 dark:text-zinc-400">{t.settings.autoBody}</p>
+
+            <h3 className="mt-4 text-sm font-semibold">{t.settings.hook}</h3>
+            <p className="mt-1 text-sm text-zinc-600 dark:text-zinc-400">{t.settings.hookBody}</p>
+            <code className="mt-2 block select-all break-all rounded-lg bg-zinc-100 px-3 py-2 text-xs dark:bg-zinc-800">{hookUrl(family.hookToken)}</code>
+            <div className="mt-2 flex flex-wrap gap-2">
+              <button type="button" className={BTN_SECONDARY} onClick={() => copy(hookUrl(family.hookToken), "hook")}>
+                {copied === "hook" ? t.settings.copied : t.common.copy}
+              </button>
+              <button type="button" className={BTN_SECONDARY} disabled={hookBusy} onClick={testHook}>
+                {hookBusy ? t.settings.hookTesting : t.settings.hookTest}
+              </button>
+              <button type="button" className={BTN_SMALL} disabled={hookBusy} onClick={rotateHookAddress}>
+                {t.settings.hookRotate}
+              </button>
+            </div>
+            {hookNote === "ok" && <p className="mt-2 text-sm text-emerald-700 dark:text-emerald-300">{t.settings.hookTested}</p>}
+            {hookNote === "fail" && <p className="mt-2 text-sm text-red-600 dark:text-red-400">{t.settings.hookTestFailed}</p>}
+            <details className="mt-2 text-sm">
+              <summary className="cursor-pointer font-medium">{t.settings.hookHow}</summary>
+              <p className="mt-2 font-medium">{t.settings.hookIphone}</p>
+              <ol className="mt-1 list-decimal space-y-1 pl-5 text-zinc-700 dark:text-zinc-300">
+                {t.settings.hookIphoneSteps.map((s, i) => (
+                  <li key={i}>{s}</li>
+                ))}
+              </ol>
+              <p className="mt-3 font-medium">{t.settings.hookAndroid}</p>
+              <ol className="mt-1 list-decimal space-y-1 pl-5 text-zinc-700 dark:text-zinc-300">
+                {t.settings.hookAndroidSteps.map((s, i) => (
+                  <li key={i}>{s}</li>
+                ))}
+              </ol>
+              <p className="mt-2 text-xs text-zinc-500">{t.settings.hookNote}</p>
+            </details>
 
             <h3 className="mt-4 text-sm font-semibold">{t.settings.gmail}</h3>
             <p className="mt-1 text-sm text-zinc-600 dark:text-zinc-400">{t.settings.gmailBody}</p>

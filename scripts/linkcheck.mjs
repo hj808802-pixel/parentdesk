@@ -94,6 +94,8 @@ await check("items: no family", `${BASE}/api/items/abc`, { method: "PATCH", head
 await check("items bulk: no family", `${BASE}/api/items/bulk`, json(JSON.stringify({ ids: ["a"], status: "done" })), [404]);
 await check("sources: no family", `${BASE}/api/sources/abc`, { method: "DELETE" }, [404]);
 await check("calendar: bad token", `${BASE}/api/calendar/nope.ics`, {}, [404]);
+await check("hook: GET not allowed", `${BASE}/api/hook/${"0".repeat(12)}_${"0".repeat(16)}`, {}, [405]);
+await check("hook: bad token", `${BASE}/api/hook/nope`, json(JSON.stringify({ ping: true })), [404]);
 await check("inbound: off or unauthorized", `${BASE}/api/inbound`, json("{}"), [401, 404]);
 await check("extract: empty", `${BASE}/api/extract`, { method: "POST", body: new FormData() }, [400]);
 await check("extract: GET", `${BASE}/api/extract`, {}, [405]);

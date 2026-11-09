@@ -28,6 +28,7 @@ const nextConfig: NextConfig = {
     "/api/google/scan": ["./knowledge/**/*"],
     "/api/cron/scan": ["./knowledge/**/*"],
     "/api/teacher/rooms/[id]/post": ["./knowledge/**/*"],
+    "/api/hook/[token]": ["./knowledge/**/*"],
     "/api/health": ["./knowledge/**/*"],
   },
   async headers() {

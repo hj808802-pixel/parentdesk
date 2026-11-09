@@ -20,7 +20,7 @@ export type Settings = {
 
 export type Child = { id: string; name: string; color: string };
 
-export type SourceKind = "upload" | "paste" | "email" | "sample" | "share" | "gmail" | "room";
+export type SourceKind = "upload" | "paste" | "email" | "sample" | "share" | "gmail" | "room" | "hook";
 
 export type Source = {
   id: string;
@@ -125,6 +125,7 @@ export type FamilyRecord = {
   keyHash: string;
   memberHashes?: string[]; // keys handed to partners through invite links (hashes)
   feedSecret: string;
+  hookSecret: string; // the device-automation address (/api/hook/<id>_<secret>) carries it
   inboundCode: string;
   createdAt: string;
   updatedAt: string;
@@ -142,8 +143,9 @@ export type FamilyRecord = {
 };
 
 // What the browser sees: no hashes or secrets beyond the read-only feed token.
-export type FamilyView = Omit<FamilyRecord, "keyHash" | "memberHashes" | "feedSecret" | "inboundCode" | "gmail" | "billing" | "invites" | "counters"> & {
+export type FamilyView = Omit<FamilyRecord, "keyHash" | "memberHashes" | "feedSecret" | "hookSecret" | "inboundCode" | "gmail" | "billing" | "invites" | "counters"> & {
   feedToken: string;
+  hookToken: string;
   inboundAddress: string | null;
   gmail: GmailView | null;
   features: Features;

@@ -39,6 +39,7 @@ export const api = {
   joinFamily: (key: string) => call<FamilyResponse>("/api/family/join", { method: "POST", body: JSON.stringify({ key }) }),
   leaveFamily: () => call<{ ok: true }>("/api/family/leave", { method: "POST" }),
   rotateFeed: () => call<FamilyResponse>("/api/family/rotate-feed", { method: "POST" }),
+  rotateHook: () => call<FamilyResponse>("/api/family/rotate-hook", { method: "POST" }),
   patchItem: (id: string, patch: Partial<Item> & Record<string, unknown>) => call<{ ok: true; item: Item; next?: Item | null }>(`/api/items/${id}`, { method: "PATCH", body: JSON.stringify(patch) }),
   bulkItems: (ids: string[], status: "open" | "done" | "dismissed") => call<{ ok: true; changed: number; family: FamilyView }>("/api/items/bulk", { method: "POST", body: JSON.stringify({ ids, status }) }),
   deleteItem: (id: string) => call<{ ok: true }>(`/api/items/${id}`, { method: "DELETE" }),
@@ -147,6 +148,11 @@ export function browserTimezone(): string {
   } catch {
     return "UTC";
   }
+}
+
+export function hookUrl(hookToken: string): string {
+  const origin = typeof window !== "undefined" ? window.location.origin : "";
+  return `${origin}/api/hook/${hookToken}`;
 }
 
 export function feedUrl(feedToken: string): string {

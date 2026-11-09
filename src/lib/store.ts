@@ -57,6 +57,28 @@ export function parseFeedToken(token: unknown): { id: string; secret: string } |
   return m ? { id: m[1], secret: m[2] } : null;
 }
 
+// The device-automation address: "<id>_<hookSecret>". An iPhone Shortcut or an Android
+// automation app POSTs school messages to it; the secret is long-lived and can be rotated.
+export function hookTokenOf(rec: Pick<FamilyRecord, "id" | "hookSecret">): string {
+  return `${rec.id}_${rec.hookSecret}`;
+}
+
+export function parseHookToken(token: unknown): { id: string; secret: string } | null {
+  if (typeof token !== "string") return null;
+  const m = /^([0-9a-f]{12})_([0-9a-f]{16})$/.exec(token.trim());
+  return m ? { id: m[1], secret: m[2] } : null;
+}
+
+export function verifyHookSecret(rec: FamilyRecord, secret: string): boolean {
+  const a = Buffer.from(rec.hookSecret, "utf8");
+  const b = Buffer.from(secret, "utf8");
+  return a.length === b.length && timingSafeEqual(a, b);
+}
+
+export function rotateHook(rec: FamilyRecord) {
+  rec.hookSecret = newId(8);
+}
+
 export function inboundDomain(): string | null {
   const d = (process.env.INBOUND_DOMAIN ?? "").trim().toLowerCase();
   return d || null;
@@ -169,6 +191,7 @@ export function createFamily(init: { settings?: Partial<Settings>; locale?: stri
     id,
     keyHash: hashSecret(secret),
     feedSecret: newId(8),
+    hookSecret: newId(8),
     inboundCode: newId(4),
     createdAt: now,
     updatedAt: now,
@@ -371,6 +394,9 @@ function normalize(rec: FamilyRecord): FamilyRecord {
   rec.usage ??= {};
   rec.inboundCode ??= newId(4);
   rec.feedSecret ??= newId(8);
+  // Records from before the address existed: derive it from the key hash, so it stays the
+  // same across loads without a write; a rotation stores a random one.
+  rec.hookSecret ??= createHash("sha256").update(`hook:${rec.keyHash}`).digest("hex").slice(0, 16);
   rec.memberHashes ??= [];
   rec.billing ??= null;
   rec.invites ??= [];
@@ -445,10 +471,11 @@ export function isHttps(req: Request): boolean {
 // ---- views ----
 
 export function toView(rec: FamilyRecord): FamilyView {
-  const { keyHash: _k, memberHashes: _m, feedSecret: _f, inboundCode: _i, gmail, billing, invites: _inv, counters: _c, ...rest } = rec;
+  const { keyHash: _k, memberHashes: _m, feedSecret: _f, hookSecret: _h, inboundCode: _i, gmail, billing, invites: _inv, counters: _c, ...rest } = rec;
   void _k;
   void _m;
   void _f;
+  void _h;
   void _i;
   void _inv;
   void _c;
@@ -461,6 +488,7 @@ export function toView(rec: FamilyRecord): FamilyView {
   return {
     ...rest,
     feedToken: feedTokenOf(rec),
+    hookToken: hookTokenOf(rec),
     inboundAddress: canUse(rec, "inbound") ? inboundAddressOf(rec) : null,
     gmail: gmailView,
     features: features(),
