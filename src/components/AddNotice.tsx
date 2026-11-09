@@ -191,7 +191,7 @@ export default function AddNotice() {
             <button type="button" className={BTN_SECONDARY} onClick={() => setResult(null)}>
               {t.add.addAnother}
             </button>
-            <button type="button" className={BTN_PRIMARY} onClick={() => router.push(localePath(locale, "/"))}>
+            <button type="button" className={BTN_PRIMARY} onClick={() => router.push(localePath(locale, "/week"))}>
               {t.add.viewWeek}
             </button>
           </div>

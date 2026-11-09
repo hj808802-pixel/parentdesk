@@ -165,6 +165,7 @@ expect("page: /en redirects to bare path", await call("GET", "/en/items"), 308, 
 expect("page: pricing", await call("GET", "/pricing", { redirect: "follow", headers: { "accept-language": "en" } }), 200, (r) => r.text.includes("Family"));
 expect("page: join without token", await call("GET", "/join", { redirect: "follow", headers: { "accept-language": "en" } }), 200);
 expect("page: teachers", await call("GET", "/teach", { redirect: "follow", headers: { "accept-language": "en" } }), 200, (r) => r.text.includes("teacher"));
+expect("page: week", await call("GET", "/week", { redirect: "follow", headers: { "accept-language": "en" } }), 200);
 expect("page: admin console shell", await call("GET", "/admin", { redirect: "follow" }), 200, (r) => r.text.includes("admin"));
 expect("page: admin is not localised", await call("GET", "/ko/admin", { redirect: "follow" }), 404);
 expect("manifest: declares the share target", await call("GET", "/manifest.webmanifest"), 200, (r) => Boolean(r.data?.share_target?.action === "/api/share"));

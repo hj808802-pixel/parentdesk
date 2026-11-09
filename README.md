@@ -10,7 +10,7 @@ Live: https://parentdesk-app.vercel.app
 
 1. **Capture**: photo, PDF, screenshot, pasted text (a whole chat export works: the model keeps only the school messages and reports how many it used), the Android share sheet, e-mail forwarding to a per-family address, or a connected Gmail inbox checked once a day.
 2. **Extract**: Claude reads the notice with the family's country pack (date order, currency, school-year habits, local vocabulary) and returns structured items (`src/lib/schema.ts`).
-3. **Act**: the week view, "needs your action", per-child filters, one-tap done/dismiss, Google Calendar links, `.ics` downloads and a read-only **calendar feed** (`/api/calendar/<token>.ics`) with reminders that Google, Apple and Outlook calendars refresh on their own. Items the family already has are skipped (`src/lib/dedupe.ts`).
+3. **Act**: the home screen (today at a glance, what is next, latest notices, class rooms), the week view, "needs your action", per-child filters, one-tap done/dismiss, Google Calendar links, `.ics` downloads and a read-only **calendar feed** (`/api/calendar/<token>.ics`) with reminders that Google, Apple and Outlook calendars refresh on their own. Items the family already has are skipped (`src/lib/dedupe.ts`).
 4. **Ask and reply**: ask the assistant about the list (`/api/ask`, answers only from saved items) and draft a reply to the school in the notice's language with a translation (`/api/items/[id]/reply`). Nothing is sent from ParentDesk.
 
 ## Principles
@@ -26,7 +26,7 @@ Next.js 16 (App Router) · React 19 · Tailwind 4 · TypeScript · zod · Anthro
 
 ```
 knowledge/countries/        country packs (markdown, read at request time)
-src/app/[locale]/           pages: / (week), /add, /items, /sources, /settings, /teach (teachers), /join, /pricing, /privacy, /terms
+src/app/[locale]/           pages: / (landing, or the home screen once a family exists), /week, /add, /items, /sources, /settings, /teach (teachers), /join, /pricing, /privacy, /terms
 src/app/api/                extract, share, ask, family (+join, leave, rotate-feed, invite), items/[id] (+reply), sources/[id], calendar/[feed], inbound, google/{start,callback,scan,disconnect}, teacher (+join, leave, rooms, rooms/[id], rooms/[id]/post), rooms/{join,[id]}, billing/*, digest/*, cron/{scan,digest}, admin/*, health
 src/components/             HomeView, AddNotice, ItemCard, ItemsView, SourcesView, SettingsView, TeachView, JoinView, Landing, …
 src/lib/                    extract (Claude), assist (ask, reply, inbox classifier, post translation), rooms (teachers and class rooms), gmail, dedupe, crypto, store (family document), plan, stripe, digest, admin, schema, countries, dates, ics, ratelimit, i18n/*
@@ -101,4 +101,4 @@ One extraction is roughly 3–6K input tokens (notice + cached rules and country
 
 ## Status
 
-v0.5 beta (2026-11-09): extraction, assistant, auto-collect channels, 10 UI languages, plans and Stripe billing, weekly summary e-mail, partner invite links, admin console, and class rooms for teachers (one post, every following family's list in its own language). Billing and e-mail sending switch on when their keys are set. v0.5.1 (same day): late joiners get the posts translated into their own language, and each room has a QR code. See the plan in the author's notes.
+v0.5 beta (2026-11-09): extraction, assistant, auto-collect channels, 10 UI languages, plans and Stripe billing, weekly summary e-mail, partner invite links, admin console, and class rooms for teachers (one post, every following family's list in its own language). Billing and e-mail sending switch on when their keys are set. v0.5.1 (same day): late joiners get the posts translated into their own language, and each room has a QR code. v0.6 (same day): a home screen for families at `/` (today at a glance, what is next, latest notices, class rooms, the assistant); the week list moved to `/week`. See the plan in the author's notes.

@@ -58,7 +58,7 @@ function InviteJoin({ token }: { token: string | null }) {
         {state === "done" && (
           <>
             <p className="mt-3 text-sm">{t.join.done}</p>
-            <Link href={localePath(locale, "/")} className={`${BTN_PRIMARY} mt-5`}>
+            <Link href={localePath(locale, "/week")} className={`${BTN_PRIMARY} mt-5`}>
               {t.join.goWeek}
             </Link>
           </>
@@ -124,7 +124,7 @@ function RoomJoin({ token }: { token: string }) {
         {(state === "invalid" || state === "full") && (
           <>
             <p className="mt-3 text-sm text-zinc-700 dark:text-zinc-300">{state === "full" ? t.join.roomFull : t.join.roomInvalid}</p>
-            <Link href={localePath(locale, "/")} className={`${BTN_SECONDARY} mt-5`}>
+            <Link href={localePath(locale, "/week")} className={`${BTN_SECONDARY} mt-5`}>
               {t.join.goWeek}
             </Link>
           </>
@@ -134,7 +134,7 @@ function RoomJoin({ token }: { token: string }) {
             <p dir="auto" className="mt-3 text-sm">{fmt(t.join.roomDone, { room: roomLabel })}</p>
             {backfilled > 0 && <p className="mt-1 text-sm text-zinc-600 dark:text-zinc-400">{fmt(t.join.roomBackfilled, { items: backfilled })}</p>}
             <div className="mt-5 flex flex-wrap gap-2">
-              <Link href={localePath(locale, "/")} className={BTN_PRIMARY}>
+              <Link href={localePath(locale, "/week")} className={BTN_PRIMARY}>
                 {t.join.goWeek}
               </Link>
               <Link href={localePath(locale, "/settings")} className={BTN_SECONDARY}>

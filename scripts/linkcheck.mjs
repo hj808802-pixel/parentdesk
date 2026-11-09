@@ -22,7 +22,7 @@ const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const UA = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0 Safari/537.36";
 
 const PREFIXES = ["", "/ko", "/es", "/ja", "/zh", "/fr", "/de", "/pt", "/it", "/vi"];
-const PAGES = ["/", "/add", "/items", "/sources", "/settings", "/pricing", "/join", "/teach", "/privacy", "/terms"];
+const PAGES = ["/", "/week", "/add", "/items", "/sources", "/settings", "/pricing", "/join", "/teach", "/privacy", "/terms"];
 const STATIC = ["/manifest.webmanifest", "/robots.txt", "/sitemap.xml", "/favicon.ico", "/og.png", "/icon-192.png", "/icon-512.png", "/apple-touch-icon.png", "/sample-notice.png"];
 
 async function get(url, opts = {}) {
