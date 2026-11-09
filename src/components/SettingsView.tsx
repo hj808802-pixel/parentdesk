@@ -534,7 +534,7 @@ export default function SettingsView() {
               <ul className="mt-3 grid gap-3">
                 {(family.rooms ?? []).map((r) => (
                   <li key={r.roomId} className="rounded-xl border border-zinc-200 p-3 dark:border-zinc-800">
-                    <p dir="auto" className="font-medium">{r.name}</p>
+                    <p dir="auto" className="font-medium">{r.school ? `${r.school} · ${r.name}` : r.name}</p>
                     {r.teacherName && <p dir="auto" className="text-xs text-zinc-500">{r.teacherName}</p>}
                     {family.children.length > 0 && (
                       <div className="mt-2 flex flex-wrap items-center gap-2 text-xs">

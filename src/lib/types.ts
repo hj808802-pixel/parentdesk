@@ -101,7 +101,7 @@ export type Invite = { hash: string; createdAt: string; expiresAt: string; uses:
 
 // A class room this family follows (lib/rooms.ts). The teacher's posts land on the list
 // tagged with these children. Only the room's id and name are kept here.
-export type RoomSubscription = { roomId: string; name: string; teacherName: string; childIds: string[]; joinedAt: string; lastPostId: string | null };
+export type RoomSubscription = { roomId: string; name: string; teacherName: string; school?: string; childIds: string[]; joinedAt: string; lastPostId: string | null };
 
 // Weekly summary e-mail state.
 export type DigestState = { lastSentAt: string | null; lastWeeklyAt: string | null; lastError: string | null };

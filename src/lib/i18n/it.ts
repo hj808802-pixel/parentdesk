@@ -342,6 +342,9 @@ export const it: Dict = {
     privacy: "Non vedi mai le famiglie, solo quante seguono la stanza. Le famiglie vedono il tuo nome e il nome della stanza. Foto e PDF vengono letti e poi eliminati.",
     yourName: "Il tuo nome come lo vedranno i genitori",
     yourNamePlaceholder: "es. Maestra Rivera, 3ª B",
+    school: "Scuola (facoltativo)",
+    schoolPlaceholder: "es. Scuola primaria Marconi",
+    schoolHint: "Mostrato alle famiglie che seguono le tue stanze, prima del nome della stanza.",
     language: "Lingua in cui scrivi le comunicazioni",
     country: "Paese (come si leggono le date)",
     create: "Crea la mia scrivania insegnante",
@@ -475,6 +478,7 @@ export const it: Dict = {
       "Gmail (facoltativo): se colleghi Gmail, conserviamo un token cifrato che ci permette di leggere la tua posta una volta al giorno per trovare i messaggi della scuola. Conserviamo le date e le cose da fare estratte da quei messaggi, gli id dei messaggi già esaminati e gli indirizzi dei mittenti risultati essere la scuola. Non inviamo mai e-mail dal tuo account. Scollegare nelle Impostazioni revoca il token. L'uso da parte di ParentDesk delle informazioni ricevute dalle API di Google rispetta le Norme sui dati utente dei servizi API di Google, compresi i requisiti di uso limitato.",
       "I tuoi diritti e dove vanno i dati: il servizio gira su server Vercel negli Stati Uniti e le circolari sono elaborate da Anthropic negli Stati Uniti, quindi i tuoi dati lasciano il tuo paese. Puoi vedere tutto ciò che conserviamo nelle pagine Voci e Circolari, esportare le voci aperte come file calendario ed eliminare tu stesso l'intera famiglia in qualsiasi momento; per tutto il resto scrivi al contatto indicato sopra. Non vendiamo dati e non li usiamo per la pubblicità. Il servizio è pensato per adulti; se ritieni che lo abbia usato un minore, dillo e cancelleremo i dati.",
       "Pagamenti e riepilogo settimanale (facoltativi): gli abbonamenti sono gestiti da Stripe, che conserva i dati della carta; noi conserviamo solo un id cliente e lo stato dell'abbonamento. Se attivi il riepilogo settimanale, conserviamo l'indirizzo e-mail inserito e lo usiamo solo per quell'e-mail. Ogni riepilogo contiene un link per interromperlo.",
+      "Stanze di classe (facoltativo): l'insegnante che pubblica comunicazioni inserisce un nome visualizzato e, se vuole, il nome della scuola; le famiglie che seguono la stanza vedono entrambi. L'insegnante vede solo quante famiglie seguono, mai chi. Una comunicazione pubblicata resta nella stanza come elementi estratti e breve riepilogo, come ogni altra comunicazione, e viene consegnata alle famiglie che seguono.",
     ],
     terms: [
       "ParentDesk è in beta ed è offerto gratuitamente, così com'è, senza alcuna garanzia che sia completo o corretto.",

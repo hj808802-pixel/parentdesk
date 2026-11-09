@@ -1,6 +1,6 @@
 import { translatePost } from "@/lib/assist";
 import { allowRequest, clientIp } from "@/lib/ratelimit";
-import { backfill, loadRoom, loadTeacher, parseJoinToken, postsNeedingTranslation, recentPosts, roomPublic, sanitizeChildIds, saveRoom, subscribe, verifyJoinSecret } from "@/lib/rooms";
+import { backfill, loadRoom, loadTeacher, parseJoinToken, postsNeedingTranslation, recentPosts, roomPublic, sanitizeChildIds, saveRoom, senderOf, subscribe, verifyJoinSecret } from "@/lib/rooms";
 import { createFamily, familyCookie, familyFromRequest, isHttps, saveFamily, toView } from "@/lib/store";
 
 export const runtime = "nodejs";
@@ -47,8 +47,8 @@ export async function POST(req: Request) {
     key = created.key;
     headers["set-cookie"] = familyCookie(created.key, isHttps(req));
   }
-  const teacherName = teacher?.name ?? "";
-  const result = subscribe(rec, room, teacherName, sanitizeChildIds(body.childIds, rec));
+  const sender = senderOf(teacher);
+  const result = subscribe(rec, room, sender, sanitizeChildIds(body.childIds, rec));
   if (!result.ok) return Response.json({ ok: false, error: result.reason }, { status: 409, headers });
   let got = { posts: 0, items: 0 };
   let translated = 0;
@@ -61,7 +61,7 @@ export async function POST(req: Request) {
         translated++;
       } else console.warn("[room join] translation failed", pending[i].id, r.reason instanceof Error ? r.reason.message : r.reason);
     });
-    got = backfill(rec, room, teacherName);
+    got = backfill(rec, room, sender);
   }
   await saveFamily(rec);
   await saveRoom(room);

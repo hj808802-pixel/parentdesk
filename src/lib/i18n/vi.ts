@@ -342,6 +342,9 @@ export const vi: Dict = {
     privacy: "Bạn không bao giờ thấy các gia đình, chỉ thấy số lượng theo dõi phòng. Các gia đình thấy tên bạn và tên phòng. Ảnh và PDF được đọc rồi hủy.",
     yourName: "Tên của bạn như phụ huynh sẽ thấy",
     yourNamePlaceholder: "vd: Cô Lan, lớp 3B",
+    school: "Trường (tùy chọn)",
+    schoolPlaceholder: "vd: Trường Tiểu học Kim Đồng",
+    schoolHint: "Hiển thị cho các gia đình theo dõi phòng của bạn, trước tên phòng.",
     language: "Ngôn ngữ bạn viết thông báo",
     country: "Quốc gia (cách đọc ngày tháng)",
     create: "Tạo bàn giáo viên của tôi",
@@ -475,6 +478,7 @@ export const vi: Dict = {
       "Gmail (tùy chọn): nếu bạn kết nối Gmail, chúng tôi lưu một mã thông báo đã mã hóa cho phép đọc hộp thư của bạn mỗi ngày một lần để tìm tin nhắn của trường. Chúng tôi giữ ngày giờ và việc cần làm trích từ những tin nhắn đó, mã của các e-mail đã xem và địa chỉ người gửi được xác định là trường. Chúng tôi không bao giờ gửi e-mail từ tài khoản của bạn. Ngắt kết nối trong Cài đặt sẽ thu hồi mã thông báo. Việc ParentDesk sử dụng thông tin nhận từ Google API tuân thủ Chính sách dữ liệu người dùng của Dịch vụ Google API, bao gồm các yêu cầu về Sử dụng hạn chế.",
       "Quyền của bạn và nơi dữ liệu đi: dịch vụ chạy trên máy chủ Vercel tại Hoa Kỳ và thông báo được Anthropic xử lý tại Hoa Kỳ, nên dữ liệu của bạn rời khỏi quốc gia của bạn. Bạn có thể xem mọi thứ chúng tôi giữ ở trang Tất cả mục và Thông báo, xuất các mục đang mở ra tệp lịch và tự xóa toàn bộ gia đình bất cứ lúc nào; mọi yêu cầu khác xin gửi tới liên hệ ở trên. Chúng tôi không bán dữ liệu và không dùng cho quảng cáo. Dịch vụ dành cho người lớn; nếu bạn cho rằng một trẻ em đã sử dụng, hãy báo cho chúng tôi và chúng tôi sẽ xóa dữ liệu.",
       "Thanh toán và tóm tắt hằng tuần (tùy chọn): đăng ký do Stripe xử lý và Stripe giữ thông tin thẻ của bạn; chúng tôi chỉ lưu mã khách hàng và trạng thái đăng ký. Nếu bạn bật tóm tắt hằng tuần, chúng tôi lưu địa chỉ e-mail bạn nhập và chỉ dùng cho e-mail đó. Mỗi bản tóm tắt đều có liên kết để dừng.",
+      "Phòng lớp (tùy chọn): giáo viên đăng thông báo nhập tên hiển thị và, nếu muốn, tên trường; các gia đình theo dõi phòng thấy cả hai. Giáo viên chỉ thấy số gia đình theo dõi, không thấy là ai. Thông báo đã đăng được lưu trong phòng dưới dạng các mục trích xuất và tóm tắt ngắn, như mọi thông báo khác, và được gửi đến các gia đình theo dõi.",
     ],
     terms: [
       "ParentDesk đang ở giai đoạn beta và được cung cấp miễn phí, nguyên trạng, không bảo đảm đầy đủ hay chính xác.",

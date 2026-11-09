@@ -3,7 +3,7 @@
 import { useI18n } from "@/lib/i18n/context";
 import { fmt } from "@/lib/i18n";
 
-const UPDATED = "2026-11-05";
+const UPDATED = "2026-11-09";
 
 export default function LegalPage({ kind }: { kind: "privacy" | "terms" }) {
   const { t } = useI18n();

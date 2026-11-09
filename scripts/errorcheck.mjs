@@ -226,6 +226,8 @@ if (key) {
     expect("teacher: get with cookie", await call("GET", "/api/teacher"), 200, (r) => r.data.teacher.rooms.length === 0 && r.data.teacher.postCap > 0);
     expect("teacher: patch invalid json", await call("PATCH", "/api/teacher", { json: "{" }), 400);
     expect("teacher: empty name rejected", await call("PATCH", "/api/teacher", { json: { name: " " } }), 400);
+    expect("teacher: long school name capped", await call("PATCH", "/api/teacher", { json: { school: "s".repeat(100) } }), 200, (r) => r.data.teacher.school.length === 80);
+    expect("teacher: school and time zone saved", await call("PATCH", "/api/teacher", { json: { school: "  Oak   Street Elementary ", settings: { timezone: "Asia/Seoul" } } }), 200, (r) => r.data.teacher.school === "Oak Street Elementary" && r.data.teacher.settings.timezone === "Asia/Seoul");
     expect("teacher rooms: empty name", await call("POST", "/api/teacher/rooms", { json: { name: "" } }), 400);
     const roomRes = await call("POST", "/api/teacher/rooms", { json: { name: "  Room   12 " } });
     expect("teacher rooms: create", roomRes, 200, (r) => r.data.teacher.rooms.length === 1 && r.data.teacher.rooms[0].name === "Room 12" && /^[0-9a-f]{12}\.[0-9a-f]{16}$/.test(r.data.teacher.rooms[0].joinToken) && !("joinSecret" in r.data.teacher.rooms[0]));
@@ -251,10 +253,10 @@ if (key) {
       }
       expect("teacher room qr: unknown room", await call("GET", `/api/teacher/rooms/${"0".repeat(12)}/qr`), 404);
       expect("teacher room qr: svg of the link", await call("GET", `/api/teacher/rooms/${room.id}/qr?l=ko`), 200, (r) => r.text.startsWith("<svg") && (r.headers.get("content-type") ?? "").includes("image/svg+xml") && /private, no-store/.test(r.headers.get("cache-control") ?? ""));
-      expect("room join: info", await call("GET", `/api/rooms/join?r=${room.joinToken}`), 200, (r) => r.data.room?.name === "Room 12" && r.data.room.teacherName === "Ms. Test" && r.data.following === false);
+      expect("room join: info", await call("GET", `/api/rooms/join?r=${room.joinToken}`), 200, (r) => r.data.room?.name === "Room 12" && r.data.room.teacherName === "Ms. Test" && r.data.room.school === "Oak Street Elementary" && r.data.following === false);
       expect("room join: wrong secret", await call("GET", `/api/rooms/join?r=${room.id}.${"f".repeat(16)}`), 404);
       const joined = await call("POST", "/api/rooms/join", { json: { token: room.joinToken, childIds: ["nope"] } });
-      expect("room join: family follows the room", joined, 200, (r) => r.data.family?.rooms?.length === 1 && r.data.family.rooms[0].roomId === room.id && r.data.family.rooms[0].childIds.length === 0 && r.data.key === undefined);
+      expect("room join: family follows the room", joined, 200, (r) => r.data.family?.rooms?.length === 1 && r.data.family.rooms[0].roomId === room.id && r.data.family.rooms[0].school === "Oak Street Elementary" && r.data.family.rooms[0].childIds.length === 0 && r.data.key === undefined);
       expect("room join: info shows following", await call("GET", `/api/rooms/join?r=${room.joinToken}`), 200, (r) => r.data.following === true);
       expect("teacher: room counts the member", await call("GET", "/api/teacher"), 200, (r) => r.data.teacher.rooms[0].memberCount === 1);
       expect("room: children of unknown room", await call("PATCH", `/api/rooms/${"0".repeat(12)}`, { json: { childIds: [] } }), 404);

@@ -56,6 +56,8 @@ describe("rooms", () => {
     expect(parseTeacherKey("pd_0123456789ab_" + "f".repeat(24))).toBeNull(); // a family key is not a teacher key
     expect(parseTeacherCookie(`pd_family=pd_x; pd_teacher=${key}`)?.id).toBe(record.id);
     expect(record.name).toBe("Ms. Rivera");
+    expect(record.school).toBe("");
+    expect(createTeacher({ name: "T", school: "  Oak   Street  Elementary " }).record.school).toBe("Oak Street Elementary");
     expect(record.settings.country).toBe("KR");
     expect(record.settings.language).toBe("ko");
     const view = teacherView(record, []) as unknown as Record<string, unknown>;
@@ -86,7 +88,7 @@ describe("rooms", () => {
     expect(view.members).toBeUndefined();
     expect(view.memberCount).toBe(0);
     expect(view.joinToken).toBe(joinTokenOf(room));
-    expect(roomPublic(room, teacher)).toMatchObject({ id: room.id, name: "Room 12", teacherName: "T", memberCount: 0 });
+    expect(roomPublic(room, teacher)).toMatchObject({ id: room.id, name: "Room 12", teacherName: "T", school: "", memberCount: 0 });
   });
 
   it("turns an extraction into a post and keeps a note with no dates as one info item", () => {
@@ -94,7 +96,10 @@ describe("rooms", () => {
     const room = createRoom(teacher, "Room 12")!;
     const post = makePost(room, teacher, mockExtraction(ctx), 1, "2026-11-05T10:00:00.000Z");
     expect(post.items.length).toBe(9);
-    expect(post.sender).toBe("Ms. Rivera · Room 12");
+    expect(post.sender).toBe("Room 12 · Ms. Rivera");
+    teacher.school = "Oak Street Elementary";
+    expect(makePost(room, teacher, mockExtraction(ctx), 1).sender).toBe("Oak Street Elementary · Room 12 · Ms. Rivera");
+    teacher.school = "";
     expect(post.language).toBe("en");
     expect(post.translations).toEqual({});
     const ex = mockExtraction(ctx);
@@ -117,28 +122,28 @@ describe("rooms", () => {
     const room = createRoom(teacher, "Room 12")!;
     const { record: fam } = createFamily({ locale: "ko" });
     fam.children = sanitizeChildren([{ name: "민준" }, { name: "서연" }], []);
-    expect(deliverPost(fam, room, makePost(room, teacher, mockExtraction(ctx), 1), teacher.name)).toBeNull(); // not following yet
-    const sub = subscribe(fam, room, teacher.name, [fam.children[1].id]);
+    expect(deliverPost(fam, room, makePost(room, teacher, mockExtraction(ctx), 1), teacher)).toBeNull(); // not following yet
+    const sub = subscribe(fam, room, teacher, [fam.children[1].id]);
     expect(sub.ok).toBe(true);
     expect(room.members.map((m) => m.familyId)).toEqual([fam.id]);
     const post = makePost(room, teacher, mockExtraction(ctx), 1);
     post.translations.ko = { title: "12반 소식", summary: "요약", items: post.items.map((it) => ({ ...it, title: `KO ${it.title}` })) };
-    const res = deliverPost(fam, room, post, teacher.name)!;
+    const res = deliverPost(fam, room, post, teacher)!;
     expect(res.items.length).toBe(9);
     expect(res.items.every((it) => it.childIds.length === 1 && it.childIds[0] === fam.children[1].id)).toBe(true);
     expect(res.items[0].title.startsWith("KO ")).toBe(true); // the family reads Korean
     expect(fam.sources.length).toBe(1);
-    expect(fam.sources[0]).toMatchObject({ kind: "room", roomId: room.id, postId: post.id, title: "12반 소식", sender: "Ms. Rivera · Room 12" });
+    expect(fam.sources[0]).toMatchObject({ kind: "room", roomId: room.id, postId: post.id, title: "12반 소식", sender: "Room 12 · Ms. Rivera" });
     expect(Object.keys(fam.usage)).toEqual([]); // the family did not spend an extraction
     expect(fam.rooms?.[0].lastPostId).toBe(post.id);
     // the same post again: nothing new
-    expect(deliverPost(fam, room, post, teacher.name)).toEqual({ items: [], skipped: 0 });
+    expect(deliverPost(fam, room, post, teacher)).toEqual({ items: [], skipped: 0 });
     // a translation that lost items is not trusted
     post.translations.ko.items = post.translations.ko.items.slice(1);
     expect(postForLanguage(post, "ko").items.length).toBe(9);
     expect(postForLanguage(post, "ja").title).toBe(post.title);
     // joining again only updates the children
-    const again = subscribe(fam, room, teacher.name, []);
+    const again = subscribe(fam, room, teacher, []);
     expect(again.ok && !again.isNew).toBe(true);
     expect(fam.rooms?.length).toBe(1);
     expect(room.members.length).toBe(1);
@@ -155,8 +160,8 @@ describe("rooms", () => {
     addPost(room, old);
     addPost(room, recent);
     const { record: fam } = createFamily();
-    expect(subscribe(fam, room, teacher.name, []).ok).toBe(true);
-    const got = backfill(fam, room, teacher.name, now);
+    expect(subscribe(fam, room, teacher, []).ok).toBe(true);
+    const got = backfill(fam, room, teacher, now);
     expect(got.posts).toBe(1);
     expect(got.items).toBe(9);
     expect(fam.sources.map((s) => s.postId)).toEqual([recent.id]);
@@ -164,7 +169,7 @@ describe("rooms", () => {
     expect(unsubscribe(fam, room, room.id)).toBe(false);
     expect(room.members.length).toBe(0);
     expect(fam.items.length).toBe(9); // delivered items stay
-    expect(deliverPost(fam, room, makePost(room, teacher, mockExtraction(ctx), 1), teacher.name)).toBeNull();
+    expect(deliverPost(fam, room, makePost(room, teacher, mockExtraction(ctx), 1), teacher)).toBeNull();
   });
 
   it("stores teachers and rooms, and only lists a teacher's own rooms", async () => {
@@ -180,7 +185,7 @@ describe("rooms", () => {
     expect(rooms.map((r) => r.name)).toEqual(["Mine"]);
     expect((await loadRoom(mine.id))?.joinSecret).toBe(mine.joinSecret);
     const { record: fam } = createFamily();
-    subscribe(fam, mine, "A", []);
+    subscribe(fam, mine, teacher, []);
     await saveFamily(fam);
     expect((await loadFamily(fam.id))?.rooms?.[0].name).toBe("Mine");
     addPost(mine, makePost(mine, teacher, mockExtraction(ctx), 1));

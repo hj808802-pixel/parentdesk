@@ -340,6 +340,9 @@ export const es: Dict = {
     privacy: "Nunca ves a las familias, solo cuántas siguen la sala. Las familias ven tu nombre y el nombre de la sala. Las fotos y los PDF se leen y se descartan.",
     yourName: "Tu nombre tal como lo verán las familias",
     yourNamePlaceholder: "p. ej. Sra. Rivera, aula 12",
+    school: "Centro escolar (opcional)",
+    schoolPlaceholder: "p. ej. CEIP Miguel Hernández",
+    schoolHint: "Se muestra a las familias que siguen tus salas, delante del nombre de la sala.",
     language: "Idioma en que escribes los avisos",
     country: "País (cómo se leen las fechas)",
     create: "Crear mi escritorio docente",
@@ -473,6 +476,7 @@ export const es: Dict = {
       "Gmail (opcional): si conectas Gmail, guardamos un token cifrado que nos permite leer tu bandeja una vez al día para encontrar mensajes del colegio. Conservamos las fechas y tareas extraídas de esos mensajes, los identificadores de los correos ya revisados y las direcciones de remitente que resultaron ser del colegio. Nunca enviamos correos desde tu cuenta. Desconectar en Ajustes revoca el token. El uso que ParentDesk hace de la información recibida de las API de Google cumple la Política de datos de usuario de los servicios de API de Google, incluidos los requisitos de uso limitado.",
       "Tus derechos y dónde van los datos: el servicio funciona en servidores de Vercel en Estados Unidos y las circulares las procesa Anthropic en Estados Unidos, así que tus datos salen de tu país. Puedes ver todo lo que guardamos en las páginas Elementos y Circulares, exportar los elementos abiertos como archivo de calendario y borrar toda la familia tú mismo en cualquier momento; para cualquier otra cosa, escribe al contacto de arriba. No vendemos datos ni los usamos para publicidad. El servicio es para adultos; si crees que lo ha usado un menor, avísanos y borraremos los datos.",
       "Pagos y resumen semanal (opcionales): las suscripciones las gestiona Stripe, que guarda los datos de tu tarjeta; nosotros solo guardamos un id de cliente y el estado de la suscripción. Si activas el resumen semanal, guardamos la dirección de correo que introduces y la usamos solo para ese correo. Cada resumen lleva un enlace para detenerlo.",
+      "Salas de clase (opcional): el docente que publica avisos introduce un nombre visible y, si quiere, el nombre del centro; las familias que siguen la sala ven ambos. El docente solo ve cuántas familias siguen la sala, nunca quiénes. Un aviso publicado se guarda en la sala como elementos extraídos y un breve resumen, como cualquier aviso, y se entrega a las familias que la siguen.",
     ],
     terms: [
       "ParentDesk está en beta y se ofrece gratis, tal cual, sin garantía de que sea completo o correcto.",

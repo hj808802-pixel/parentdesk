@@ -340,6 +340,9 @@ export const fr: Dict = {
     privacy: "Vous ne voyez jamais les familles, seulement leur nombre. Les familles voient votre nom et le nom de l'espace. Photos et PDF sont lus puis supprimés.",
     yourName: "Votre nom tel que les parents le verront",
     yourNamePlaceholder: "ex. Mme Rivera, classe de CE2",
+    school: "École (facultatif)",
+    schoolPlaceholder: "ex. École Jules-Ferry",
+    schoolHint: "Affiché aux familles qui suivent vos espaces, devant le nom de l'espace.",
     language: "Langue dans laquelle vous écrivez les mots",
     country: "Pays (lecture des dates)",
     create: "Créer mon bureau enseignant",
@@ -473,6 +476,7 @@ export const fr: Dict = {
       "Gmail (facultatif) : si vous connectez Gmail, nous conservons un jeton chiffré qui nous permet de lire votre boîte une fois par jour pour y trouver les messages de l'école. Nous gardons les dates et tâches extraites de ces messages, les identifiants des e-mails déjà examinés et les adresses d'expéditeur qui se sont révélées être l'école. Nous n'envoyons jamais d'e-mail depuis votre compte. La déconnexion dans les Réglages révoque le jeton. L'utilisation par ParentDesk des informations reçues des API Google respecte la politique relative aux données utilisateur des services d'API Google, y compris les exigences d'utilisation limitée.",
       "Vos droits et la localisation des données : le service tourne sur des serveurs Vercel aux États-Unis et les mots sont traités par Anthropic aux États-Unis ; vos données quittent donc votre pays. Vous pouvez voir tout ce que nous conservons sur les pages Éléments et Mots, exporter les éléments en cours en fichier calendrier et supprimer vous-même toute la famille à tout moment ; pour toute autre demande, écrivez au contact ci-dessus. Nous ne vendons pas les données et ne les utilisons pas pour la publicité. Le service est destiné aux adultes ; si vous pensez qu'un enfant l'a utilisé, dites-le-nous et nous supprimerons les données.",
       "Paiements et résumé hebdomadaire (facultatifs) : les abonnements sont gérés par Stripe, qui conserve les données de votre carte ; nous ne stockons qu'un identifiant client et l'état de l'abonnement. Si vous activez le résumé hebdomadaire, nous stockons l'adresse e-mail saisie et ne l'utilisons que pour cet e-mail. Chaque résumé contient un lien pour l'arrêter.",
+      "Espaces de classe (facultatif) : l'enseignant qui publie des mots saisit un nom affiché et, s'il le souhaite, le nom de l'école ; les familles qui suivent l'espace voient les deux. L'enseignant ne voit que le nombre de familles qui suivent, jamais lesquelles. Un mot publié est conservé dans l'espace sous forme d'éléments extraits et d'un court résumé, comme tout autre mot, et livré aux familles qui suivent.",
     ],
     terms: [
       "ParentDesk est en bêta, proposé gratuitement et en l'état, sans garantie d'exhaustivité ni d'exactitude.",

@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import { api, ApiFailure, browserTimezone, forgetTeacherKey, readTeacherKey, rememberTeacherKey, roomJoinUrl, writeClipboard, type RoomPostResponse } from "@/lib/client";
-import { COUNTRIES } from "@/lib/countries";
+import { COUNTRIES, TIMEZONES } from "@/lib/countries";
 import { formatDate } from "@/lib/dates";
 import { useI18n } from "@/lib/i18n/context";
 import { fmt } from "@/lib/i18n";
@@ -35,7 +35,7 @@ export default function TeachView() {
   const [newRoom, setNewRoom] = useState("");
   const [roomError, setRoomError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
-  const [profile, setProfile] = useState<{ name: string; language: string; country: string } | null>(null);
+  const [profile, setProfile] = useState<{ name: string; school: string; language: string; country: string; timezone: string } | null>(null);
   const [profileSaved, setProfileSaved] = useState(false);
   const [showKey, setShowKey] = useState(false);
   const [copied, setCopied] = useState("");
@@ -58,7 +58,7 @@ export default function TeachView() {
 
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect -- syncing a draft from server data
-    if (teacher) setProfile({ name: teacher.name, language: teacher.settings.language, country: teacher.settings.country });
+    if (teacher) setProfile({ name: teacher.name, school: teacher.school, language: teacher.settings.language, country: teacher.settings.country, timezone: teacher.settings.timezone });
   }, [teacher]);
 
   async function copy(text: string, what: string) {
@@ -105,7 +105,7 @@ export default function TeachView() {
     if (!profile) return;
     setBusy(true);
     try {
-      const res = await api.updateTeacher({ name: profile.name, settings: { language: profile.language, country: profile.country } });
+      const res = await api.updateTeacher({ name: profile.name, school: profile.school, settings: { language: profile.language, country: profile.country, timezone: profile.timezone } });
       setTeacher(res.teacher);
       setProfileSaved(true);
       setTimeout(() => setProfileSaved(false), 3000);
@@ -220,6 +220,11 @@ export default function TeachView() {
         <section className={`${CARD} mt-8`}>
           <h2 className="font-semibold">{t.teach.yourName}</h2>
           <input className={`${INPUT} mt-3`} value={profile.name} onChange={(e) => setProfile({ ...profile, name: e.target.value })} maxLength={60} />
+          <label className="mt-3 grid gap-1 text-sm">
+            <span className="text-xs text-zinc-500">{t.teach.school}</span>
+            <input className={INPUT} value={profile.school} onChange={(e) => setProfile({ ...profile, school: e.target.value })} placeholder={t.teach.schoolPlaceholder} maxLength={80} />
+            <span className="text-xs text-zinc-500">{t.teach.schoolHint}</span>
+          </label>
           <div className="mt-3 grid gap-3 sm:grid-cols-2">
             <label className="grid gap-1 text-sm">
               <span className="text-xs text-zinc-500">{t.teach.language}</span>
@@ -237,6 +242,16 @@ export default function TeachView() {
                 {COUNTRIES.map((c) => (
                   <option key={c.code} value={c.code}>
                     {c.code === "XX" ? t.settings.countryOther : regionName(c.code, LOCALE_TAGS[locale], c.name)}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label className="grid gap-1 text-sm">
+              <span className="text-xs text-zinc-500">{t.settings.timezone}</span>
+              <select className={INPUT} value={profile.timezone} onChange={(e) => setProfile({ ...profile, timezone: e.target.value })}>
+                {(TIMEZONES.includes(profile.timezone) ? TIMEZONES : [profile.timezone, ...TIMEZONES]).map((z) => (
+                  <option key={z} value={z}>
+                    {z}
                   </option>
                 ))}
               </select>
@@ -412,8 +427,8 @@ function RoomCard({
       <div className="flex flex-wrap items-start justify-between gap-2">
         <div>
           <h3 dir="auto" className="text-lg font-semibold">{room.name}</h3>
-          <p className="text-xs text-zinc-500">
-            {fmt(t.teach.following, { n: room.memberCount })} · {teacher.name}
+          <p dir="auto" className="text-xs text-zinc-500">
+            {fmt(t.teach.following, { n: room.memberCount })} · {[teacher.school, teacher.name].filter(Boolean).join(" · ")}
           </p>
         </div>
         <div className="flex flex-wrap gap-2">

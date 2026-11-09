@@ -44,6 +44,7 @@ export type TeacherRecord = {
   createdAt: string;
   updatedAt: string;
   name: string; // how families see the sender: "Ms. Rivera", "3학년 2반 담임"
+  school: string; // optional; shown to families in front of the room's name
   settings: Settings; // country, result language, time zone (familyName and digest unused)
   roomIds: string[];
   usage: Record<string, number>; // "2026-11" -> posts that month
@@ -82,7 +83,19 @@ export type RoomView = Omit<RoomRecord, "joinSecret" | "members"> & { memberCoun
 export type TeacherView = Omit<TeacherRecord, "keyHash"> & { rooms: RoomView[]; postCap: number };
 
 // What a parent sees before joining.
-export type RoomPublic = { id: string; name: string; teacherName: string; memberCount: number; postCount: number; language: string };
+export type RoomPublic = { id: string; name: string; teacherName: string; school: string; memberCount: number; postCount: number; language: string };
+
+// Who a post comes from, as families see it. A TeacherRecord fits.
+export type Sender = { name: string; school: string };
+
+export function senderOf(teacher: Sender | null | undefined): Sender {
+  return { name: teacher?.name ?? "", school: teacher?.school ?? "" };
+}
+
+// "<school> · <room> · <teacher>", skipping what is empty.
+export function senderLine(sender: Sender, roomName: string): string {
+  return [sender.school, roomName, sender.name || "Teacher"].filter(Boolean).join(" · ").slice(0, 120);
+}
 
 // ---- keys and tokens ----
 
@@ -159,7 +172,11 @@ export function sanitizeName(x: unknown, fallback = ""): string {
   return typeof x === "string" ? x.replace(/\s+/g, " ").trim().slice(0, 60) : fallback;
 }
 
-export function createTeacher(init: { name?: unknown; locale?: string | null; timezone?: string | null; settings?: Partial<Settings> } = {}): { record: TeacherRecord; key: string } {
+export function sanitizeSchool(x: unknown): string {
+  return typeof x === "string" ? x.replace(/\s+/g, " ").trim().slice(0, 80) : "";
+}
+
+export function createTeacher(init: { name?: unknown; school?: unknown; locale?: string | null; timezone?: string | null; settings?: Partial<Settings> } = {}): { record: TeacherRecord; key: string } {
   const now = new Date().toISOString();
   const id = newId(6);
   const secret = newId(12);
@@ -169,6 +186,7 @@ export function createTeacher(init: { name?: unknown; locale?: string | null; ti
     createdAt: now,
     updatedAt: now,
     name: sanitizeName(init.name),
+    school: sanitizeSchool(init.school),
     settings: sanitizeSettings(init.settings ?? {}, defaultSettings(init.locale, init.timezone)),
     roomIds: [],
     usage: {},
@@ -230,7 +248,7 @@ export function makePost(room: RoomRecord, teacher: TeacherRecord, extraction: E
     id: newId(5),
     ts: now,
     title,
-    sender: `${teacher.name || "Teacher"} · ${room.name}`.slice(0, 120),
+    sender: senderLine(teacher, room.name),
     summary,
     language: teacher.settings.language,
     pages,
@@ -255,7 +273,7 @@ export function postForLanguage(post: RoomPost, language: string): { title: stri
 
 // Writes one post onto one family's list. Returns null when the family does not follow the
 // room, and nothing new when it already has this post.
-export function deliverPost(rec: FamilyRecord, room: RoomRecord, post: RoomPost, teacherName: string, now: string = new Date().toISOString()): { items: Item[]; skipped: number } | null {
+export function deliverPost(rec: FamilyRecord, room: RoomRecord, post: RoomPost, sender: Sender, now: string = new Date().toISOString()): { items: Item[]; skipped: number } | null {
   const sub = (rec.rooms ?? []).find((s) => s.roomId === room.id);
   if (!sub) return null;
   if (rec.sources.some((s) => s.postId === post.id)) return { items: [], skipped: 0 };
@@ -284,7 +302,8 @@ export function deliverPost(rec: FamilyRecord, room: RoomRecord, post: RoomPost,
   );
   sub.lastPostId = post.id;
   sub.name = room.name;
-  sub.teacherName = teacherName;
+  sub.teacherName = sender.name;
+  sub.school = sender.school;
   return res;
 }
 
@@ -298,19 +317,20 @@ export function sanitizeChildIds(input: unknown, rec: FamilyRecord): string[] {
 
 export type SubscribeResult = { ok: true; subscription: RoomSubscription; isNew: boolean } | { ok: false; reason: "room_full" | "too_many_rooms" };
 
-export function subscribe(rec: FamilyRecord, room: RoomRecord, teacherName: string, childIds: string[], now: string = new Date().toISOString()): SubscribeResult {
+export function subscribe(rec: FamilyRecord, room: RoomRecord, sender: Sender, childIds: string[], now: string = new Date().toISOString()): SubscribeResult {
   rec.rooms ??= [];
   const existing = rec.rooms.find((s) => s.roomId === room.id);
   if (existing) {
     existing.childIds = childIds;
     existing.name = room.name;
-    existing.teacherName = teacherName;
+    existing.teacherName = sender.name;
+    existing.school = sender.school;
     if (!room.members.some((m) => m.familyId === rec.id)) room.members.push({ familyId: rec.id, joinedAt: now });
     return { ok: true, subscription: existing, isNew: false };
   }
   if (rec.rooms.length >= MAX_ROOMS_PER_FAMILY) return { ok: false, reason: "too_many_rooms" };
   if (room.members.length >= MAX_MEMBERS_PER_ROOM) return { ok: false, reason: "room_full" };
-  const subscription: RoomSubscription = { roomId: room.id, name: room.name, teacherName, childIds, joinedAt: now, lastPostId: null };
+  const subscription: RoomSubscription = { roomId: room.id, name: room.name, teacherName: sender.name, school: sender.school, childIds, joinedAt: now, lastPostId: null };
   rec.rooms.push(subscription);
   room.members.push({ familyId: rec.id, joinedAt: now });
   return { ok: true, subscription, isNew: true };
@@ -332,12 +352,12 @@ export function postsNeedingTranslation(posts: RoomPost[], language: string, max
 }
 
 // A family that joins late gets the room's recent posts (the last few within a month).
-export function backfill(rec: FamilyRecord, room: RoomRecord, teacherName: string, now: Date = new Date()): { posts: number; items: number } {
+export function backfill(rec: FamilyRecord, room: RoomRecord, sender: Sender, now: Date = new Date()): { posts: number; items: number } {
   const recent = recentPosts(room, now);
   let posts = 0;
   let items = 0;
   for (const post of recent) {
-    const res = deliverPost(rec, room, post, teacherName, now.toISOString());
+    const res = deliverPost(rec, room, post, sender, now.toISOString());
     if (res && res.items.length) {
       posts++;
       items += res.items.length;
@@ -369,7 +389,7 @@ export function teacherView(teacher: TeacherRecord, rooms: RoomRecord[]): Teache
 }
 
 export function roomPublic(room: RoomRecord, teacher: TeacherRecord | null): RoomPublic {
-  return { id: room.id, name: room.name, teacherName: teacher?.name ?? "", memberCount: room.members.length, postCount: room.posts.length, language: teacher?.settings.language ?? "en" };
+  return { id: room.id, name: room.name, teacherName: teacher?.name ?? "", school: teacher?.school ?? "", memberCount: room.members.length, postCount: room.posts.length, language: teacher?.settings.language ?? "en" };
 }
 
 // ---- storage ----
@@ -384,6 +404,7 @@ export async function loadTeacher(id: string): Promise<TeacherRecord | null> {
     rec.roomIds ??= [];
     rec.usage ??= {};
     rec.name = sanitizeName(rec.name);
+    rec.school = sanitizeSchool(rec.school);
     rec.settings = sanitizeSettings(rec.settings, defaultSettings());
     return rec;
   } catch {

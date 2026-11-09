@@ -343,6 +343,9 @@ export const en = {
     privacy: "You never see the families, only how many follow the room. Families see your name and the room's name. Photos and PDFs are read and discarded.",
     yourName: "Your name as parents will see it",
     yourNamePlaceholder: "e.g. Ms. Rivera, Room 12",
+    school: "School (optional)",
+    schoolPlaceholder: "e.g. Oak Street Elementary",
+    schoolHint: "Shown to the families that follow your rooms, in front of the room's name.",
     language: "Language you write notices in",
     country: "Country (how dates are read)",
     create: "Create my teacher desk",
@@ -476,6 +479,7 @@ export const en = {
       "Gmail (optional): if you connect Gmail, we store an encrypted token that lets us read your inbox once a day to find school messages. We keep the dates and to-dos extracted from those messages, the ids of messages already looked at, and the sender addresses that turned out to be the school. We never send e-mail from your account. Disconnecting in Settings revokes the token. ParentDesk's use of information received from Google APIs adheres to the Google API Services User Data Policy, including the Limited Use requirements.",
       "Your rights and where data goes: the service runs on Vercel servers in the United States and notices are processed by Anthropic in the United States, so your data leaves your country. You can see everything we hold on the Items and Notices pages, export open items as a calendar file, and delete the whole family yourself at any time; for anything else, write to the contact above. We do not sell data and do not use it for advertising. The service is meant for adults; if you believe a child has used it, tell us and we will delete the data.",
       "Payments and the weekly summary (optional): subscriptions are handled by Stripe, which keeps your card details; we store only a customer id and the subscription status. If you switch on the weekly summary, we store the e-mail address you enter and use it for that e-mail only. Every summary carries a link that stops it.",
+      "Class rooms (optional): a teacher who posts notices enters a display name and, optionally, a school name; the families that follow the room see both. Teachers see only how many families follow, never who. A posted notice is kept in the room as extracted items and a short summary, like any notice, and delivered to the following families.",
     ],
     terms: [
       "ParentDesk is in beta and offered free of charge, as is, without any guarantee that it is complete or correct.",

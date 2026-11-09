@@ -86,7 +86,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
     for (let i = 0; i < families.length; i += DELIVERY_BATCH) {
       await Promise.all(
         families.slice(i, i + DELIVERY_BATCH).map(async (fam) => {
-          const res = deliverPost(fam, room, post, teacher.name);
+          const res = deliverPost(fam, room, post, teacher);
           if (!res) return;
           try {
             await saveFamily(fam);

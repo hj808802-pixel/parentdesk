@@ -340,6 +340,9 @@ export const de: Dict = {
     privacy: "Sie sehen die Familien nie, nur wie viele dem Raum folgen. Familien sehen Ihren Namen und den Namen des Raums. Fotos und PDFs werden gelesen und verworfen.",
     yourName: "Ihr Name, wie Eltern ihn sehen",
     yourNamePlaceholder: "z. B. Frau Rivera, Klasse 3b",
+    school: "Schule (optional)",
+    schoolPlaceholder: "z. B. Grundschule am Park",
+    schoolHint: "Wird den Familien, die Ihren Räumen folgen, vor dem Raumnamen angezeigt.",
     language: "Sprache, in der Sie Elternbriefe schreiben",
     country: "Land (wie Daten gelesen werden)",
     create: "Meinen Lehrkraft-Schreibtisch anlegen",
@@ -473,6 +476,7 @@ export const de: Dict = {
       "Gmail (optional): Wenn ihr Gmail verbindet, speichern wir ein verschlüsseltes Token, mit dem wir euren Posteingang einmal am Tag nach Schulnachrichten durchsehen. Wir behalten die aus diesen Nachrichten gewonnenen Termine und Aufgaben, die IDs bereits angesehener E-Mails und die Absenderadressen, die sich als Schule erwiesen haben. Wir verschicken nie E-Mails von eurem Konto. Das Trennen in den Einstellungen widerruft das Token. ParentDesks Nutzung von Informationen aus Google-APIs folgt der Google API Services User Data Policy einschließlich der Limited-Use-Anforderungen.",
       "Eure Rechte und wohin die Daten gehen: Der Dienst läuft auf Vercel-Servern in den USA, und Briefe werden von Anthropic in den USA verarbeitet; eure Daten verlassen also euer Land. Alles, was wir speichern, seht ihr auf den Seiten Einträge und Briefe; offene Einträge könnt ihr als Kalenderdatei exportieren und die ganze Familie jederzeit selbst löschen. Für alles Weitere schreibt an den Kontakt oben. Wir verkaufen keine Daten und nutzen sie nicht für Werbung. Der Dienst ist für Erwachsene gedacht; wenn ihr glaubt, dass ein Kind ihn benutzt hat, sagt uns Bescheid, und wir löschen die Daten.",
       "Zahlungen und Wochenübersicht (optional): Abos wickelt Stripe ab, das Ihre Kartendaten verwahrt; wir speichern nur eine Kundennummer und den Abo-Status. Wenn Sie die Wochenübersicht einschalten, speichern wir die eingegebene E-Mail-Adresse und nutzen sie nur dafür. Jede Übersicht enthält einen Link zum Abbestellen.",
+      "Klassenräume (optional): Eine Lehrkraft, die Elternbriefe veröffentlicht, gibt einen Anzeigenamen und auf Wunsch den Namen der Schule an; die Familien, die dem Raum folgen, sehen beides. Die Lehrkraft sieht nur, wie viele Familien folgen, nie welche. Ein veröffentlichter Elternbrief wird wie jeder andere als extrahierte Einträge und kurze Zusammenfassung im Raum gespeichert und den folgenden Familien zugestellt.",
     ],
     terms: [
       "ParentDesk ist eine Beta, kostenlos und wie besehen, ohne Gewähr für Vollständigkeit oder Richtigkeit.",

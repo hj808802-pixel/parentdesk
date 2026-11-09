@@ -1,5 +1,5 @@
 import { allowRequest, clientIp } from "@/lib/ratelimit";
-import { clearTeacherCookie, createTeacher, deleteRoom, deleteTeacher, loadRooms, sanitizeName, saveTeacher, teacherCookie, teacherFromRequest, teacherView } from "@/lib/rooms";
+import { clearTeacherCookie, createTeacher, deleteRoom, deleteTeacher, loadRooms, sanitizeName, sanitizeSchool, saveTeacher, teacherCookie, teacherFromRequest, teacherView } from "@/lib/rooms";
 import { isHttps, sanitizeSettings } from "@/lib/store";
 
 export const runtime = "nodejs";
@@ -27,6 +27,7 @@ export async function POST(req: Request) {
   if (!name) return Response.json({ ok: false, error: "name_required" }, { status: 400 });
   const { record, key } = createTeacher({
     name,
+    school: body.school,
     locale: typeof body.locale === "string" ? body.locale : null,
     timezone: typeof body.timezone === "string" ? body.timezone : null,
     settings: body.settings && typeof body.settings === "object" ? (body.settings as Record<string, unknown>) : undefined,
@@ -45,6 +46,7 @@ export async function PATCH(req: Request) {
     if (!name) return Response.json({ ok: false, error: "name_required" }, { status: 400 });
     teacher.name = name;
   }
+  if (typeof body.school === "string") teacher.school = sanitizeSchool(body.school);
   if (body.settings) teacher.settings = sanitizeSettings(body.settings, teacher.settings);
   await saveTeacher(teacher);
   return Response.json({ ok: true, teacher: teacherView(teacher, await loadRooms(teacher)) });

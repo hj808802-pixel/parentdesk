@@ -114,6 +114,7 @@ function RoomJoin({ token }: { token: string }) {
 
   const toggle = (id: string) => setSelected((cur) => (cur.includes(id) ? cur.filter((x) => x !== id) : [...cur, id]));
   const room = info?.room;
+  const roomLabel = room ? (room.school ? `${room.school} · ${room.name}` : room.name) : "";
 
   return (
     <main className="mx-auto w-full max-w-2xl px-4 py-12">
@@ -130,7 +131,7 @@ function RoomJoin({ token }: { token: string }) {
         )}
         {room && state === "done" && (
           <>
-            <p className="mt-3 text-sm">{fmt(t.join.roomDone, { room: room.name })}</p>
+            <p dir="auto" className="mt-3 text-sm">{fmt(t.join.roomDone, { room: roomLabel })}</p>
             {backfilled > 0 && <p className="mt-1 text-sm text-zinc-600 dark:text-zinc-400">{fmt(t.join.roomBackfilled, { items: backfilled })}</p>}
             <div className="mt-5 flex flex-wrap gap-2">
               <Link href={localePath(locale, "/")} className={BTN_PRIMARY}>
@@ -145,7 +146,7 @@ function RoomJoin({ token }: { token: string }) {
         {room && (state === "ready" || state === "joining") && (
           <>
             <p dir="auto" className="mt-3 text-sm">
-              {fmt(room.teacherName ? t.join.roomLead : t.join.roomLeadNoTeacher, { teacher: room.teacherName, room: room.name })}
+              {fmt(room.teacherName ? t.join.roomLead : t.join.roomLeadNoTeacher, { teacher: room.teacherName, room: roomLabel })}
             </p>
             <p className="mt-1 text-xs text-zinc-500">{fmt(t.join.roomFollowers, { n: room.memberCount })}</p>
             {info?.following && <p className="mt-3 rounded-lg bg-amber-50 px-3 py-2 text-sm text-amber-800 dark:bg-amber-950/40 dark:text-amber-200">{t.join.roomAlready}</p>}
