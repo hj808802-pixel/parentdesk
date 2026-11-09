@@ -82,6 +82,7 @@ expect("rotate-feed: no family", await call("POST", "/api/family/rotate-feed"), 
 expect("item patch: no family", await call("PATCH", "/api/items/abc", { json: { status: "done" } }), 404);
 expect("item delete: no family", await call("DELETE", "/api/items/abc"), 404);
 expect("reply: no family", await call("POST", "/api/items/abc/reply", { json: { intent: "yes" } }), 404);
+expect("explain: no family", await call("POST", "/api/items/abc/explain"), 404);
 expect("ask: no family", await call("POST", "/api/ask", { json: { question: "what is due?" } }), 404);
 expect("source delete: no family", await call("DELETE", "/api/sources/abc"), 404);
 expect("calendar: garbage token", await call("GET", "/api/calendar/nope.ics"), 404);
@@ -196,6 +197,7 @@ if (key) {
   expect("item patch: unknown id", await call("PATCH", "/api/items/zzz", { json: { status: "done" } }), 404);
   expect("item delete: unknown id", await call("DELETE", "/api/items/zzz"), 404);
   expect("reply: unknown item", await call("POST", "/api/items/zzz/reply", { json: { intent: "yes" } }), 404);
+  expect("explain: unknown item", await call("POST", "/api/items/zzz/explain"), 404);
   expect("source delete: unknown id", await call("DELETE", "/api/sources/zzz"), 404);
   expect("ask: empty question", await call("POST", "/api/ask", { json: { question: "" } }), 400);
   expect("ask: not json", await call("POST", "/api/ask", { json: "nope" }), 400);

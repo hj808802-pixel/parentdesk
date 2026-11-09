@@ -1,4 +1,4 @@
-import { bucketOf, daysBetween } from "./dates";
+import { addDays, bucketOf, daysBetween, formatDate, formatMoney, formatTime } from "./dates";
 import type { Item, Source } from "./types";
 
 // The numbers on the home screen, from the family's items and notices. Pure: the browser
@@ -48,4 +48,79 @@ export function summarize(items: Item[], sources: Source[], todayIso: string, we
   const roomNews: Record<string, number> = {};
   for (const s of sources) if (s.roomId && s.ts >= weekAgo) roomNews[s.roomId] = (roomNews[s.roomId] ?? 0) + 1;
   return { needsAction, overdue, thisWeek, toPay: { count: payments.length, totals }, toSign, next, recent, roomNews };
+}
+
+// ---- things to pack today and tomorrow ----
+
+export type BringEntry = { item: Item; dayOffset: 0 | 1 };
+
+export function bringList(items: Item[], todayIso: string): BringEntry[] {
+  const tomorrow = addDays(todayIso, 1);
+  return items
+    .filter((it) => it.status === "open" && it.bring.length > 0 && (it.date === todayIso || it.date === tomorrow))
+    .sort(byDate)
+    .map((it) => ({ item: it, dayOffset: it.date === todayIso ? 0 : 1 }));
+}
+
+// ---- the week in two or three sentences, from dictionary templates (no model) ----
+
+export type BriefLabels = { overdue: string; due: string; events: string; quiet: string; more: string };
+type Fmt = (template: string, vars: Record<string, string | number>) => string;
+
+export function weekBrief(items: Item[], todayIso: string, tag: string, labels: BriefLabels, fmt: Fmt): string[] {
+  const open = items.filter((it) => it.status === "open");
+  const in6 = addDays(todayIso, 6);
+  const out: string[] = [];
+  const overdue = open.filter((it) => it.date && it.date < todayIso).length;
+  if (overdue) out.push(fmt(labels.overdue, { n: overdue }));
+  const due = open.filter((it) => it.date && it.date >= todayIso && it.date <= in6 && it.type !== "event" && it.type !== "info").sort(byDate);
+  if (due.length) {
+    const first = due[0].date as string;
+    const same = due.filter((d) => d.date === first);
+    const list = same
+      .slice(0, 3)
+      .map((d) => (d.amount != null ? `${d.title} (${formatMoney(d.amount, d.currency, tag)})` : d.title))
+      .join(", ");
+    out.push(fmt(labels.due, { date: formatDate(first, tag, { weekday: "short", day: "numeric" }), list: same.length > 3 ? `${list} ${fmt(labels.more, { n: same.length - 3 })}` : list }));
+  }
+  const events = open.filter((it) => it.type === "event" && it.date && it.date >= todayIso && it.date <= in6).sort(byDate);
+  if (events.length) {
+    const list = events
+      .slice(0, 3)
+      .map((e) => `${formatDate(e.date as string, tag, { weekday: "short" })}${e.time ? ` ${formatTime(e.time, tag)}` : ""} ${e.title}`)
+      .join(", ");
+    out.push(fmt(labels.events, { list: events.length > 3 ? `${list} ${fmt(labels.more, { n: events.length - 3 })}` : list }));
+  }
+  if (out.length === 0) out.push(labels.quiet);
+  return out;
+}
+
+// ---- two children, one time slot ----
+
+export type Clash = { date: string; a: Item; b: Item };
+
+const toMinutes = (hhmm: string) => Number(hhmm.slice(0, 2)) * 60 + Number(hhmm.slice(3, 5));
+
+// Open items on the same day whose times overlap and whose children are different (an
+// item for the whole family never clashes). An item without an end time is taken as an hour.
+export function findClashes(items: Item[], max = 5): Clash[] {
+  const timed = items.filter((it) => it.status === "open" && it.date && it.time && it.childIds.length > 0).sort(byDate);
+  const span = (it: Item): [number, number] => {
+    const s = toMinutes(it.time as string);
+    const e = it.end_time ? toMinutes(it.end_time) : s + 60;
+    return [s, Math.max(e, s + 1)];
+  };
+  const out: Clash[] = [];
+  for (let i = 0; i < timed.length && out.length < max; i++) {
+    for (let j = i + 1; j < timed.length && out.length < max; j++) {
+      const a = timed[i];
+      const b = timed[j];
+      if (a.date !== b.date) continue;
+      if (a.childIds.some((id) => b.childIds.includes(id))) continue;
+      const [as, ae] = span(a);
+      const [bs, be] = span(b);
+      if (as < be && bs < ae) out.push({ date: a.date as string, a, b });
+    }
+  }
+  return out;
 }

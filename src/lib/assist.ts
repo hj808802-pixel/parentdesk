@@ -2,7 +2,8 @@ import Anthropic from "@anthropic-ai/sdk";
 import { betaZodOutputFormat } from "@anthropic-ai/sdk/helpers/beta/zod";
 import { weekday } from "./dates";
 import { ASSIST_MODEL, CLASSIFY_MODEL, LANGUAGE_NAMES, isMock } from "./extract";
-import { AskSchema, ClassifySchema, ReplySchema, TranslatedPostSchema, type Ask, type Classify, type Reply } from "./schema";
+import { AskSchema, ClassifySchema, ExplainSchema, ReplySchema, TranslatedPostSchema, type Ask, type Classify, type Explain, type Reply } from "./schema";
+import { countryOf } from "./countries";
 import type { ItemDraft } from "./store";
 import type { FamilyRecord, Item, Source } from "./types";
 
@@ -230,4 +231,45 @@ export async function translatePost(post: PostText, fromLanguage: string, toLang
     };
   });
   return { result: { title: (parsed.title || post.title).slice(0, 160), summary: (parsed.summary || post.summary).slice(0, 1200), items }, model: response.model, mock: false };
+}
+
+const EXPLAIN_RULES = `You explain one item from a school communication to a parent, inside ParentDesk. Many parents are new to the country or to its school system, or read the school's language with effort; write for them.
+
+- Write in the target language, plainly, as a helpful school office clerk would: what this is, why the school sends it, what exactly the parent has to do and by when. Keep the school's own term in parentheses the first time (for example "picture day (사진 촬영일)").
+- Use only the item, the notice summary and the quoted line. Never invent dates, amounts, places or rules; when something is not stated, say so and put it in ask_school.
+- context: what a newcomer would not know about how this is usually done in the family's country (customs, what other parents usually do, what is optional). Keep it to two sentences. Null when there is nothing useful.
+- Do not give medical, legal or financial advice. The school's notice is the authority.`;
+
+export async function explainItem(rec: FamilyRecord, item: Item, source: Source | null, todayIso: string): Promise<{ result: Explain; model: string; mock: boolean }> {
+  const names = new Map(rec.children.map((c) => [c.id, c.name]));
+  if (isMock()) {
+    return {
+      result: {
+        explanation: `(demo) "${item.title}" is a ${item.type} from the school${item.date ? ` for ${item.date}` : ""}. ${item.description}`.trim(),
+        what_to_do: item.requires_action ? [item.action_text ?? "Do what the notice asks.", "Tick it off here when it is done."] : [],
+        context: "(demo) In demo mode there is no model; this text is canned.",
+        ask_school: item.confidence !== "high" ? "Please confirm the exact date." : null,
+      },
+      model: "mock",
+      mock: true,
+    };
+  }
+  const client = new Anthropic();
+  const country = countryOf(rec.settings.country);
+  const lines = [
+    `<item>\n${itemLine(item, names)}\n</item>`,
+    source ? `<notice>\nTitle: ${source.title}\nFrom: ${source.sender}\nSummary: ${source.summary}\n</notice>` : "",
+    item.quote ? `<quote>${item.quote}</quote>` : "",
+    `<family>\nCountry: ${country.name} (${country.code}). Target language: ${languageName(rec.settings.language)}. Today: ${todayIso}.\n</family>`,
+  ].filter(Boolean);
+  const response = await client.beta.messages.parse({
+    model: ASSIST_MODEL,
+    max_tokens: 900,
+    system: [{ type: "text", text: EXPLAIN_RULES }],
+    messages: [{ role: "user", content: [{ type: "text", text: lines.join("\n") }] }],
+    output_config: { effort: "low", format: betaZodOutputFormat(ExplainSchema) },
+  });
+  if (!response.parsed_output) throw new Error("no structured output");
+  const r = response.parsed_output;
+  return { result: { ...r, what_to_do: r.what_to_do.slice(0, 4).map((x) => x.slice(0, 200)), explanation: r.explanation.slice(0, 1200) }, model: response.model, mock: false };
 }

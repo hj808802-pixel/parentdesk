@@ -134,6 +134,15 @@ export const TranslatedPostSchema = z.object({
 });
 export type TranslatedPost = z.infer<typeof TranslatedPostSchema>;
 
+// One item explained to a parent who may be new to this school system (lib/assist.ts).
+export const ExplainSchema = z.object({
+  explanation: z.string().describe("Two to four plain sentences in the target language: what this item is and why the school sends it. Keep the school's own term in parentheses the first time."),
+  what_to_do: z.array(z.string()).describe("The concrete steps for the parent, in order, each a short sentence. At most four. Empty when nothing is required."),
+  context: z.string().nullable().describe("One or two sentences of local or cultural background a newcomer would not know (how this is usually handled in this country, what is customary). Null when there is nothing worth saying."),
+  ask_school: z.string().nullable().describe("One question the parent should ask the school if the notice leaves it unclear, else null."),
+});
+export type Explain = z.infer<typeof ExplainSchema>;
+
 export function isOutputLanguage(x: unknown): x is OutputLanguage {
   return typeof x === "string" && OUTPUT_LANGUAGES.some((l) => l.code === x);
 }

@@ -1,8 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { useMemo } from "react";
-import { summarize } from "@/lib/dashboard";
+import { useEffect, useMemo, useState } from "react";
+import { bringList, summarize, weekBrief } from "@/lib/dashboard";
 import { formatDate, formatDateLong, formatMoney, formatTime, todayIn } from "@/lib/dates";
 import { useFamily } from "@/lib/family-context";
 import { useI18n } from "@/lib/i18n/context";
@@ -23,6 +23,32 @@ export default function DashboardView() {
   const tag = LOCALE_TAGS[locale];
   const todayIso = todayIn(family?.settings.timezone ?? "UTC");
   const summary = useMemo(() => (family ? summarize(family.items, family.sources, todayIso, family.settings.weekStart) : null), [family, todayIso]);
+  const brief = useMemo(
+    () => (family ? weekBrief(family.items, todayIso, tag, { overdue: t.dash.briefOverdue, due: t.dash.briefDue, events: t.dash.briefEvents, quiet: t.dash.briefQuiet, more: t.dash.briefMore }, fmt) : []),
+    [family, todayIso, tag, t],
+  );
+  const packing = useMemo(() => (family ? bringList(family.items, todayIso) : []), [family, todayIso]);
+  // Ticks live in this browser only and reset with the day.
+  const [ticked, setTicked] = useState<string[]>([]);
+  const tickKey = `pd_bring_${todayIso}`;
+  useEffect(() => {
+    try {
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- reading local storage once per day
+      setTicked(JSON.parse(window.localStorage.getItem(tickKey) ?? "[]") as string[]);
+    } catch {
+      setTicked([]);
+    }
+  }, [tickKey]);
+  const toggleTick = (key: string) =>
+    setTicked((cur) => {
+      const next = cur.includes(key) ? cur.filter((k) => k !== key) : [...cur, key];
+      try {
+        window.localStorage.setItem(tickKey, JSON.stringify(next));
+      } catch {
+        /* storage unavailable */
+      }
+      return next;
+    });
 
   if (loading) return <p className="p-8 text-center text-sm text-zinc-500">{t.common.loading}</p>;
   if (!family || !summary) return <Landing />;
@@ -67,6 +93,44 @@ export default function DashboardView() {
               {t.landing.ctaSample}
             </Link>
           </div>
+        </section>
+      )}
+
+      {hasAny && (
+        <section className={`${CARD} mt-5 border-indigo-200 dark:border-indigo-900`}>
+          <p className="text-xs font-semibold uppercase tracking-wide text-indigo-700 dark:text-indigo-300">{t.dash.brief}</p>
+          <p dir="auto" className="mt-1 text-sm leading-relaxed">{brief.join(" ")}</p>
+        </section>
+      )}
+
+      {packing.length > 0 && (
+        <section className={`${CARD} mt-4 border-sky-200 dark:border-sky-900`}>
+          <p className="text-xs font-semibold uppercase tracking-wide text-sky-700 dark:text-sky-300">{t.dash.bring}</p>
+          <ul className="mt-2 grid gap-3">
+            {packing.map(({ item, dayOffset }) => (
+              <li key={item.id} className="text-sm">
+                <p className="flex flex-wrap items-center gap-2 text-xs text-zinc-500">
+                  <span className="rounded-full bg-sky-100 px-2 py-0.5 font-medium text-sky-900 dark:bg-sky-900/50 dark:text-sky-200">{dayOffset === 0 ? t.dash.bringToday : t.dash.bringTomorrow}</span>
+                  <span dir="auto" className="font-medium text-zinc-800 dark:text-zinc-200">{item.title}</span>
+                  <ChildChips childrenList={family.children} ids={item.childIds} />
+                </p>
+                <ul className="mt-1 grid gap-1">
+                  {item.bring.map((b, i) => {
+                    const key = `${item.id}:${i}`;
+                    const on = ticked.includes(key);
+                    return (
+                      <li key={key}>
+                        <label className={`flex items-center gap-2 ${on ? "text-zinc-400 line-through" : ""}`}>
+                          <input type="checkbox" checked={on} onChange={() => toggleTick(key)} />
+                          <span dir="auto">{b}</span>
+                        </label>
+                      </li>
+                    );
+                  })}
+                </ul>
+              </li>
+            ))}
+          </ul>
         </section>
       )}
 

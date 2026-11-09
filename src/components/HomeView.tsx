@@ -5,7 +5,9 @@ import { useMemo, useState } from "react";
 import { useFamily } from "@/lib/family-context";
 import { useI18n } from "@/lib/i18n/context";
 import { localePath } from "@/lib/i18n/locales";
-import { BUCKET_ORDER, bucketOf, daysBetween, todayIn, type Bucket } from "@/lib/dates";
+import { findClashes } from "@/lib/dashboard";
+import { BUCKET_ORDER, bucketOf, daysBetween, formatDate, formatTime, todayIn, type Bucket } from "@/lib/dates";
+import { LOCALE_TAGS } from "@/lib/i18n/locales";
 import type { Item } from "@/lib/store";
 import { BTN_PRIMARY, BTN_SECONDARY, CARD } from "@/lib/ui";
 import AskBox from "./AskBox";
@@ -47,6 +49,9 @@ export default function HomeView() {
     .sort(byDate)
     .slice(0, 8);
   const hasAny = family.items.length > 0;
+  const clashes = findClashes(family.items);
+  const childName = (ids: string[]) => ids.map((id) => family.children.find((c) => c.id === id)?.name).filter(Boolean).join(", ");
+  const tag = LOCALE_TAGS[locale];
 
   return (
     <main className="mx-auto w-full max-w-3xl px-4 py-6">
@@ -73,6 +78,20 @@ export default function HomeView() {
           </div>
           <Landing compact />
         </div>
+      )}
+
+      {hasAny && clashes.length > 0 && (
+        <aside className="mt-4 rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm dark:border-amber-900 dark:bg-amber-950/40" role="status">
+          <p className="font-semibold text-amber-900 dark:text-amber-200">{t.home.clash}</p>
+          <ul className="mt-1 grid gap-1 text-amber-900 dark:text-amber-100">
+            {clashes.map((c) => (
+              <li key={`${c.a.id}-${c.b.id}`} dir="auto">
+                {formatDate(c.date, tag)} · {formatTime(c.a.time as string, tag)} {childName(c.a.childIds)}: {c.a.title} / {formatTime(c.b.time as string, tag)} {childName(c.b.childIds)}: {c.b.title}
+              </li>
+            ))}
+          </ul>
+          <p className="mt-1 text-xs text-amber-800 dark:text-amber-300">{t.home.clashHint}</p>
+        </aside>
       )}
 
       {hasAny && needsAction.length > 0 && (

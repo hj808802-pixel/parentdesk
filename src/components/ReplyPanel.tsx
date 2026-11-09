@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { api, ApiFailure, writeClipboard } from "@/lib/client";
 import { useI18n } from "@/lib/i18n/context";
 import { BTN_SMALL, INPUT } from "@/lib/ui";
@@ -11,10 +11,11 @@ type Intent = (typeof INTENTS)[number];
 // Drafts a message to the school about one item. The parent edits it here and copies
 // it into e-mail, the school app or the reply slip; nothing is sent from ParentDesk.
 
-export default function ReplyPanel({ itemId, onClose }: { itemId: string; onClose: () => void }) {
+export default function ReplyPanel({ itemId, onClose, initialIntent = "yes", initialNote = "", autoStart = false }: { itemId: string; onClose: () => void; initialIntent?: Intent; initialNote?: string; autoStart?: boolean }) {
   const { t } = useI18n();
-  const [intent, setIntent] = useState<Intent>("yes");
-  const [note, setNote] = useState("");
+  const [intent, setIntent] = useState<Intent>(initialIntent);
+  const [note, setNote] = useState(initialNote);
+  const started = useRef(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [draft, setDraft] = useState<{ reply: string; translation: string | null; subject: string | null } | null>(null);
@@ -34,6 +35,14 @@ export default function ReplyPanel({ itemId, onClose }: { itemId: string; onClos
       setBusy(false);
     }
   }
+
+  // A question from the notice page arrives ready to send: draft it straight away.
+  useEffect(() => {
+    if (!autoStart || started.current) return;
+    started.current = true;
+    void write();
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- once, on mount
+  }, []);
 
   async function copy() {
     if (!draft) return;
