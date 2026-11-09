@@ -2,8 +2,8 @@ import Anthropic from "@anthropic-ai/sdk";
 import { betaZodOutputFormat } from "@anthropic-ai/sdk/helpers/beta/zod";
 import { weekday } from "./dates";
 import { ASSIST_MODEL, CLASSIFY_MODEL, LANGUAGE_NAMES, isMock } from "./extract";
-import { AskSchema, ClassifySchema, ComposeSchema, ExplainSchema, ParentMessageSchema, ReplySchema, TranslatedPostSchema, type Ask, type Classify, type Compose, type Explain, type NoticeKind, type ParentMessage, type Reply } from "./schema";
-import { countryOf } from "./countries";
+import { AskSchema, ClassifySchema, ComposeSchema, ExplainSchema, OUTPUT_LANGUAGES, ParentMessageSchema, ReplySchema, SettingsSuggestionSchema, TranslatedPostSchema, type Ask, type Classify, type Compose, type Explain, type NoticeKind, type ParentMessage, type Reply, type SettingsSuggestion } from "./schema";
+import { COUNTRIES, TIMEZONES, countryOf } from "./countries";
 import type { ItemDraft } from "./store";
 import type { FamilyRecord, Item, Settings, Source } from "./types";
 
@@ -367,4 +367,62 @@ export async function helpParentMessage(teacher: TeacherLike, text: string, toda
   if (!response.parsed_output) throw new Error("no structured output");
   const r = response.parsed_output;
   return { result: { ...r, translation: r.translation.slice(0, 4000), reply: r.reply.slice(0, 3000), reply_translated: r.reply_translated.slice(0, 3000), summary: r.summary.slice(0, 400) }, model: response.model, mock: false };
+}
+
+const SETUP_RULES = `You change the settings of a family's ParentDesk account from what a parent says in plain words, or answer a short question about the settings. ParentDesk turns school notices into a family calendar and to-do list.
+
+- Fill only the fields the parent clearly asks to change; everything else stays null (lists empty). Never guess.
+- A move to another country: set country only; the app derives time zone, currency, date order and week start from it unless the parent names them.
+- country, language and timezone values must come from the lists given. If a country is not on the list, use "XX" and say so in the reply.
+- Children: add, remove or rename by first name or nickname only. Never ask for or record birth dates or school names.
+- Family members: when the parent adds or removes an adult, return the complete new list, built from the current list.
+- When the parent asks how to do something (put items on the phone's calendar, install the app on the home screen, invite a partner, forward e-mails, phone automation, class rooms), answer in one or two plain sentences, set section to the matching section, and change nothing.
+- reply: in the target language, warm and plain, one or two sentences. When something changes, say what in words. When the request is unclear, say what you need; never pretend to have done something.`;
+
+// "Add my second child Mia", "we moved to Japan": plain words to a settings suggestion.
+export async function suggestSettings(rec: FamilyRecord, text: string, uiLocale: string, todayIso: string): Promise<{ result: SettingsSuggestion; model: string; mock: boolean }> {
+  const s = rec.settings;
+  if (isMock()) {
+    const lower = text.toLowerCase();
+    const country = COUNTRIES.find((c) => c.code !== "XX" && lower.includes(c.name.toLowerCase())) ?? null;
+    const week = /sunday|일요일/.test(lower) ? "sunday" : /monday|월요일/.test(lower) ? "monday" : null;
+    const section = /calendar|캘린더/.test(lower) ? "calendar" : /install|home screen|홈 화면/.test(lower) ? "install" : null;
+    return {
+      result: {
+        reply: country || week ? "(demo) Here is what would change." : section ? "(demo) The section to look at is marked below." : "(demo) The settings assistant needs the model; nothing changed.",
+        settings: { familyName: null, country: country?.code ?? null, language: null, timezone: null, currency: null, dateOrder: null, weekStartsOn: week, digestEmail: null, digest: null, members: null },
+        children: { add: [], remove: [], rename: [] },
+        section,
+      },
+      model: "mock",
+      mock: true,
+    };
+  }
+  const context = [
+    `Current settings: family name "${s.familyName}", country ${s.country}, result language ${s.language}, time zone ${s.timezone}, currency ${s.currency}, date order ${s.dateOrder}, week starts on ${s.weekStart === 0 ? "sunday" : "monday"}, weekly summary ${s.digest ? "on" : "off"}, summary e-mail "${s.digestEmail}".`,
+    `Children: ${rec.children.map((c) => c.name).join(", ") || "(none)"}.`,
+    `Family members: ${(s.members ?? []).join(", ") || "(none)"}.`,
+    `Countries (code name): ${COUNTRIES.map((c) => `${c.code} ${c.name}`).join("; ")}.`,
+    `Result languages (code label): ${OUTPUT_LANGUAGES.map((l) => `${l.code} ${l.label}`).join("; ")}.`,
+    `Time zones: ${TIMEZONES.join(", ")}.`,
+    `Today: ${todayIso}.`,
+  ].join("\n");
+  const client = new Anthropic();
+  const response = await client.beta.messages.parse({
+    model: ASSIST_MODEL,
+    max_tokens: 800,
+    system: [{ type: "text", text: SETUP_RULES }],
+    messages: [
+      {
+        role: "user",
+        content: [
+          { type: "text", text: `<settings>\n${context}\n</settings>` },
+          { type: "text", text: `Target language: ${languageName(uiLocale)}.\n<request>\n${text}\n</request>` },
+        ],
+      },
+    ],
+    output_config: { effort: "low", format: betaZodOutputFormat(SettingsSuggestionSchema) },
+  });
+  if (!response.parsed_output) throw new Error("no structured output");
+  return { result: response.parsed_output, model: response.model, mock: false };
 }

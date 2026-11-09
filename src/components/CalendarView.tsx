@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useMemo, useState } from "react";
+import { useState } from "react";
 import { itemsByDay, monthGrid, shiftMonth } from "@/lib/calendar";
 import { addDays, formatDate, startOfWeek, todayIn } from "@/lib/dates";
 import { useFamily } from "@/lib/family-context";
@@ -9,7 +9,8 @@ import { useI18n } from "@/lib/i18n/context";
 import { fmt } from "@/lib/i18n";
 import { LOCALE_TAGS, localePath } from "@/lib/i18n/locales";
 import type { Item } from "@/lib/store";
-import { BTN_PRIMARY, BTN_SECONDARY, BTN_SMALL, CARD } from "@/lib/ui";
+import { BTN_PRIMARY, BTN_SMALL, CARD } from "@/lib/ui";
+import CalendarLinks from "./CalendarLinks";
 import ItemCard from "./ItemCard";
 import Landing from "./Landing";
 
@@ -28,8 +29,9 @@ export default function CalendarView() {
   const month = pickedMonth ?? todayIso.slice(0, 7);
   const selected = picked ?? todayIso;
   const weekStart = family?.settings.weekStart ?? 1;
-  const cells = useMemo(() => monthGrid(month, weekStart), [month, weekStart]);
-  const byDay = useMemo(() => (family ? itemsByDay(family.items) : new Map<string, Item[]>()), [family]);
+  // Both are cheap (at most 42 cells, one pass over the items); the compiler memoises.
+  const cells = monthGrid(month, weekStart);
+  const byDay = family ? itemsByDay(family.items) : new Map<string, Item[]>();
 
   if (loading) return <p className="p-8 text-center text-sm text-zinc-500">{t.common.loading}</p>;
   if (!family) return <Landing compact />;
@@ -121,8 +123,9 @@ export default function CalendarView() {
       <aside className={`${CARD} mt-8 border-indigo-200 bg-indigo-50 dark:border-indigo-900 dark:bg-indigo-950/40`}>
         <p className="font-semibold">{t.home.subscribeTitle}</p>
         <p className="mt-1 text-sm text-zinc-700 dark:text-zinc-300">{t.home.subscribeBody}</p>
-        <Link href={localePath(locale, "/settings#calendar")} className={`${BTN_SECONDARY} mt-3`}>
-          {t.home.subscribeCta}
+        <CalendarLinks feedToken={family.feedToken} name={family.settings.familyName} />
+        <Link href={localePath(locale, "/settings#calendar")} className="mt-3 inline-block text-xs text-zinc-500 underline underline-offset-4">
+          {t.settings.setup.calOther}
         </Link>
       </aside>
     </main>

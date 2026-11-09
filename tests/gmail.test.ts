@@ -21,7 +21,7 @@ describe("crypto", () => {
     expect(sealed).not.toContain("refresh-token");
     expect(decrypt(sealed)).toBe("1//refresh-token-value");
     const parts = sealed.split(".");
-    parts[3] = parts[3].slice(0, -2) + "AA";
+    parts[3] = parts[3].slice(0, -2) + (parts[3].endsWith("AA") ? "BB" : "AA"); // always a different tag (plain "AA" matched the real tag about once in 4000 runs)
     expect(() => decrypt(parts.join("."))).toThrow();
     expect(encrypt("a")).not.toBe(encrypt("a")); // fresh iv each time
   });

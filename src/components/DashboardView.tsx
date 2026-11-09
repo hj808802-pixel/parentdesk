@@ -9,7 +9,8 @@ import { useFamily } from "@/lib/family-context";
 import { useI18n } from "@/lib/i18n/context";
 import { fmt } from "@/lib/i18n";
 import { LOCALE_TAGS, localePath } from "@/lib/i18n/locales";
-import { BTN_PRIMARY, BTN_SECONDARY, CARD, TYPE_STYLES } from "@/lib/ui";
+import { FLAG_CALENDAR, FLAG_SETUP_HIDDEN, isInstalled, readFlag, writeFlag } from "@/lib/setup";
+import { BTN_PRIMARY, BTN_SECONDARY, BTN_SMALL, CARD, TYPE_STYLES } from "@/lib/ui";
 import AskBox from "./AskBox";
 import ChildChips from "./ChildChips";
 import Landing from "./Landing";
@@ -64,6 +65,12 @@ export default function DashboardView() {
       setTicked([]);
     }
   }, [tickKey]);
+  // The three easy-setup steps (settings page); two of them are per device.
+  const [setup, setSetup] = useState<{ cal: boolean; installed: boolean; hidden: boolean } | null>(null);
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- reading local storage once
+    setSetup({ cal: readFlag(FLAG_CALENDAR), installed: isInstalled(), hidden: readFlag(FLAG_SETUP_HIDDEN) });
+  }, []);
   const toggleTick = (key: string) =>
     setTicked((cur) => {
       const next = cur.includes(key) ? cur.filter((k) => k !== key) : [...cur, key];
@@ -82,6 +89,7 @@ export default function DashboardView() {
   const payEntries = Object.entries(summary.toPay.totals);
   const payText = payEntries.length ? `${formatMoney(payEntries[0][1], payEntries[0][0] || family.settings.currency, tag)}${payEntries.length > 1 ? " +" : ""}` : String(summary.toPay.count);
   const rooms = family.rooms ?? [];
+  const setupLeft = setup ? [family.children.length > 0, setup.cal, setup.installed].filter((done) => !done).length : 0;
 
   const actions = [
     { href: "/add", label: t.dash.actions.add, icon: "＋", primary: true },
@@ -125,6 +133,30 @@ export default function DashboardView() {
         <section className={`${CARD} mt-5 border-indigo-200 dark:border-indigo-900`}>
           <p className="text-xs font-semibold uppercase tracking-wide text-indigo-700 dark:text-indigo-300">{t.dash.brief}</p>
           <p dir="auto" className="mt-1 text-sm leading-relaxed">{brief.join(" ")}</p>
+        </section>
+      )}
+
+      {setup && !setup.hidden && setupLeft > 0 && (
+        <section className={`${CARD} mt-4`}>
+          <div className="flex items-start justify-between gap-2">
+            <div>
+              <p className="font-semibold">{t.settings.setup.title}</p>
+              <p className="mt-1 text-sm text-zinc-600 dark:text-zinc-400">{fmt(t.settings.setup.progress, { n: 3 - setupLeft })}</p>
+            </div>
+            <button
+              type="button"
+              className={BTN_SMALL}
+              onClick={() => {
+                writeFlag(FLAG_SETUP_HIDDEN);
+                setSetup({ ...setup, hidden: true });
+              }}
+            >
+              {t.settings.setup.hide}
+            </button>
+          </div>
+          <Link href={localePath(locale, "/settings#setup")} className={`${BTN_PRIMARY} mt-3`}>
+            {t.settings.setup.open}
+          </Link>
         </section>
       )}
 

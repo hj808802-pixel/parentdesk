@@ -1,4 +1,5 @@
 import type { RoomPost, RoomPublic, TeacherView } from "./rooms";
+import type { SettingsSuggestion } from "./schema";
 import type { FamilyView, Item, PlanLimits } from "./types";
 
 // Thin fetch helpers for the browser. Every call carries the HttpOnly family cookie.
@@ -45,6 +46,7 @@ export const api = {
   deleteItem: (id: string) => call<{ ok: true }>(`/api/items/${id}`, { method: "DELETE" }),
   deleteSource: (id: string) => call<{ ok: true; family: FamilyView }>(`/api/sources/${id}`, { method: "DELETE" }),
   ask: (question: string) => call<{ ok: true; answer: string; items: Item[]; mock: boolean }>("/api/ask", { method: "POST", body: JSON.stringify({ question }) }),
+  assistSettings: (text: string, locale: string) => call<SettingsSuggestion & { ok: true; mock: boolean }>("/api/family/assist-settings", { method: "POST", body: JSON.stringify({ text, locale }) }),
   explain: (id: string) => call<{ ok: true; explanation: string; what_to_do: string[]; context: string | null; ask_school: string | null; mock: boolean }>(`/api/items/${id}/explain`, { method: "POST" }),
   reply: (id: string, intent: string, note: string) =>
     call<{ ok: true; reply: string; translation: string | null; subject: string | null; mock: boolean }>(`/api/items/${id}/reply`, { method: "POST", body: JSON.stringify({ intent, note }) }),

@@ -167,6 +167,34 @@ export const ParentMessageSchema = z.object({
 });
 export type ParentMessage = z.infer<typeof ParentMessageSchema>;
 
+// A parent's settings request in plain words, mapped to fields (lib/assist.ts
+// suggestSettings). Every field is nullable: null means "leave as it is".
+export const SETUP_SECTIONS = ["children", "calendar", "install", "family", "region", "collect", "share", "digest", "plan", "rooms"] as const;
+export type SetupSection = (typeof SETUP_SECTIONS)[number];
+
+export const SettingsSuggestionSchema = z.object({
+  reply: z.string().describe("One or two short sentences to the parent in the target language: what will change, the answer to their question, or what was not understood."),
+  settings: z.object({
+    familyName: z.string().nullable(),
+    country: z.string().nullable().describe("ISO 3166-1 alpha-2 code from the country list, when the parent names a country or a move."),
+    language: z.string().nullable().describe("Result language code from the language list."),
+    timezone: z.string().nullable().describe("IANA time zone from the list."),
+    currency: z.string().nullable().describe("ISO 4217 code."),
+    dateOrder: z.enum(["MDY", "DMY", "YMD"]).nullable(),
+    weekStartsOn: z.enum(["sunday", "monday"]).nullable(),
+    digestEmail: z.string().nullable().describe("Where the weekly summary e-mail goes."),
+    digest: z.boolean().nullable().describe("Weekly summary on or off."),
+    members: z.array(z.string()).nullable().describe("The complete new list of adults who share the load, when the parent changes it."),
+  }),
+  children: z.object({
+    add: z.array(z.string()).describe("First names or nicknames of children to add."),
+    remove: z.array(z.string()).describe("Children to remove, by their current name."),
+    rename: z.array(z.object({ from: z.string(), to: z.string() })),
+  }),
+  section: z.enum(SETUP_SECTIONS).nullable().describe("The settings section to open when the parent asks how to do something, else null."),
+});
+export type SettingsSuggestion = z.infer<typeof SettingsSuggestionSchema>;
+
 export function isOutputLanguage(x: unknown): x is OutputLanguage {
   return typeof x === "string" && OUTPUT_LANGUAGES.some((l) => l.code === x);
 }

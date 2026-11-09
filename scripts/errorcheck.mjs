@@ -85,6 +85,7 @@ expect("items bulk: no family", await call("POST", "/api/items/bulk", { json: { 
 expect("reply: no family", await call("POST", "/api/items/abc/reply", { json: { intent: "yes" } }), 404);
 expect("explain: no family", await call("POST", "/api/items/abc/explain"), 404);
 expect("ask: no family", await call("POST", "/api/ask", { json: { question: "what is due?" } }), 404);
+expect("setup: no family", await call("POST", "/api/family/assist-settings", { json: { text: "add a child" } }), 404);
 expect("source delete: no family", await call("DELETE", "/api/sources/abc"), 404);
 expect("calendar: garbage token", await call("GET", "/api/calendar/nope.ics"), 404);
 expect("hook: malformed token", await call("POST", "/api/hook/nope", { json: { text: "hello from school" } }), 404);
@@ -214,6 +215,9 @@ if (key) {
   expect("explain: unknown item", await call("POST", "/api/items/zzz/explain"), 404);
   expect("source delete: unknown id", await call("DELETE", "/api/sources/zzz"), 404);
   expect("ask: empty question", await call("POST", "/api/ask", { json: { question: "" } }), 400);
+  expect("setup: empty text", await call("POST", "/api/family/assist-settings", { json: { text: "" } }), 400);
+  expect("setup: not json", await call("POST", "/api/family/assist-settings", { json: "nope" }), 400);
+  expect("setup: too long", await call("POST", "/api/family/assist-settings", { json: { text: "x".repeat(700) } }), 400);
   expect("ask: not json", await call("POST", "/api/ask", { json: "nope" }), 400);
   expect("google scan: not connected or off", await call("POST", "/api/google/scan"), [400, 404]);
   expect("billing portal: no subscription or off", await call("POST", "/api/billing/portal"), [400, 404]);

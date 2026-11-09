@@ -8,6 +8,7 @@ import { LocaleProvider } from "@/lib/i18n/context";
 import { FamilyProvider } from "@/lib/family-context";
 import LanguageSwitcher from "@/components/LanguageSwitcher";
 import NavLinks from "@/components/NavLinks";
+import ErrorToast from "@/components/ErrorToast";
 import RegisterSw from "@/components/RegisterSw";
 
 const geistSans = Geist({ variable: "--font-geist-sans", subsets: ["latin"] });
@@ -48,6 +49,8 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
     twitter: { card: "summary_large_image", title: t.meta.title, description: t.meta.description, images: ["/og.png"] },
     robots: { index: true, follow: true },
     manifest: "/manifest.webmanifest",
+    // Added to an iPhone home screen, the app opens full screen under its own name.
+    appleWebApp: { capable: true, title: t.meta.siteName, statusBarStyle: "default" },
     icons: {
       icon: [{ url: "/favicon.ico" }, { url: "/icon-192.png", sizes: "192x192", type: "image/png" }],
       apple: [{ url: "/apple-touch-icon.png", sizes: "180x180", type: "image/png" }],
@@ -79,6 +82,10 @@ if(r&&r.parentNode!==this)return ib.call(this,n,up(this,r)||null);
 return ib.apply(this,arguments);};
 })();`;
 
+// Chrome fires beforeinstallprompt once, early; keep it so the settings page can offer a
+// real "Install" button later (components/InstallCard.tsx).
+const INSTALL_CAPTURE = `window.addEventListener("beforeinstallprompt",function(e){e.preventDefault();window.__pdInstallPrompt=e;window.dispatchEvent(new Event("pd-installable"));});`;
+
 export default async function RootLayout({ children, params }: Props) {
   const locale = resolveLocale((await params).locale);
   const t = getDict(locale);
@@ -86,6 +93,7 @@ export default async function RootLayout({ children, params }: Props) {
     <html lang={LOCALE_TAGS[locale]} className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}>
       <head>
         <script dangerouslySetInnerHTML={{ __html: TRANSLATE_GUARD }} />
+        <script dangerouslySetInnerHTML={{ __html: INSTALL_CAPTURE }} />
       </head>
       <body className="flex min-h-full flex-col bg-zinc-50 text-zinc-900 dark:bg-zinc-950 dark:text-zinc-100">
         <LocaleProvider locale={locale} dict={t}>
@@ -104,6 +112,7 @@ export default async function RootLayout({ children, params }: Props) {
             </header>
             <div className="flex-1">{children}</div>
             <NavLinks className="sticky bottom-0 z-20 flex justify-around border-t bg-white/95 px-2 py-2 backdrop-blur sm:hidden dark:border-zinc-800 dark:bg-zinc-900/95" mobile />
+            <ErrorToast />
             <footer className="border-t px-4 py-6 text-center text-xs text-zinc-500 dark:border-zinc-800">
               <p>{t.nav.footer}</p>
               <p className="mt-2 flex flex-wrap justify-center gap-x-3 gap-y-1">
