@@ -10,7 +10,7 @@ export const pt: Dict = {
   nav: {
     brand: "ParentDesk",
     beta: "beta",
-    week: "Esta semana",
+    week: "Agenda",
     home: "Início",
     add: "Adicionar",
     items: "Itens",
@@ -69,13 +69,13 @@ export const pt: Dict = {
     toSignSub: "{n} formulários",
     actions: {
       add: "Adicionar comunicado",
-      week: "Esta semana",
+      week: "Agenda",
       calendar: "Calendário",
       teach: "Professores",
     },
     next: "Em breve",
     nextEmpty: "Nada agendado ainda.",
-    openWeek: "Ver a semana toda",
+    openWeek: "Ver toda a agenda",
     recent: "Comunicados recentes",
     recentEmpty: "Nenhum comunicado ainda.",
     allNotices: "Todos os comunicados",
@@ -103,7 +103,7 @@ export const pt: Dict = {
     bringCopy: "Copiar lista",
   },
   home: {
-    title: "Esta semana",
+    title: "Agenda",
     empty: "Ainda não há nada na lista.",
     emptyHint: "Adicione um comunicado e as datas e tarefas aparecem aqui.",
     needsAction: "Precisa da sua ação",
@@ -155,7 +155,7 @@ export const pt: Dict = {
     questions: "Vale confirmar com a escola",
     savedHint: "Salvo na sua família. Corrija ou ignore o que parecer errado.",
     addAnother: "Adicionar outro comunicado",
-    viewWeek: "Ver esta semana",
+    viewWeek: "Ver a agenda",
     summary: "Resumo",
     errors: {
       no_files: "Adicione antes uma foto, um PDF ou um texto.",
@@ -223,7 +223,7 @@ export const pt: Dict = {
     status: { open: "Em aberto", done: "Concluído", dismissed: "Ignorado" },
   },
   items: {
-    title: "Todos os itens",
+    title: "Itens",
     filterAll: "Todos",
     filterOpen: "Em aberto",
     filterDone: "Concluídos",
@@ -380,7 +380,7 @@ export const pt: Dict = {
     title: "Entrar em uma família",
     working: "Entrando…",
     done: "Pronto. Este aparelho agora mostra a lista da sua família.",
-    goWeek: "Ver esta semana",
+    goWeek: "Ver a agenda",
     invalid: "Este link de convite não é mais válido. Peça um novo ao seu parceiro ou cole a chave da família em Ajustes.",
     roomTitle: "Seguir uma sala da turma",
     roomLead: "{teacher} convida você a seguir “{room}”. Cada comunicado publicado ali aparece na sua lista e no calendário, no seu idioma.",
@@ -615,7 +615,7 @@ export const pt: Dict = {
   notFound: {
     title: "Página não encontrada",
     body: "O endereço pode estar errado ou a página pode ter mudado de lugar.",
-    home: "Ir para esta semana",
+    home: "Ir para o início",
   },
   error: {
     title: "Algo deu errado",

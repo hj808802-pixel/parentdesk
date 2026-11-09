@@ -10,10 +10,10 @@ export const vi: Dict = {
   nav: {
     brand: "ParentDesk",
     beta: "beta",
-    week: "Tuần này",
+    week: "Lịch",
     home: "Trang chủ",
     add: "Thêm",
-    items: "Tất cả mục",
+    items: "Mục",
     sources: "Thông báo",
     settings: "Cài đặt",
     privacy: "Quyền riêng tư",
@@ -69,13 +69,13 @@ export const vi: Dict = {
     toSignSub: "{n} giấy tờ",
     actions: {
       add: "Thêm thông báo",
-      week: "Tuần này",
+      week: "Lịch",
       calendar: "Lịch",
       teach: "Giáo viên",
     },
     next: "Sắp tới",
     nextEmpty: "Chưa có lịch nào.",
-    openWeek: "Xem cả tuần",
+    openWeek: "Xem toàn bộ lịch",
     recent: "Thông báo gần đây",
     recentEmpty: "Chưa có thông báo.",
     allNotices: "Tất cả thông báo",
@@ -103,7 +103,7 @@ export const vi: Dict = {
     bringCopy: "Sao chép danh sách",
   },
   home: {
-    title: "Tuần này",
+    title: "Lịch",
     empty: "Danh sách chưa có gì.",
     emptyHint: "Thêm một thông báo và ngày giờ, việc cần làm sẽ xuất hiện ở đây.",
     needsAction: "Cần bạn xử lý",
@@ -155,7 +155,7 @@ export const vi: Dict = {
     questions: "Nên hỏi lại nhà trường",
     savedHint: "Đã lưu vào gia đình bạn. Sửa hoặc bỏ qua mục nào có vẻ sai.",
     addAnother: "Thêm thông báo khác",
-    viewWeek: "Xem tuần này",
+    viewWeek: "Xem lịch",
     summary: "Tóm tắt",
     errors: {
       no_files: "Hãy thêm ảnh, PDF hoặc văn bản trước.",
@@ -223,7 +223,7 @@ export const vi: Dict = {
     status: { open: "Đang mở", done: "Đã xong", dismissed: "Đã bỏ qua" },
   },
   items: {
-    title: "Tất cả mục",
+    title: "Mục",
     filterAll: "Tất cả",
     filterOpen: "Đang mở",
     filterDone: "Đã xong",
@@ -380,7 +380,7 @@ export const vi: Dict = {
     title: "Tham gia gia đình",
     working: "Đang tham gia…",
     done: "Xong. Thiết bị này giờ hiển thị danh sách của gia đình bạn.",
-    goWeek: "Xem tuần này",
+    goWeek: "Xem lịch",
     invalid: "Liên kết mời này không còn hiệu lực. Hãy xin bạn đời một liên kết mới, hoặc dán khóa gia đình trong Cài đặt.",
     roomTitle: "Theo dõi phòng lớp",
     roomLead: "{teacher} mời bạn theo dõi “{room}”. Mọi thông báo đăng ở đó sẽ xuất hiện trong danh sách và lịch của bạn, bằng ngôn ngữ của bạn.",
@@ -615,7 +615,7 @@ export const vi: Dict = {
   notFound: {
     title: "Không tìm thấy trang",
     body: "Địa chỉ có thể sai hoặc trang đã chuyển đi.",
-    home: "Về trang tuần này",
+    home: "Về trang chủ",
   },
   error: {
     title: "Có lỗi xảy ra",

@@ -10,10 +10,10 @@ export const ja: Dict = {
   nav: {
     brand: "ParentDesk",
     beta: "ベータ",
-    week: "今週",
+    week: "予定",
     home: "ホーム",
     add: "追加",
-    items: "すべて",
+    items: "項目",
     sources: "お便り",
     settings: "設定",
     privacy: "プライバシー",
@@ -68,13 +68,13 @@ export const ja: Dict = {
     toSignSub: "{n} 件",
     actions: {
       add: "お知らせを追加",
-      week: "今週",
+      week: "予定",
       calendar: "カレンダー",
       teach: "先生向け",
     },
     next: "この先の予定",
     nextEmpty: "まだ予定はありません。",
-    openWeek: "今週をすべて見る",
+    openWeek: "予定をすべて見る",
     recent: "最近のお知らせ",
     recentEmpty: "まだお知らせはありません。",
     allNotices: "お知らせ一覧",
@@ -102,7 +102,7 @@ export const ja: Dict = {
     bringCopy: "リストをコピー",
   },
   home: {
-    title: "今週",
+    title: "予定",
     empty: "まだ項目がありません。",
     emptyHint: "お便りを追加すると、日付とやることがここに入ります。",
     needsAction: "対応が必要",
@@ -154,7 +154,7 @@ export const ja: Dict = {
     questions: "学校に確認したいこと",
     savedHint: "家族に保存しました。違うものは修正するか非表示にしてください。",
     addAnother: "別のお便りを追加",
-    viewWeek: "今週を見る",
+    viewWeek: "予定を見る",
     summary: "要約",
     errors: {
       no_files: "先に写真、PDF、または文章を入れてください。",
@@ -222,7 +222,7 @@ export const ja: Dict = {
     status: { open: "未完了", done: "完了", dismissed: "非表示" },
   },
   items: {
-    title: "すべての項目",
+    title: "項目",
     filterAll: "すべて",
     filterOpen: "未完了",
     filterDone: "完了",
@@ -378,7 +378,7 @@ export const ja: Dict = {
     title: "家族に参加",
     working: "参加中…",
     done: "完了。この端末で家族のリストが見られます。",
-    goWeek: "今週を見る",
+    goWeek: "予定を見る",
     invalid: "この招待リンクはもう使えません。パートナーに新しいリンクをもらうか、設定で家族キーを貼り付けてください。",
     roomTitle: "お知らせルームをフォロー",
     roomLead: "{teacher} 先生から「{room}」への招待です。そこに投稿されたお知らせは、あなたの言語でリストとカレンダーに表示されます。",
@@ -613,7 +613,7 @@ export const ja: Dict = {
   notFound: {
     title: "ページが見つかりません",
     body: "アドレスが間違っているか、ページが移動した可能性があります。",
-    home: "今週へ",
+    home: "ホームへ",
   },
   error: {
     title: "問題が発生しました",

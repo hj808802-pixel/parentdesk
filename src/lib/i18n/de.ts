@@ -10,10 +10,10 @@ export const de: Dict = {
   nav: {
     brand: "ParentDesk",
     beta: "Beta",
-    week: "Diese Woche",
+    week: "Termine",
     home: "Start",
     add: "Hinzufügen",
-    items: "Alles",
+    items: "Einträge",
     sources: "Briefe",
     settings: "Einstellungen",
     privacy: "Datenschutz",
@@ -68,13 +68,13 @@ export const de: Dict = {
     toSignSub: "{n} Formulare",
     actions: {
       add: "Elternbrief hinzufügen",
-      week: "Diese Woche",
+      week: "Termine",
       calendar: "Kalender",
       teach: "Lehrkräfte",
     },
     next: "Demnächst",
     nextEmpty: "Noch nichts geplant.",
-    openWeek: "Ganze Woche öffnen",
+    openWeek: "Alle Termine öffnen",
     recent: "Neueste Elternbriefe",
     recentEmpty: "Noch keine Elternbriefe.",
     allNotices: "Alle Elternbriefe",
@@ -102,7 +102,7 @@ export const de: Dict = {
     bringCopy: "Liste kopieren",
   },
   home: {
-    title: "Diese Woche",
+    title: "Termine",
     empty: "Noch nichts auf der Liste.",
     emptyHint: "Fügt einen Brief hinzu, dann landen seine Termine und Aufgaben hier.",
     needsAction: "Braucht euer Zutun",
@@ -154,7 +154,7 @@ export const de: Dict = {
     questions: "Bei der Schule nachfragen",
     savedHint: "In eurer Familie gespeichert. Korrigiert oder verwerft, was nicht stimmt.",
     addAnother: "Weiteren Brief hinzufügen",
-    viewWeek: "Diese Woche ansehen",
+    viewWeek: "Termine öffnen",
     summary: "Zusammenfassung",
     errors: {
       no_files: "Zuerst ein Foto, ein PDF oder Text hinzufügen.",
@@ -222,7 +222,7 @@ export const de: Dict = {
     status: { open: "Offen", done: "Erledigt", dismissed: "Verworfen" },
   },
   items: {
-    title: "Alle Einträge",
+    title: "Einträge",
     filterAll: "Alle",
     filterOpen: "Offen",
     filterDone: "Erledigt",
@@ -378,7 +378,7 @@ export const de: Dict = {
     title: "Einer Familie beitreten",
     working: "Beitreten…",
     done: "Fertig. Dieses Gerät zeigt jetzt die Liste Ihrer Familie.",
-    goWeek: "Diese Woche ansehen",
+    goWeek: "Termine öffnen",
     invalid: "Dieser Einladungslink ist nicht mehr gültig. Bitten Sie Ihren Partner um einen neuen oder fügen Sie in den Einstellungen den Familienschlüssel ein.",
     roomTitle: "Einem Klassenraum folgen",
     roomLead: "{teacher} lädt Sie ein, „{room}“ zu folgen. Jeder Elternbrief dort erscheint in Ihrer Liste und Ihrem Kalender, in Ihrer Sprache.",
@@ -613,7 +613,7 @@ export const de: Dict = {
   notFound: {
     title: "Seite nicht gefunden",
     body: "Die Adresse ist vielleicht falsch oder die Seite wurde verschoben.",
-    home: "Zu dieser Woche",
+    home: "Zur Startseite",
   },
   error: {
     title: "Etwas ist schiefgelaufen",

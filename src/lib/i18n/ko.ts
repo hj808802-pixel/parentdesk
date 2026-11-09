@@ -10,10 +10,10 @@ export const ko: Dict = {
   nav: {
     brand: "ParentDesk",
     beta: "베타",
-    week: "이번 주",
+    week: "일정",
     home: "홈",
     add: "추가",
-    items: "전체 항목",
+    items: "항목",
     sources: "안내문",
     settings: "설정",
     privacy: "개인정보",
@@ -68,13 +68,13 @@ export const ko: Dict = {
     toSignSub: "{n}건",
     actions: {
       add: "안내문 추가",
-      week: "이번 주",
+      week: "일정",
       calendar: "캘린더 피드",
       teach: "선생님용",
     },
     next: "다가오는 일정",
     nextEmpty: "아직 예정된 일정이 없습니다.",
-    openWeek: "이번 주 전체 보기",
+    openWeek: "일정 전체 보기",
     recent: "최근 안내문",
     recentEmpty: "아직 안내문이 없습니다.",
     allNotices: "안내문 전체",
@@ -102,7 +102,7 @@ export const ko: Dict = {
     bringCopy: "목록 복사",
   },
   home: {
-    title: "이번 주",
+    title: "일정",
     empty: "아직 항목이 없습니다.",
     emptyHint: "안내문을 추가하면 날짜와 할 일이 여기에 들어옵니다.",
     needsAction: "해야 할 일",
@@ -154,7 +154,7 @@ export const ko: Dict = {
     questions: "학교에 확인할 것",
     savedHint: "가족에 저장했습니다. 틀린 것은 고치거나 무시하세요.",
     addAnother: "안내문 더 추가",
-    viewWeek: "이번 주 보기",
+    viewWeek: "일정 보기",
     summary: "요약",
     errors: {
       no_files: "사진, PDF 또는 글을 먼저 넣어 주세요.",
@@ -222,7 +222,7 @@ export const ko: Dict = {
     status: { open: "진행 중", done: "완료", dismissed: "무시함" },
   },
   items: {
-    title: "전체 항목",
+    title: "항목",
     filterAll: "전체",
     filterOpen: "진행 중",
     filterDone: "완료",
@@ -378,7 +378,7 @@ export const ko: Dict = {
     title: "가족에 합류",
     working: "합류하는 중…",
     done: "완료. 이 기기에서 이제 우리 가족 목록이 보입니다.",
-    goWeek: "이번 주 보기",
+    goWeek: "일정 보기",
     invalid: "이 초대 링크는 더 이상 유효하지 않습니다. 배우자에게 새 링크를 받거나, 설정에서 가족 키를 붙여 넣으세요.",
     roomTitle: "반 알림방 구독",
     roomLead: "{teacher}의 “{room}” 알림방에 초대받았습니다. 거기 올라오는 안내문이 내 언어로 목록과 캘린더에 들어옵니다.",
@@ -613,7 +613,7 @@ export const ko: Dict = {
   notFound: {
     title: "페이지를 찾을 수 없습니다",
     body: "주소가 틀렸거나 페이지가 옮겨졌을 수 있습니다.",
-    home: "이번 주로 가기",
+    home: "홈으로",
   },
   error: {
     title: "문제가 생겼습니다",

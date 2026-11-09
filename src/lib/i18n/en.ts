@@ -11,10 +11,10 @@ export const en = {
   nav: {
     brand: "ParentDesk",
     beta: "beta",
-    week: "This week",
+    week: "Schedule",
     home: "Home",
     add: "Add",
-    items: "All items",
+    items: "Items",
     sources: "Notices",
     settings: "Settings",
     privacy: "Privacy",
@@ -70,13 +70,13 @@ export const en = {
     toSignSub: "{n} forms",
     actions: {
       add: "Add a notice",
-      week: "This week",
+      week: "Schedule",
       calendar: "Calendar feed",
       teach: "For teachers",
     },
     next: "Coming up",
     nextEmpty: "Nothing scheduled yet.",
-    openWeek: "Open this week",
+    openWeek: "Open the schedule",
     recent: "Recent notices",
     recentEmpty: "No notices yet.",
     allNotices: "All notices",
@@ -104,7 +104,7 @@ export const en = {
     bringCopy: "Copy list",
   },
   home: {
-    title: "This week",
+    title: "Schedule",
     empty: "Nothing on the list yet.",
     emptyHint: "Add a notice and its dates and to-dos land here.",
     needsAction: "Needs your action",
@@ -156,7 +156,7 @@ export const en = {
     questions: "Worth checking with the school",
     savedHint: "Saved to your family. Fix or dismiss anything that looks wrong.",
     addAnother: "Add another notice",
-    viewWeek: "See this week",
+    viewWeek: "Open the schedule",
     summary: "Summary",
     errors: {
       no_files: "Add a photo, a PDF or some text first.",
@@ -224,7 +224,7 @@ export const en = {
     status: { open: "Open", done: "Done", dismissed: "Dismissed" },
   },
   items: {
-    title: "All items",
+    title: "Items",
     filterAll: "All",
     filterOpen: "Open",
     filterDone: "Done",
@@ -381,7 +381,7 @@ export const en = {
     title: "Join a family",
     working: "Joining…",
     done: "Done. This device now shows your family's list.",
-    goWeek: "See this week",
+    goWeek: "Open the schedule",
     invalid: "This invite link is not valid any more. Ask your partner for a new one, or paste the family key in Settings.",
     roomTitle: "Follow a class room",
     roomLead: "{teacher} invites you to follow “{room}”. Every notice posted there appears on your list and calendar, in your language.",
@@ -616,7 +616,7 @@ export const en = {
   notFound: {
     title: "Page not found",
     body: "The address may be wrong or the page may have moved.",
-    home: "Go to this week",
+    home: "Go to the home screen",
   },
   error: {
     title: "Something went wrong",

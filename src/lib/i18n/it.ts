@@ -10,10 +10,10 @@ export const it: Dict = {
   nav: {
     brand: "ParentDesk",
     beta: "beta",
-    week: "Settimana",
+    week: "Agenda",
     home: "Home",
     add: "Aggiungi",
-    items: "Voci",
+    items: "Elementi",
     sources: "Circolari",
     settings: "Impostazioni",
     privacy: "Privacy",
@@ -69,13 +69,13 @@ export const it: Dict = {
     toSignSub: "{n} moduli",
     actions: {
       add: "Aggiungi comunicazione",
-      week: "Questa settimana",
+      week: "Agenda",
       calendar: "Calendario",
       teach: "Insegnanti",
     },
     next: "In arrivo",
     nextEmpty: "Ancora niente in programma.",
-    openWeek: "Vedi tutta la settimana",
+    openWeek: "Vedi tutta l'agenda",
     recent: "Comunicazioni recenti",
     recentEmpty: "Ancora nessuna comunicazione.",
     allNotices: "Tutte le comunicazioni",
@@ -103,7 +103,7 @@ export const it: Dict = {
     bringCopy: "Copia lista",
   },
   home: {
-    title: "Questa settimana",
+    title: "Agenda",
     empty: "Non c'è ancora niente in lista.",
     emptyHint: "Aggiungi una circolare e le sue date e cose da fare arrivano qui.",
     needsAction: "Richiede la tua azione",
@@ -155,7 +155,7 @@ export const it: Dict = {
     questions: "Da chiedere alla scuola",
     savedHint: "Salvato nella tua famiglia. Correggi o ignora ciò che sembra sbagliato.",
     addAnother: "Aggiungi un'altra circolare",
-    viewWeek: "Vedi questa settimana",
+    viewWeek: "Vedi l'agenda",
     summary: "Riassunto",
     errors: {
       no_files: "Aggiungi prima una foto, un PDF o del testo.",
@@ -223,7 +223,7 @@ export const it: Dict = {
     status: { open: "Aperta", done: "Fatta", dismissed: "Ignorata" },
   },
   items: {
-    title: "Tutte le voci",
+    title: "Elementi",
     filterAll: "Tutte",
     filterOpen: "Aperte",
     filterDone: "Fatte",
@@ -380,7 +380,7 @@ export const it: Dict = {
     title: "Entra in una famiglia",
     working: "Ingresso in corso…",
     done: "Fatto. Questo dispositivo ora mostra la lista della tua famiglia.",
-    goWeek: "Vedi questa settimana",
+    goWeek: "Vedi l'agenda",
     invalid: "Questo link di invito non è più valido. Chiedine uno nuovo al tuo partner, oppure incolla la chiave della famiglia nelle Impostazioni.",
     roomTitle: "Segui una stanza di classe",
     roomLead: "{teacher} ti invita a seguire “{room}”. Ogni comunicazione pubblicata lì compare nella tua lista e nel calendario, nella tua lingua.",
@@ -615,7 +615,7 @@ export const it: Dict = {
   notFound: {
     title: "Pagina non trovata",
     body: "L'indirizzo potrebbe essere sbagliato o la pagina potrebbe essersi spostata.",
-    home: "Vai a questa settimana",
+    home: "Torna alla home",
   },
   error: {
     title: "Qualcosa è andato storto",

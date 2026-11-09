@@ -5,8 +5,8 @@ import { usePathname } from "next/navigation";
 import { useI18n } from "@/lib/i18n/context";
 import { localePath, splitLocale } from "@/lib/i18n/locales";
 
-// The five sections (all items is reached from home and the week). On phones this renders
-// as a bottom bar, on wider screens inline.
+// The five sections. Adding a notice is not a tab: every list page has a "+ add" button and
+// the home screen a quick action. On phones this renders as a bottom bar, on wider screens inline.
 export default function NavLinks({ className = "", mobile = false }: { className?: string; mobile?: boolean }) {
   const { locale, t } = useI18n();
   const pathname = usePathname() || "/";
@@ -14,7 +14,7 @@ export default function NavLinks({ className = "", mobile = false }: { className
   const links = [
     { href: "/", label: t.nav.home, icon: "⌂" },
     { href: "/week", label: t.nav.week, icon: "▣" },
-    { href: "/add", label: t.nav.add, icon: "＋" },
+    { href: "/items", label: t.nav.items, icon: "☰" },
     { href: "/sources", label: t.nav.sources, icon: "✉" },
     { href: "/settings", label: t.nav.settings, icon: "⚙" },
   ];

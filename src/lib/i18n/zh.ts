@@ -10,10 +10,10 @@ export const zh: Dict = {
   nav: {
     brand: "ParentDesk",
     beta: "测试版",
-    week: "本周",
+    week: "日程",
     home: "首页",
     add: "添加",
-    items: "全部事项",
+    items: "事项",
     sources: "通知",
     settings: "设置",
     privacy: "隐私",
@@ -68,13 +68,13 @@ export const zh: Dict = {
     toSignSub: "{n} 份",
     actions: {
       add: "添加通知",
-      week: "本周",
+      week: "日程",
       calendar: "日历订阅",
       teach: "教师专区",
     },
     next: "即将到来",
     nextEmpty: "还没有安排。",
-    openWeek: "查看整周",
+    openWeek: "查看全部日程",
     recent: "最近的通知",
     recentEmpty: "还没有通知。",
     allNotices: "全部通知",
@@ -102,7 +102,7 @@ export const zh: Dict = {
     bringCopy: "复制清单",
   },
   home: {
-    title: "本周",
+    title: "日程",
     empty: "清单里还没有内容。",
     emptyHint: "添加一份通知，日期和待办就会出现在这里。",
     needsAction: "需要你处理",
@@ -154,7 +154,7 @@ export const zh: Dict = {
     questions: "建议向学校确认",
     savedHint: "已保存到你的家庭。有不对的地方请修改或忽略。",
     addAnother: "再添加一份通知",
-    viewWeek: "查看本周",
+    viewWeek: "查看日程",
     summary: "摘要",
     errors: {
       no_files: "请先添加照片、PDF或文字。",
@@ -222,7 +222,7 @@ export const zh: Dict = {
     status: { open: "未完成", done: "已完成", dismissed: "已忽略" },
   },
   items: {
-    title: "全部事项",
+    title: "事项",
     filterAll: "全部",
     filterOpen: "未完成",
     filterDone: "已完成",
@@ -378,7 +378,7 @@ export const zh: Dict = {
     title: "加入家庭",
     working: "正在加入…",
     done: "完成。此设备现在显示你家庭的清单。",
-    goWeek: "查看本周",
+    goWeek: "查看日程",
     invalid: "此邀请链接已失效。请让伴侣重新生成，或在设置中粘贴家庭密钥。",
     roomTitle: "关注班级通知室",
     roomLead: "{teacher} 邀请您关注“{room}”。那里发布的每条通知都会以您的语言出现在您的清单和日历中。",
@@ -613,7 +613,7 @@ export const zh: Dict = {
   notFound: {
     title: "找不到页面",
     body: "地址可能有误，或者页面已移动。",
-    home: "回到本周",
+    home: "回到首页",
   },
   error: {
     title: "出了点问题",

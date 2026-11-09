@@ -10,10 +10,10 @@ export const fr: Dict = {
   nav: {
     brand: "ParentDesk",
     beta: "bêta",
-    week: "Cette semaine",
+    week: "Agenda",
     home: "Accueil",
     add: "Ajouter",
-    items: "Tout",
+    items: "Éléments",
     sources: "Mots",
     settings: "Réglages",
     privacy: "Confidentialité",
@@ -68,13 +68,13 @@ export const fr: Dict = {
     toSignSub: "{n} formulaires",
     actions: {
       add: "Ajouter un mot",
-      week: "Cette semaine",
+      week: "Agenda",
       calendar: "Calendrier",
       teach: "Enseignants",
     },
     next: "À venir",
     nextEmpty: "Rien de prévu pour l'instant.",
-    openWeek: "Voir toute la semaine",
+    openWeek: "Voir tout l'agenda",
     recent: "Mots récents",
     recentEmpty: "Aucun mot pour l'instant.",
     allNotices: "Tous les mots",
@@ -102,7 +102,7 @@ export const fr: Dict = {
     bringCopy: "Copier la liste",
   },
   home: {
-    title: "Cette semaine",
+    title: "Agenda",
     empty: "Rien dans la liste pour l'instant.",
     emptyHint: "Ajoutez un mot et ses dates et tâches apparaîtront ici.",
     needsAction: "À faire",
@@ -154,7 +154,7 @@ export const fr: Dict = {
     questions: "À vérifier auprès de l'école",
     savedHint: "Enregistré dans votre famille. Corrigez ou ignorez ce qui ne va pas.",
     addAnother: "Ajouter un autre mot",
-    viewWeek: "Voir cette semaine",
+    viewWeek: "Voir l'agenda",
     summary: "Résumé",
     errors: {
       no_files: "Ajoutez d'abord une photo, un PDF ou un texte.",
@@ -222,7 +222,7 @@ export const fr: Dict = {
     status: { open: "En cours", done: "Fait", dismissed: "Ignoré" },
   },
   items: {
-    title: "Tous les éléments",
+    title: "Éléments",
     filterAll: "Tous",
     filterOpen: "En cours",
     filterDone: "Faits",
@@ -378,7 +378,7 @@ export const fr: Dict = {
     title: "Rejoindre une famille",
     working: "Connexion…",
     done: "C'est fait. Cet appareil affiche maintenant la liste de votre famille.",
-    goWeek: "Voir cette semaine",
+    goWeek: "Voir l'agenda",
     invalid: "Ce lien d'invitation n'est plus valide. Demandez-en un nouveau à votre conjoint, ou collez la clé familiale dans les Réglages.",
     roomTitle: "Suivre un espace de classe",
     roomLead: "{teacher} vous invite à suivre « {room} ». Chaque mot publié là apparaît dans votre liste et votre calendrier, dans votre langue.",
@@ -613,7 +613,7 @@ export const fr: Dict = {
   notFound: {
     title: "Page introuvable",
     body: "L'adresse est peut-être erronée ou la page a été déplacée.",
-    home: "Aller à cette semaine",
+    home: "Retour à l'accueil",
   },
   error: {
     title: "Un problème est survenu",
