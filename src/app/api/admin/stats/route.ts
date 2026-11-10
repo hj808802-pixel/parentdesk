@@ -1,5 +1,5 @@
-import { adminEnabled, computeStats, familySummary, isAdminRequest } from "@/lib/admin";
-import { listRoomIds, listTeacherIds, loadDirectory, loadRoom, loadSchools, roomStats, type RoomRecord } from "@/lib/rooms";
+import { adminEnabled, computeStats, daysBack, familySummary, isAdminRequest } from "@/lib/admin";
+import { listRoomIds, listTeacherIds, loadDirectory, loadRoom, loadSchools, loadTeacher, roomStats, type RoomRecord } from "@/lib/rooms";
 import { features, listFamilyIds, loadFamily, readOps, storageMode, type FamilyRecord } from "@/lib/store";
 
 export const runtime = "nodejs";
@@ -37,6 +37,17 @@ export async function GET(req: Request) {
     if (room) rooms.push(room);
   }
   const roomNumbers = roomStats(teacherIds.length, rooms);
+  // Teacher sign-ups per day and this month's posts, over every teacher.
+  const month = new Date().toISOString().slice(0, 7);
+  const created: string[] = [];
+  let teacherPosts = 0;
+  for (const id of teacherIds) {
+    const t = await loadTeacher(id);
+    if (!t) continue;
+    created.push(t.createdAt.slice(0, 10));
+    teacherPosts += t.usage[month] ?? 0;
+  }
+  const teacherSignups = daysBack(30).map((day) => ({ day, n: created.filter((d) => d === day).length }));
   // The class search: what the rooms say, and what the directory and the school list hold
   // (they should agree; "rebuild" puts them back in step).
   const [directory, schools] = await Promise.all([loadDirectory(true), loadSchools(true)]);
@@ -48,6 +59,8 @@ export async function GET(req: Request) {
       stats,
       rooms: roomNumbers,
       search,
+      teacherSignups,
+      teacherPosts,
       runs,
       server: {
         storage: storageMode(),

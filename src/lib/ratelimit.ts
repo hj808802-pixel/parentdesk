@@ -79,6 +79,17 @@ export function allowLookup(ip: string): Gate {
   return { ok: true };
 }
 
+// Sign-in attempts: a small hourly budget of their own per address.
+const HOURLY_SIGNINS_PER_IP = 10;
+export function allowSignIn(ip: string): Gate {
+  const now = Date.now();
+  const key = `signin:${ip}`;
+  const g = check(key, HOURLY_SIGNINS_PER_IP, now);
+  if (!g.ok) return { ok: false, reason: "rate_limited", retryAfterSec: g.retryAfterSec };
+  bump(key, now);
+  return { ok: true };
+}
+
 export function clientIp(req: Request): string {
   return req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || req.headers.get("x-real-ip") || "local";
 }

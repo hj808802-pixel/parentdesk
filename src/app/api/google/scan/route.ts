@@ -1,4 +1,5 @@
 import { gmailEnabled, scanFamily } from "@/lib/gmail";
+import { isPaused } from "@/lib/ops";
 import { canUse } from "@/lib/plan";
 import { allowRequest, clientIp } from "@/lib/ratelimit";
 import { bumpCounter, familyFromRequest, saveFamily, toView } from "@/lib/store";
@@ -12,6 +13,7 @@ export async function POST(req: Request) {
   if (!gmailEnabled()) return Response.json({ ok: false, error: "gmail_off" }, { status: 404 });
   const rec = await familyFromRequest(req);
   if (!rec) return Response.json({ ok: false, error: "no_family" }, { status: 404 });
+  if (await isPaused(rec.id)) return Response.json({ ok: false, error: "blocked" }, { status: 403 });
   if (!rec.gmail) return Response.json({ ok: false, error: "not_connected" }, { status: 400 });
   if (!canUse(rec, "gmail")) return Response.json({ ok: false, error: "plan_limit" }, { status: 402 });
   const gate = allowRequest({ ip: clientIp(req), family: rec.id });

@@ -1,4 +1,5 @@
 import { timingSafeEqual } from "node:crypto";
+import { isPaused } from "@/lib/ops";
 import { contextOf, extractNotice, ExtractError, type ImageMediaType, type InputFile } from "@/lib/extract";
 import { htmlToText } from "@/lib/html";
 import { canExtract } from "@/lib/plan";
@@ -43,6 +44,7 @@ export async function POST(req: Request) {
   const addr = parseInboundAddress(body.to) ?? parseInboundAddress(Array.isArray(body.to) ? String(body.to[0] ?? "") : "");
   if (!addr) return Response.json({ ok: false, error: "unknown_address" }, { status: 404 });
   const rec = await loadFamily(addr.id);
+  if (rec && (await isPaused(rec.id))) return Response.json({ ok: false, error: "blocked" }, { status: 403 });
   if (!rec || rec.inboundCode !== addr.code) return Response.json({ ok: false, error: "unknown_address" }, { status: 404 });
 
   const gate = allowRequest({ ip: clientIp(req), family: rec.id });

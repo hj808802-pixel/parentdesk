@@ -117,6 +117,9 @@ expect("digest unsubscribe: bad token (one-click)", await call("POST", "/api/dig
 expect("cron digest: no secret", await call("GET", "/api/cron/digest"), [401, 404]);
 expect("admin login: off or bad token", await call("POST", "/api/admin/login", { json: { token: "wrong" } }), [401, 404]);
 expect("admin login: not json", await call("POST", "/api/admin/login", { json: "{" }), [401, 404]);
+expect("announcement: public, nothing personal", await call("GET", "/api/announcement?for=teachers"), 200, (r) => r.data.ok === true && "announcement" in r.data);
+expect("admin login: says whether the second step is on", await call("GET", "/api/admin/login"), 200, (r) => typeof r.data.twoStep === "boolean");
+expect("admin action: announce needs a login", await call("POST", "/api/admin/action", { json: { action: "announce", text: "hi" } }), [401, 404]);
 expect("admin list: off or unauthorized", await call("GET", "/api/admin/list"), [401, 404]);
 expect("admin action: off or unauthorized", await call("POST", "/api/admin/action", { json: { action: "family_delete", id: "0".repeat(12) } }), [401, 404]);
 expect("admin rebuild: off or unauthorized", await call("POST", "/api/admin/rebuild"), [401, 404]);

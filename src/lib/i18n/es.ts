@@ -170,6 +170,7 @@ export const es: Dict = {
       upstream_unavailable: "El servicio está saturado. Inténtalo en un minuto.",
       generic: "Algo salió mal. Inténtalo de nuevo.",
       plan_limit: "Has usado los avisos gratuitos de este mes. Pasa al plan Familia para avisos ilimitados.",
+      blocked: "El operador ha pausado esta familia. Tu lista sigue aquí; contacta con soporte para reanudar.",
     },
   },
   item: {

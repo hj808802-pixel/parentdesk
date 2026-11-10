@@ -1,4 +1,5 @@
 import { modelErrorResponse } from "@/lib/apierror";
+import { isPaused } from "@/lib/ops";
 import { classifyEmails } from "@/lib/assist";
 import { todayIn } from "@/lib/dates";
 import { contextOf, extractNotice, type InputFile } from "@/lib/extract";
@@ -43,6 +44,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ token: 
   const parsed = parseHookToken(token);
   if (!parsed) return Response.json({ ok: false, error: "bad_token" }, { status: 404 });
   const rec = await loadFamily(parsed.id);
+  if (rec && (await isPaused(rec.id))) return Response.json({ ok: false, error: "blocked" }, { status: 403 });
   if (!rec || !verifyHookSecret(rec, parsed.secret)) return Response.json({ ok: false, error: "bad_token" }, { status: 404 });
 
   const gate = allowRequest({ ip: clientIp(req), family: rec.id });

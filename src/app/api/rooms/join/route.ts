@@ -1,4 +1,5 @@
 import { translatePost } from "@/lib/assist";
+import { isPaused } from "@/lib/ops";
 import { allowRequest, clientIp } from "@/lib/ratelimit";
 import { backfill, loadRoom, loadTeacher, parseJoinToken, postsNeedingTranslation, recentPosts, roomPublic, sanitizeChildIds, saveRoom, senderOf, subscribe, touchDirectory, verifyJoinCode, verifyJoinSecret } from "@/lib/rooms";
 import { createFamily, familyCookie, familyFromRequest, isHttps, saveFamily, toView } from "@/lib/store";
@@ -46,6 +47,8 @@ export async function GET(req: Request) {
 
 export async function POST(req: Request) {
   let rec = await familyFromRequest(req);
+  // Joining may translate recent posts: a paused family does not get to spend that.
+  if (rec && (await isPaused(rec.id))) return Response.json({ ok: false, error: "blocked" }, { status: 403 });
   const gate = allowRequest({ ip: clientIp(req), family: rec?.id ?? null });
   if (!gate.ok) return Response.json({ ok: false, error: gate.reason }, { status: 429 });
   const body = (await req.json().catch(() => null)) as Record<string, unknown> | null;

@@ -1,4 +1,5 @@
 import { contextOf, extractNotice, type ImageMediaType, type InputFile } from "@/lib/extract";
+import { isPaused } from "@/lib/ops";
 import { todayIn } from "@/lib/dates";
 import { localePath } from "@/lib/i18n/locales";
 import { canExtract } from "@/lib/plan";
@@ -28,6 +29,7 @@ export async function POST(req: Request) {
   const back = (query: string, headers: Record<string, string> = {}, fragment = "") => redirectTo(req, `${localePath(locale, "/add")}?${query}${fragment}`, headers);
 
   let rec = await familyFromRequest(req);
+  if (rec && (await isPaused(rec.id))) return Response.json({ ok: false, error: "blocked" }, { status: 403 });
   const gate = allowRequest({ ip: clientIp(req), family: rec?.id ?? null });
   if (!gate.ok) return back("shared=error&reason=rate_limited");
   if (rec && !canExtract(rec, todayIn(rec.settings.timezone).slice(0, 7)).ok) return back("shared=error&reason=plan_limit");

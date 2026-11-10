@@ -171,6 +171,7 @@ export const pt: Dict = {
       upstream_unavailable: "O serviço está ocupado. Tente de novo em um minuto.",
       generic: "Algo deu errado. Tente de novo.",
       plan_limit: "Você usou os avisos gratuitos deste mês. Passe para o plano Família para avisos ilimitados.",
+      blocked: "O operador pausou esta família. A sua lista continua aqui; contacte o suporte para retomar.",
     },
   },
   item: {

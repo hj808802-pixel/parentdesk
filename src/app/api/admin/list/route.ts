@@ -1,5 +1,5 @@
 import { adminEnabled, familyRow, isAdminRequest, systemChecklist } from "@/lib/admin";
-import { readAdminActions } from "@/lib/ops";
+import { readAdminActions, readAnnouncement, readFamilyAdmin } from "@/lib/ops";
 import { listRoomIds, listTeacherIds, loadDirectory, loadRoom, loadSchools, loadTeacher, schoolIdOf, type RoomRecord, type TeacherRecord } from "@/lib/rooms";
 import { listFamilyIds, loadFamily } from "@/lib/store";
 
@@ -19,7 +19,7 @@ export async function GET(req: Request) {
   const families = [];
   for (const id of (await listFamilyIds()).slice(0, MAX_ROWS)) {
     const rec = await loadFamily(id);
-    if (rec) families.push(familyRow(rec, now));
+    if (rec) families.push(familyRow(rec, now, await readFamilyAdmin(id)));
   }
   families.sort((a, b) => (a.updatedAt < b.updatedAt ? 1 : -1));
 
@@ -48,5 +48,5 @@ export async function GET(req: Request) {
     .map((s) => ({ ...s, rooms: directory.filter((e) => e.schoolId === s.id).length, teachers: teachers.filter((t) => t.schoolId === s.id).length }))
     .sort((a, b) => b.rooms - a.rooms || a.name.localeCompare(b.name));
   const log = await readAdminActions(50);
-  return Response.json({ ok: true, families, teachers, rooms, schools, log, checklist: systemChecklist(), abandoned: families.filter((f) => f.empty).map((f) => f.id) }, { headers: { "cache-control": "no-store" } });
+  return Response.json({ ok: true, families, teachers, rooms, schools, log, announcement: await readAnnouncement(), checklist: systemChecklist(), abandoned: families.filter((f) => f.empty).map((f) => f.id) }, { headers: { "cache-control": "no-store" } });
 }

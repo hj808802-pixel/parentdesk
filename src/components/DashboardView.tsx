@@ -13,6 +13,7 @@ import { schoolLabel } from "@/lib/rooms-ui";
 import { FLAG_CALENDAR, FLAG_SETUP_HIDDEN, isInstalled, readFlag, writeFlag } from "@/lib/setup";
 import { BTN_PRIMARY, BTN_SECONDARY, BTN_SMALL, CARD, TYPE_STYLES } from "@/lib/ui";
 import AskBox from "./AskBox";
+import Announcement from "./Announcement";
 import ChildChips from "./ChildChips";
 import Landing from "./Landing";
 
@@ -114,6 +115,7 @@ export default function DashboardView() {
           )}
         </div>
       </header>
+      <Announcement audience="families" />
 
       {!hasAny && (
         <section className={`${CARD} mt-5 border-indigo-200 bg-indigo-50 dark:border-indigo-900 dark:bg-indigo-950/40`}>

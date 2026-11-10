@@ -1,5 +1,5 @@
 import { adminEnabled, hasLiveSubscription, isAbandoned, isAdminRequest } from "@/lib/admin";
-import { recordAdminAction } from "@/lib/ops";
+import { readFamilyAdmin, recordAdminAction, removeFamilyAdmin, setAnnouncement, writeFamilyAdmin } from "@/lib/ops";
 import { deleteRoom, deleteTeacher, forgetSchoolIfUnused, loadRoom, loadRooms, loadTeacher, removeFromDirectory, saveRoom, saveTeacher, schoolIdOf, syncDirectory } from "@/lib/rooms";
 import { deleteFamily, loadFamily, saveFamily } from "@/lib/store";
 
@@ -14,13 +14,16 @@ export const maxDuration = 60;
 //   room_unlist        takes a room out of the class search (it stays, link and code work)
 //   room_delete        closes a room; families keep what was already delivered
 //   teacher_delete     removes a teacher desk and its rooms
+//   family_note        { id, note }: the operator's own note on a family
+//   family_block       { id, blocked }: pauses (or resumes) a family's model use: adding notices, asking, drafting
+//   announce           { text, audience, days }: the banner teachers and/or families see; empty text clears it
 export async function POST(req: Request) {
   if (!adminEnabled()) return Response.json({ ok: false, error: "admin_off" }, { status: 404 });
   if (!isAdminRequest(req)) return Response.json({ ok: false, error: "unauthorized" }, { status: 401 });
-  const body = (await req.json().catch(() => null)) as { action?: unknown; id?: unknown; ids?: unknown } | null;
+  const body = (await req.json().catch(() => null)) as { action?: unknown; id?: unknown; ids?: unknown; note?: unknown; blocked?: unknown; text?: unknown; audience?: unknown; days?: unknown } | null;
   const action = typeof body?.action === "string" ? body.action : "";
   const id = typeof body?.id === "string" ? body.id.trim() : "";
-  const needsId = action !== "families_purge";
+  const needsId = action !== "families_purge" && action !== "announce";
   if (!action || (needsId && !/^[0-9a-f]{12}$/.test(id))) return Response.json({ ok: false, error: "bad_request" }, { status: 400 });
 
   switch (action) {
@@ -30,6 +33,7 @@ export async function POST(req: Request) {
       // The subscription lives at Stripe: cancel it there first, or the customer keeps paying for nothing.
       if (hasLiveSubscription(rec)) return Response.json({ ok: false, error: "has_subscription" }, { status: 409 });
       await deleteFamily(id);
+      await removeFamilyAdmin(id);
       await recordAdminAction(action, id, `${rec.items.length} items`);
       return Response.json({ ok: true });
     }
@@ -43,13 +47,29 @@ export async function POST(req: Request) {
       await recordAdminAction(action, id, `${was} -> 0`);
       return Response.json({ ok: true, was });
     }
+    case "family_note":
+    case "family_block": {
+      const rec = await loadFamily(id);
+      if (!rec) return Response.json({ ok: false, error: "not_found" }, { status: 404 });
+      // Kept beside the family, not in it: a family save already under way cannot undo it.
+      const next = await writeFamilyAdmin(id, action === "family_note" ? { note: typeof body?.note === "string" ? body.note.replace(/\s+/g, " ").trim().slice(0, 300) : "" } : { blocked: body?.blocked === true });
+      await recordAdminAction(action, id, action === "family_note" ? "note saved" : next.blocked ? "paused" : "resumed");
+      return Response.json({ ok: true });
+    }
+    case "announce": {
+      const audience = body?.audience === "teachers" || body?.audience === "families" ? body.audience : "all";
+      const doc = await setAnnouncement(typeof body?.text === "string" ? body.text : "", audience, typeof body?.days === "number" ? body.days : 7);
+      await recordAdminAction(action, "-", doc ? `${audience}, until ${doc.until.slice(0, 10)}` : "cleared");
+      return Response.json({ ok: true, announcement: doc });
+    }
     case "families_purge": {
       // Exactly the families the operator was shown, and only those still unused now.
       const ids = Array.isArray(body?.ids) ? [...new Set(body.ids.filter((x): x is string => typeof x === "string" && /^[0-9a-f]{12}$/.test(x)))].slice(0, 2000) : [];
       let removed = 0;
       for (const fid of ids) {
         const rec = await loadFamily(fid);
-        if (rec && isAbandoned(rec)) {
+        const mark = rec ? await readFamilyAdmin(fid) : null;
+        if (rec && isAbandoned(rec) && !mark?.note && !mark?.blocked) {
           await deleteFamily(fid);
           removed++;
         }

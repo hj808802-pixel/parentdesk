@@ -170,6 +170,7 @@ export const fr: Dict = {
       upstream_unavailable: "Le service est saturé. Réessayez dans une minute.",
       generic: "Un problème est survenu. Réessayez.",
       plan_limit: "Vous avez utilisé les avis gratuits de ce mois. Passez à l'offre Famille pour des avis illimités.",
+      blocked: "L'opérateur a mis cette famille en pause. Votre liste est toujours là ; contactez l'assistance pour reprendre.",
     },
   },
   item: {

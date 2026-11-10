@@ -1,4 +1,5 @@
 import { modelErrorResponse } from "@/lib/apierror";
+import { isPaused } from "@/lib/ops";
 import { explainItem } from "@/lib/assist";
 import { todayIn } from "@/lib/dates";
 import { allowRequest, clientIp } from "@/lib/ratelimit";
@@ -12,6 +13,7 @@ export const maxDuration = 60;
 export async function POST(req: Request, { params }: { params: Promise<{ id: string }> }) {
   const rec = await familyFromRequest(req);
   if (!rec) return Response.json({ ok: false, error: "no_family" }, { status: 404 });
+  if (await isPaused(rec.id)) return Response.json({ ok: false, error: "blocked" }, { status: 403 });
   const { id } = await params;
   const item = rec.items.find((it) => it.id === id);
   if (!item) return Response.json({ ok: false, error: "not_found" }, { status: 404 });

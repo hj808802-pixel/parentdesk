@@ -172,6 +172,7 @@ export const en = {
       upstream_unavailable: "The service is busy. Please try again in a minute.",
       generic: "Something went wrong. Please try again.",
       plan_limit: "You have used this month's free notices. Upgrade to the Family plan for unlimited notices.",
+      blocked: "This family has been paused by the operator. Your list is still here; contact support to resume.",
     },
   },
   item: {

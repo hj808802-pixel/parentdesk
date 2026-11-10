@@ -46,3 +46,61 @@ export async function readAdminActions(limit = 50): Promise<AdminAction[]> {
   for (const old of all.slice(KEEP_ACTIONS)) await removeDoc(`${ADMIN_LOG}${old.id}`).catch(() => undefined);
   return all.slice(0, limit).map((x) => x.e);
 }
+
+// The operator's announcement: one at a time, for teachers, families or both, until a date.
+export type AnnouncementDoc = { id: string; text: string; audience: "teachers" | "families" | "all"; until: string; at: string };
+
+export async function setAnnouncement(text: string, audience: AnnouncementDoc["audience"], days: number): Promise<AnnouncementDoc | null> {
+  const clean = text.replace(/\s+\n/g, "\n").trim().slice(0, 500);
+  if (!clean) {
+    await writeOps("announcement", null);
+    return null;
+  }
+  const now = new Date();
+  const doc: AnnouncementDoc = { id: newId(4), text: clean, audience, until: new Date(now.getTime() + Math.min(60, Math.max(1, days)) * 86400000).toISOString(), at: now.toISOString() };
+  await writeOps("announcement", doc);
+  return doc;
+}
+
+export async function readAnnouncement(): Promise<AnnouncementDoc | null> {
+  const doc = await readOps<AnnouncementDoc | null>("announcement");
+  return doc && typeof doc.text === "string" && typeof doc.until === "string" ? doc : null;
+}
+
+export async function activeAnnouncement(who: "teachers" | "families", now: Date = new Date()): Promise<AnnouncementDoc | null> {
+  const doc = await readAnnouncement();
+  if (!doc || doc.until < now.toISOString()) return null;
+  return doc.audience === "all" || doc.audience === who ? doc : null;
+}
+
+// The operator's note and pause switch for one family, in a document of their own
+// (familyadmin/<family id>): a family save that was already under way cannot wipe them.
+export type FamilyAdmin = { note: string; blocked: boolean };
+const FAMILY_ADMIN = "familyadmin/";
+
+// No document means "nothing set". A document that cannot be read or parsed is an error and
+// is passed on: guessing "not paused" would let a paused family through, and a save on top
+// of a guess would wipe the real state.
+export async function readFamilyAdmin(id: string): Promise<FamilyAdmin> {
+  const raw = await readDoc(`${FAMILY_ADMIN}${id}`);
+  if (raw === null) return { note: "", blocked: false };
+  const a = JSON.parse(raw) as Partial<FamilyAdmin> | null;
+  if (!a || typeof a !== "object" || typeof a.note !== "string" || typeof a.blocked !== "boolean") throw new Error(`familyadmin/${id} is damaged`);
+  return { note: a.note, blocked: a.blocked };
+}
+
+export async function writeFamilyAdmin(id: string, patch: Partial<FamilyAdmin>): Promise<FamilyAdmin> {
+  const next = { ...(await readFamilyAdmin(id)), ...patch };
+  if (!next.note && !next.blocked) await removeDoc(`${FAMILY_ADMIN}${id}`).catch(() => undefined);
+  else await writeDoc(`${FAMILY_ADMIN}${id}`, JSON.stringify(next));
+  return next;
+}
+
+export async function removeFamilyAdmin(id: string): Promise<void> {
+  await removeDoc(`${FAMILY_ADMIN}${id}`).catch(() => undefined);
+}
+
+// Paused families may read their list but not spend model calls.
+export async function isPaused(id: string): Promise<boolean> {
+  return (await readFamilyAdmin(id)).blocked;
+}

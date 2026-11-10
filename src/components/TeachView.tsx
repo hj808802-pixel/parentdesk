@@ -10,6 +10,7 @@ import { fmt } from "@/lib/i18n";
 import { LOCALE_TAGS, localePath, regionName } from "@/lib/i18n/locales";
 import { shrinkImage } from "@/lib/image";
 import { regionsOf } from "@/lib/regions";
+import Announcement from "./Announcement";
 import type { DirectoryHit, RoomPost, RoomView, SchoolHit, TeacherView } from "@/lib/rooms";
 import { gradeClassLabel, schoolLabel } from "@/lib/rooms-ui";
 import { NOTICE_KINDS, OUTPUT_LANGUAGES, type NoticeKind } from "@/lib/schema";
@@ -248,6 +249,7 @@ export default function TeachView() {
   return (
     <main className="mx-auto w-full max-w-3xl px-4 py-6">
       <h1 className="text-2xl font-bold">{t.teach.title}</h1>
+      <Announcement audience="teachers" />
       <p className="mt-1 text-sm text-zinc-600 dark:text-zinc-400">{fmt(t.teach.usage, { n: teacher.usage[month] ?? 0, limit: teacher.postCap })}</p>
 
       <section className="mt-6">

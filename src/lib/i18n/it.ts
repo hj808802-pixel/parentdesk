@@ -171,6 +171,7 @@ export const it: Dict = {
       upstream_unavailable: "Il servizio è occupato. Riprova tra un minuto.",
       generic: "Qualcosa è andato storto. Riprova.",
       plan_limit: "Hai usato gli avvisi gratuiti di questo mese. Passa al piano Famiglia per avvisi illimitati.",
+      blocked: "L'operatore ha messo in pausa questa famiglia. Il tuo elenco è ancora qui; contatta l'assistenza per riprendere.",
     },
   },
   item: {

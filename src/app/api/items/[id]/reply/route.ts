@@ -1,4 +1,5 @@
 import { modelErrorResponse } from "@/lib/apierror";
+import { isPaused } from "@/lib/ops";
 import { draftReply, REPLY_INTENTS, type ReplyIntent } from "@/lib/assist";
 import { todayIn } from "@/lib/dates";
 import { allowRequest, clientIp } from "@/lib/ratelimit";
@@ -15,6 +16,7 @@ type Params = { params: Promise<{ id: string }> };
 export async function POST(req: Request, { params }: Params) {
   const rec = await familyFromRequest(req);
   if (!rec) return Response.json({ ok: false, error: "no_family" }, { status: 404 });
+  if (await isPaused(rec.id)) return Response.json({ ok: false, error: "blocked" }, { status: 403 });
   const { id } = await params;
   const item = rec.items.find((it) => it.id === id);
   if (!item) return Response.json({ ok: false, error: "not_found" }, { status: 404 });

@@ -170,6 +170,7 @@ export const de: Dict = {
       upstream_unavailable: "Der Dienst ist ausgelastet. Bitte in einer Minute noch einmal versuchen.",
       generic: "Etwas ist schiefgelaufen. Bitte noch einmal versuchen.",
       plan_limit: "Die kostenlosen Mitteilungen dieses Monats sind aufgebraucht. Mit dem Familien-Tarif gibt es keine Grenze.",
+      blocked: "Der Betreiber hat diese Familie pausiert. Ihre Liste ist noch da; wenden Sie sich an den Support, um fortzufahren.",
     },
   },
   item: {

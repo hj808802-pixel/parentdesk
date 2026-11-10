@@ -170,6 +170,7 @@ export const zh: Dict = {
       upstream_unavailable: "服务繁忙。请一分钟后再试。",
       generic: "出了点问题。请再试一次。",
       plan_limit: "本月的免费通知次数已用完。升级到家庭版即可不限次数。",
+      blocked: "运营方已暂停此家庭的使用。你的清单仍在；如需恢复请联系支持。",
     },
   },
   item: {

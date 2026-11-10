@@ -1,4 +1,5 @@
 import { modelErrorResponse } from "@/lib/apierror";
+import { isPaused } from "@/lib/ops";
 import { suggestSettings } from "@/lib/assist";
 import { todayIn } from "@/lib/dates";
 import { isLocale } from "@/lib/i18n/locales";
@@ -15,6 +16,7 @@ export const maxDuration = 60;
 export async function POST(req: Request) {
   const rec = await familyFromRequest(req);
   if (!rec) return Response.json({ ok: false, error: "no_family" }, { status: 404 });
+  if (await isPaused(rec.id)) return Response.json({ ok: false, error: "blocked" }, { status: 403 });
   const body = (await req.json().catch(() => null)) as Record<string, unknown> | null;
   const text = body && typeof body.text === "string" ? body.text.trim() : "";
   if (!body || !text || text.length > 600) return Response.json({ ok: false, error: "bad_request" }, { status: 400 });

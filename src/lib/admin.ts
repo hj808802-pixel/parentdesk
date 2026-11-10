@@ -1,4 +1,4 @@
-import { createHash, timingSafeEqual } from "node:crypto";
+import { createHash, createHmac, timingSafeEqual } from "node:crypto";
 import { planOf } from "./plan";
 import { features } from "./store";
 import type { FamilyRecord } from "./types";
@@ -14,8 +14,15 @@ export function adminEnabled(): boolean {
   return (process.env.ADMIN_TOKEN ?? "").trim().length >= 16;
 }
 
-function tokenHash(): string {
-  return createHash("sha256").update((process.env.ADMIN_TOKEN ?? "").trim()).digest("hex");
+// The session cookie is "<expiry>.<signature>". The signing key is derived from the token
+// AND the second step's secret, so knowing the token alone is not enough to forge a session
+// once two-step sign-in is on; the expiry is checked on the server.
+function sessionKey(): Buffer {
+  return createHash("sha256").update(`${(process.env.ADMIN_TOKEN ?? "").trim()}|${(process.env.ADMIN_TOTP_SECRET ?? "").trim()}`).digest();
+}
+
+function sign(expiry: string): string {
+  return createHmac("sha256", sessionKey()).update(`admin-session:${expiry}`).digest("hex");
 }
 
 function same(a: string, b: string): boolean {
@@ -24,13 +31,20 @@ function same(a: string, b: string): boolean {
   return x.length === y.length && timingSafeEqual(x, y);
 }
 
+// The optional second step: a base32 secret in ADMIN_TOTP_SECRET (scripts/admin-2fa.mjs).
+export function adminTotpSecret(): string | null {
+  const s = (process.env.ADMIN_TOTP_SECRET ?? "").trim();
+  return s.length >= 16 ? s : null;
+}
+
 export function checkAdminToken(given: unknown): boolean {
   if (!adminEnabled() || typeof given !== "string") return false;
   return same(given.trim(), (process.env.ADMIN_TOKEN ?? "").trim());
 }
 
 export function adminCookie(secure: boolean): string {
-  return `${ADMIN_COOKIE}=${tokenHash()}; Path=/; Max-Age=${COOKIE_MAX_AGE}; HttpOnly; SameSite=Strict${secure ? "; Secure" : ""}`;
+  const expiry = String(Date.now() + COOKIE_MAX_AGE * 1000);
+  return `${ADMIN_COOKIE}=${expiry}.${sign(expiry)}; Path=/; Max-Age=${COOKIE_MAX_AGE}; HttpOnly; SameSite=Strict${secure ? "; Secure" : ""}`;
 }
 
 export function clearAdminCookie(secure: boolean): string {
@@ -40,8 +54,13 @@ export function clearAdminCookie(secure: boolean): string {
 export function isAdminRequest(req: Request): boolean {
   if (!adminEnabled()) return false;
   const header = req.headers.get("cookie") ?? "";
-  const m = new RegExp(`(?:^|;\\s*)${ADMIN_COOKIE}=([0-9a-f]{64})`).exec(header);
-  return Boolean(m && same(m[1], tokenHash()));
+  const m = new RegExp(`(?:^|;\\s*)${ADMIN_COOKIE}=(\\d{10,16})\\.([0-9a-f]{64})`).exec(header);
+  return Boolean(m && Number(m[1]) > Date.now() && same(m[2], sign(m[1])));
+}
+
+// The last n calendar days (UTC), oldest first.
+export function daysBack(n: number, now: Date = new Date()): string[] {
+  return Array.from({ length: n }, (_, i) => new Date(now.getTime() - (n - 1 - i) * 86400000).toISOString().slice(0, 10));
 }
 
 // ---- aggregates ----
@@ -53,6 +72,7 @@ export type Stats = {
   items: { total: number; open: number; done: number; dismissed: number; byType: Record<string, number>; needsCheck: number };
   sources: { total: number; last7d: number; byKind: Record<string, number> };
   notices: { thisMonth: number; byDay: { day: string; n: number }[] };
+  signups: { day: string; n: number }[]; // families created per day, last 30 days
   plans: { free: number; family: number; statuses: Record<string, number> };
   gmail: { connected: number; paused: number };
   digest: { on: number };
@@ -83,6 +103,7 @@ export function computeStats(records: FamilyRecord[], now: Date = new Date(), tr
     items: { total: 0, open: 0, done: 0, dismissed: 0, byType: {}, needsCheck: 0 },
     sources: { total: 0, last7d: 0, byKind: {} },
     notices: { thisMonth: 0, byDay: [] },
+    signups: [],
     plans: { free: 0, family: 0, statuses: {} },
     gmail: { connected: 0, paused: 0 },
     digest: { on: 0 },
@@ -138,6 +159,7 @@ export function computeStats(records: FamilyRecord[], now: Date = new Date(), tr
     for (const [k, v] of Object.entries(r.counters ?? {})) bump(s.counters, k, v);
   }
   s.notices.byDay = Object.entries(days).map(([day, n]) => ({ day, n }));
+  s.signups = daysBack(30, now).map((day) => ({ day, n: records.filter((r) => r.createdAt.slice(0, 10) === day).length }));
   s.top = { countries: top(countries), languages: top(languages), locales: top(locales) };
   return s;
 }
@@ -163,7 +185,7 @@ export function familySummary(r: FamilyRecord, now: Date = new Date()) {
 
 // ---- lists for the console tables: counts and settings only, never item text or child names ----
 
-export type FamilyRow = { id: string; createdAt: string; updatedAt: string; country: string; language: string; children: number; items: number; open: number; sources: number; monthUsage: number; plan: string; rooms: number; push: number; gmail: boolean; empty: boolean };
+export type FamilyRow = { id: string; createdAt: string; updatedAt: string; country: string; language: string; children: number; items: number; open: number; sources: number; monthUsage: number; plan: string; rooms: number; push: number; gmail: boolean; empty: boolean; blocked: boolean; note: string };
 
 const EMPTY_AFTER_DAYS = 30;
 
@@ -198,7 +220,7 @@ export function hasLiveSubscription(r: FamilyRecord): boolean {
   return Boolean(r.billing?.subscriptionId) && ["active", "trialing", "past_due", "unpaid", "incomplete"].includes(r.billing?.status ?? "");
 }
 
-export function familyRow(r: FamilyRecord, now: Date = new Date()): FamilyRow {
+export function familyRow(r: FamilyRecord, now: Date = new Date(), admin: { note: string; blocked: boolean } = { note: "", blocked: false }): FamilyRow {
   return {
     id: r.id,
     createdAt: r.createdAt,
@@ -214,7 +236,9 @@ export function familyRow(r: FamilyRecord, now: Date = new Date()): FamilyRow {
     rooms: (r.rooms ?? []).length,
     push: (r.push ?? []).length,
     gmail: Boolean(r.gmail),
-    empty: isAbandoned(r, now),
+    empty: isAbandoned(r, now) && !admin.note && !admin.blocked,
+    blocked: admin.blocked,
+    note: admin.note,
   };
 }
 
@@ -223,6 +247,7 @@ export function systemChecklist(): { key: string; on: boolean }[] {
   const has = (...names: string[]) => names.every((n) => Boolean((process.env[n] ?? "").trim()));
   const f = features(); // the same switches the app itself uses
   return [
+    { key: "twostep", on: adminTotpSecret() !== null },
     { key: "model", on: has("ANTHROPIC_API_KEY") || has("ANTHROPIC_AUTH_TOKEN") },
     { key: "storage", on: has("BLOB_READ_WRITE_TOKEN") || has("LOCAL_DATA_DIR") },
     { key: "admin", on: adminEnabled() },

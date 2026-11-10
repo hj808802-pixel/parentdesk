@@ -14,6 +14,8 @@ type Payload = {
   stats: Stats;
   rooms?: RoomStats;
   search?: { listedRooms: number; directoryEntries: number; schools: number };
+  teacherSignups?: { day: string; n: number }[];
+  teacherPosts?: number;
   runs: Record<string, Run[]>;
   server: { storage: string; features: Record<string, boolean>; extractModel: string; assistModel: string; classifyModel: string; dailyCap: number };
   ms: number;
@@ -21,7 +23,7 @@ type Payload = {
 type TeacherRow = { id: string; name: string; school: string; region: string; city: string; country: string; rooms: number; monthPosts: number; createdAt: string };
 type RoomRow = { id: string; teacherId: string; teacherName: string; school: string; grade: string; classLabel: string; name: string; members: number; posts: number; drafts: number; lastPostAt: string | null; listed: boolean; createdAt: string; orphan: boolean };
 type SchoolRow = { id: string; name: string; region: string; city: string; country: string; rooms: number; teachers: number };
-type Lists = { families: FamilyRow[]; teachers: TeacherRow[]; rooms: RoomRow[]; schools: SchoolRow[]; log: AdminAction[]; checklist: { key: string; on: boolean }[]; abandoned: string[] };
+type Lists = { families: FamilyRow[]; teachers: TeacherRow[]; rooms: RoomRow[]; schools: SchoolRow[]; log: AdminAction[]; checklist: { key: string; on: boolean }[]; abandoned: string[]; announcement: { id: string; text: string; audience: string; until: string } | null };
 type FamilyInfo = Record<string, unknown>;
 type Tab = "overview" | "families" | "rooms" | "schools" | "system";
 
@@ -34,6 +36,7 @@ const TABS: [Tab, string][] = [
 ];
 
 const CHECK: Record<string, [string, string]> = {
+  twostep: ["관리자 2단계 로그인", "꺼져 있으면 토큰만으로 들어옵니다. scripts/admin-2fa.mjs로 비밀값을 만들어 ADMIN_TOTP_SECRET에 넣으면 6자리 코드를 함께 묻습니다."],
   model: ["AI 모델 키", "안내문 읽기에 필요합니다. 없으면 데모 결과만 나옵니다."],
   storage: ["저장소", "가족·알림방 문서를 보관하는 곳입니다."],
   admin: ["관리자 콘솔", "이 화면입니다."],
@@ -52,6 +55,9 @@ const ACTION_KO: Record<string, string> = {
   room_unlist: "검색에서 내림",
   room_delete: "알림방 삭제",
   teacher_delete: "선생님 데스크 삭제",
+  family_note: "가족 메모",
+  family_block: "가족 일시 중지/해제",
+  announce: "공지",
 };
 
 async function getJson<T>(path: string, init?: RequestInit): Promise<{ status: number; body: T | null }> {
@@ -109,12 +115,20 @@ export default function AdminPage() {
   const [filter, setFilter] = useState("");
   const [family, setFamily] = useState<FamilyInfo | null>(null);
   const [loading, setLoading] = useState(false);
+  const [code, setCode] = useState("");
+  const [now] = useState(() => Date.now()); // "today" for the charts, fixed when the page opened
+  const [twoStep, setTwoStep] = useState(false);
+  const [annText, setAnnText] = useState("");
+  const [annAudience, setAnnAudience] = useState("all");
+  const [annDays, setAnnDays] = useState(7);
+  const [unit, setUnit] = useState({ notice: "", assist: "" });
 
   const load = useCallback(async () => {
     setLoading(true);
     setError("");
     const r = await getJson<Payload & { ok: boolean; error?: string }>("/api/admin/stats");
     if (r.status === 404 || r.status === 401) {
+      void getJson<{ twoStep?: boolean }>("/api/admin/login").then((x) => setTwoStep(x.body?.twoStep === true));
       setLoading(false);
       setOff(r.status === 404);
       setAuthed(false);
@@ -128,7 +142,16 @@ export default function AdminPage() {
     setAuthed(true);
     setData(r.body);
     const l = await getJson<Lists & { ok: boolean }>("/api/admin/list");
-    if (l.body?.ok) setLists(l.body);
+    if (l.body?.ok) {
+      setLists(l.body);
+      setAnnText(l.body.announcement?.text ?? "");
+      if (l.body.announcement) setAnnAudience(l.body.announcement.audience);
+    }
+    try {
+      setUnit(JSON.parse(window.localStorage.getItem("pd_admin_unit") ?? "") as { notice: string; assist: string });
+    } catch {
+      /* nothing saved yet */
+    }
     setLoading(false);
   }, []);
 
@@ -140,12 +163,13 @@ export default function AdminPage() {
   async function login(e: React.FormEvent) {
     e.preventDefault();
     setError("");
-    const r = await getJson<{ ok: boolean; error?: string }>("/api/admin/login", { method: "POST", body: JSON.stringify({ token }) });
+    const r = await getJson<{ ok: boolean; error?: string }>("/api/admin/login", { method: "POST", body: JSON.stringify({ token, code }) });
     if (!r.body?.ok) {
-      setError(r.body?.error === "bad_token" ? "토큰이 맞지 않습니다." : (r.body?.error ?? `HTTP ${r.status}`));
+      setError(r.body?.error === "bad_token" ? "토큰이 맞지 않습니다." : r.body?.error === "bad_code" ? "인증 코드가 맞지 않습니다." : r.body?.error === "rate_limited" ? "시도가 너무 많습니다. 한 시간 뒤에 다시 하세요." : (r.body?.error ?? `HTTP ${r.status}`));
       return;
     }
     setToken("");
+    setCode("");
     await load();
   }
 
@@ -157,10 +181,10 @@ export default function AdminPage() {
   }
 
   // Every action asks first, says what happened, and reloads the numbers.
-  async function act(action: string, id: string, confirmText: string, ids?: string[]) {
-    if (!window.confirm(confirmText)) return;
+  async function act(action: string, id: string, confirmText: string, ids?: string[], extra: Record<string, unknown> = {}) {
+    if (confirmText && !window.confirm(confirmText)) return;
     setNote("처리 중…");
-    const r = await getJson<{ ok: boolean; error?: string; removed?: number; was?: number; rooms?: number }>("/api/admin/action", { method: "POST", body: JSON.stringify({ action, id, ids }) });
+    const r = await getJson<{ ok: boolean; error?: string; removed?: number; was?: number; rooms?: number }>("/api/admin/action", { method: "POST", body: JSON.stringify({ action, id, ids, ...extra }) });
     if (!r.body?.ok) {
       setNote(r.body?.error === "has_subscription" ? "실패: 이 가족은 Stripe 구독이 살아 있습니다. Stripe에서 먼저 구독을 취소한 뒤 삭제하세요." : `실패: ${r.body?.error ?? `HTTP ${r.status}`}`);
       return;
@@ -205,7 +229,8 @@ export default function AdminPage() {
         ) : (
           <form onSubmit={login} className="mt-4 grid gap-3">
             <input className={INPUT} type="password" placeholder="관리자 토큰 (ADMIN_TOKEN)" value={token} onChange={(e) => setToken(e.target.value)} autoComplete="off" />
-            <button type="submit" className={BTN_PRIMARY} disabled={!token.trim()}>
+            {twoStep && <input className={INPUT} inputMode="numeric" placeholder="인증 앱의 6자리 코드" value={code} onChange={(e) => setCode(e.target.value)} autoComplete="one-time-code" maxLength={7} />}
+            <button type="submit" className={BTN_PRIMARY} disabled={!token.trim() || (twoStep && code.replace(/\D/g, "").length !== 6)}>
               로그인
             </button>
             {error && <p className="text-sm text-red-600">{error}</p>}
@@ -221,6 +246,31 @@ export default function AdminPage() {
   const obj = (m: Record<string, number>): [string, number][] => Object.entries(m).sort((a, b) => b[1] - a[1]);
   const q = filter.trim().toLowerCase();
   const hit = (...parts: (string | number | null | undefined)[]) => !q || parts.some((p) => String(p ?? "").toLowerCase().includes(q));
+  // Sign-ups per day over the last 30 days, families and teachers.
+  // (counted on the server over every family and teacher, not over the rows listed here)
+  const dayKeys = (s?.signups ?? []).map((d) => d.day);
+  const famDays = (s?.signups ?? []).map((d) => d.n);
+  const teachDays = dayKeys.map((d) => data?.teacherSignups?.find((x) => x.day === d)?.n ?? 0);
+  const maxSign = Math.max(1, ...famDays, ...teachDays);
+  // Rough spend: this month's saved notices (families + teacher posts) and the counted
+  // assistant calls, times the unit prices the operator types in (kept in this browser).
+  // These are the calls the app counts, not every call it makes; the note under the fields says so.
+  const extractions = (s?.notices.thisMonth ?? 0) + (data?.teacherPosts ?? 0);
+  const assists = ["ask", "reply", "explain"].reduce((n, k) => n + (s?.counters[k] ?? 0), 0);
+  const num = (x: string) => (Number.isFinite(Number(x)) && x.trim() !== "" ? Number(x) : null);
+  const saveUnit = (next: { notice: string; assist: string }) => {
+    setUnit(next);
+    try {
+      window.localStorage.setItem("pd_admin_unit", JSON.stringify(next));
+    } catch {
+      /* storage unavailable */
+    }
+  };
+  // The scheduled jobs should have run within two days when they are switched on.
+  const lastRun = Object.values(data?.runs ?? {}).flatMap((r) => r.map((x) => x.at)).sort().pop();
+  const cronOn = lists?.checklist.find((c) => c.key === "cron")?.on === true;
+  const cronStale = cronOn && (!lastRun || now - Date.parse(lastRun) > 2 * 86400000);
+  void now;
   // The rows on screen; the clean-up acts on exactly these, never on rows that are filtered out.
   const shownFamilies = (lists?.families ?? []).filter((f) => hit(f.id, f.country, f.language, f.plan)).slice(0, 300);
   const purgeIds = shownFamilies.filter((f) => f.empty).map((f) => f.id);
@@ -291,6 +341,49 @@ export default function AdminPage() {
             <Kpi label="주간 요약 켬" value={s.digest.on} sub={`유효한 초대 링크 ${s.invites.live}`} />
           </div>
 
+          {cronStale && (
+            <p className="mt-3 rounded-lg bg-amber-50 px-3 py-2 text-sm text-amber-900 dark:bg-amber-950/40 dark:text-amber-200" role="status">
+              예약 작업이 이틀 넘게 기록되지 않았습니다{lastRun ? ` (마지막 ${lastRun.slice(0, 16).replace("T", " ")} UTC)` : " (기록 없음)"}. Vercel의 Cron 설정을 확인하세요.
+            </p>
+          )}
+
+          <section className={`${CARD} mt-4`}>
+            <h3 className="text-sm font-semibold">가입 추이 (30일){s.families.truncated && " · 가족 수가 많아 일부만 집계됨"}</h3>
+            <p className="mt-1 text-xs text-zinc-500">
+              <span className="mr-3 inline-flex items-center gap-1"><span className="inline-block h-2 w-2 rounded-sm bg-indigo-500" /> 가족 {famDays.reduce((a, b) => a + b, 0)}</span>
+              <span className="inline-flex items-center gap-1"><span className="inline-block h-2 w-2 rounded-sm bg-emerald-500" /> 선생님 {teachDays.reduce((a, b) => a + b, 0)}</span>
+            </p>
+            <div className="mt-3 flex h-24 items-end gap-0.5">
+              {dayKeys.map((d, i) => (
+                <div key={d} className="flex flex-1 flex-col items-center gap-1" title={`${d}: 가족 ${famDays[i]}, 선생님 ${teachDays[i]}`}>
+                  <div className="flex w-full items-end gap-px">
+                    <div className="flex-1 rounded-t bg-indigo-500" style={{ height: `${famDays[i] ? Math.max(3, (famDays[i] / maxSign) * 76) : 1}px` }} />
+                    <div className="flex-1 rounded-t bg-emerald-500" style={{ height: `${teachDays[i] ? Math.max(3, (teachDays[i] / maxSign) * 76) : 1}px` }} />
+                  </div>
+                  <span className="text-[8px] text-zinc-500">{i % 3 === 0 ? d.slice(8) : ""}</span>
+                </div>
+              ))}
+            </div>
+          </section>
+
+          <section className={`${CARD} mt-4`}>
+            <h3 className="text-sm font-semibold">AI 비용 어림</h3>
+            <p className="mt-1 text-xs text-zinc-500">호출 수에 직접 넣은 단가를 곱한 값입니다. 단가는 Anthropic 콘솔의 실제 청구액을 호출 수로 나눠 넣으세요(이 브라우저에만 저장).</p>
+            <div className="mt-3 grid gap-3 sm:grid-cols-2">
+              <label className="grid gap-1 text-sm">
+                <span className="text-xs text-zinc-500">안내문 읽기 1건 단가 · 이번 달 {extractions}건 (가족 저장분 {s.notices.thisMonth} + 선생님 읽기 {extractions - s.notices.thisMonth}, 미리보기 포함)</span>
+                <input className={INPUT} inputMode="decimal" placeholder="예: 0.05" value={unit.notice} onChange={(e) => saveUnit({ ...unit, notice: e.target.value })} />
+                <span className="text-sm font-semibold">{num(unit.notice) === null ? "단가를 넣으면 계산됩니다" : `이번 달 약 ${(extractions * (num(unit.notice) as number)).toFixed(2)}`}</span>
+              </label>
+              <label className="grid gap-1 text-sm">
+                <span className="text-xs text-zinc-500">도우미 호출 1건 단가 · 누적 {assists}건 (질문·답장·설명)</span>
+                <input className={INPUT} inputMode="decimal" placeholder="예: 0.005" value={unit.assist} onChange={(e) => saveUnit({ ...unit, assist: e.target.value })} />
+                <span className="text-sm font-semibold">{num(unit.assist) === null ? "단가를 넣으면 계산됩니다" : `누적 약 ${(assists * (num(unit.assist) as number)).toFixed(2)}`}</span>
+              </label>
+            </div>
+            <p className="mt-2 text-xs text-zinc-500">앱이 세는 건수만 반영한 어림입니다. 가족 쪽의 저장되지 않은 시도(학교 글이 아니어서 버린 것, 실패), 번역, 메일·문자 분류, 말로 설정하기, 작성 도우미는 빠져 있으니 실제 청구액은 더 큽니다. 하루 한도는 {data.server.dailyCap}건입니다.</p>
+          </section>
+
           <section className={`${CARD} mt-4`}>
             <h3 className="text-sm font-semibold">하루 안내문 수 (14일)</h3>
             <div className="mt-3 flex h-24 items-end gap-1">
@@ -346,6 +439,8 @@ export default function AdminPage() {
                       <td className={`${TD} font-mono text-xs`}>
                         {f.id}
                         {f.empty && <span className="ml-1 rounded bg-zinc-200 px-1 text-[10px] dark:bg-zinc-700">빈 가족</span>}
+                        {f.blocked && <span className="ml-1 rounded bg-red-200 px-1 text-[10px] text-red-900">중지됨</span>}
+                        {f.note && <span className="ml-1 rounded bg-amber-200 px-1 text-[10px] text-amber-900" title={f.note}>메모</span>}
                       </td>
                       <td className={TD}>{day(f.createdAt)}</td>
                       <td className={TD}>{day(f.updatedAt)}</td>
@@ -364,6 +459,23 @@ export default function AdminPage() {
                         <span className="flex gap-1">
                           <button type="button" className={BTN_SMALL} onClick={() => openFamily(f.id)}>
                             상세
+                          </button>
+                          <button
+                            type="button"
+                            className={BTN_SMALL}
+                            onClick={() => {
+                              const note = window.prompt(`가족 ${f.id} 메모 (운영자만 봅니다, 비우면 삭제)`, f.note);
+                              if (note !== null) void act("family_note", f.id, "", undefined, { note });
+                            }}
+                          >
+                            메모
+                          </button>
+                          <button
+                            type="button"
+                            className={BTN_SMALL}
+                            onClick={() => act("family_block", f.id, f.blocked ? `가족 ${f.id}의 일시 중지를 풉니다. 계속할까요?` : `가족 ${f.id}의 AI 사용(안내문 추가·질문·답장)을 일시 중지합니다. 목록은 계속 볼 수 있습니다. 계속할까요?`, undefined, { blocked: !f.blocked })}
+                          >
+                            {f.blocked ? "중지 해제" : "일시 중지"}
                           </button>
                           <button type="button" className={BTN_SMALL} onClick={() => act("family_reset_usage", f.id, `가족 ${f.id}의 이번 달 사용량(${f.monthUsage})을 0으로 되돌립니다. 계속할까요?`)}>
                             사용량 0
@@ -520,6 +632,39 @@ export default function AdminPage() {
             <p className="mt-3 text-xs text-zinc-500">
               저장소 {data.server.storage} · 모델 {data.server.extractModel} / {data.server.assistModel} / {data.server.classifyModel} · 하루 한도 {data.server.dailyCap}
             </p>
+          </section>
+
+          <section className={`${CARD} mt-4`}>
+            <h3 className="text-sm font-semibold">공지 띄우기</h3>
+            <p className="mt-1 text-xs text-zinc-500">선생님 데스크와 가족 홈 맨 위에 한 줄 공지가 뜹니다(한 번에 하나, 닫을 수 있음). 번역되지 않으니 필요한 언어로 직접 쓰세요.</p>
+            {lists.announcement && (
+              <p className="mt-2 text-xs text-emerald-700 dark:text-emerald-300">
+                지금 게시 중: {lists.announcement.audience === "teachers" ? "선생님" : lists.announcement.audience === "families" ? "가족" : "모두"} · {lists.announcement.until.slice(0, 10)}까지
+              </p>
+            )}
+            <textarea className={`${INPUT} mt-2`} rows={3} maxLength={500} placeholder="예: 11월 15일(일) 02:00–03:00 점검으로 잠시 접속이 안 될 수 있습니다." value={annText} onChange={(e) => setAnnText(e.target.value)} />
+            <div className="mt-2 flex flex-wrap items-center gap-2 text-sm">
+              <select className={`${INPUT} w-auto`} value={annAudience} onChange={(e) => setAnnAudience(e.target.value)} aria-label="대상">
+                <option value="all">모두</option>
+                <option value="teachers">선생님만</option>
+                <option value="families">가족만</option>
+              </select>
+              <select className={`${INPUT} w-auto`} value={annDays} onChange={(e) => setAnnDays(Number(e.target.value))} aria-label="기간">
+                {[1, 3, 7, 14, 30].map((d) => (
+                  <option key={d} value={d}>
+                    {d}일 동안
+                  </option>
+                ))}
+              </select>
+              <button type="button" className={BTN_PRIMARY} disabled={!annText.trim()} onClick={() => act("announce", "", `이 공지를 ${annAudience === "teachers" ? "선생님" : annAudience === "families" ? "가족" : "모두"}에게 ${annDays}일 동안 띄웁니다. 계속할까요?`, undefined, { text: annText, audience: annAudience, days: annDays })}>
+                공지 게시
+              </button>
+              {lists.announcement && (
+                <button type="button" className={BTN_SMALL} onClick={() => act("announce", "", "지금 공지를 내립니다. 계속할까요?", undefined, { text: "" })}>
+                  공지 내리기
+                </button>
+              )}
+            </div>
           </section>
 
           <section className={`${CARD} mt-4`}>

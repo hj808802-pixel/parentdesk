@@ -23,6 +23,15 @@ describe("admin", () => {
     const value = cookie.split(";")[0];
     expect(isAdminRequest(new Request("https://x/api/admin/stats", { headers: { cookie: value } }))).toBe(true);
     expect(isAdminRequest(new Request("https://x/api/admin/stats", { headers: { cookie: "pd_admin=" + "0".repeat(64) } }))).toBe(false);
+    // an expired session is refused, and a session made without the second step's secret
+    // stops working once that secret is set (the token alone cannot forge one)
+    const [exp, sig] = value.split("=")[1].split(".");
+    expect(isAdminRequest(new Request("https://x/", { headers: { cookie: `pd_admin=${Date.now() - 1000}.${sig}` } }))).toBe(false);
+    expect(Number(exp)).toBeGreaterThan(Date.now());
+    process.env.ADMIN_TOTP_SECRET = "JBSWY3DPEHPK3PXPJBSWY3DPEHPK3PXP";
+    expect(isAdminRequest(new Request("https://x/", { headers: { cookie: value } }))).toBe(false);
+    expect(isAdminRequest(new Request("https://x/", { headers: { cookie: adminCookie(true).split(";")[0] } }))).toBe(true);
+    delete process.env.ADMIN_TOTP_SECRET;
     expect(isAdminRequest(new Request("https://x/api/admin/stats"))).toBe(false);
     process.env.ADMIN_TOKEN = "short";
     expect(adminEnabled()).toBe(false);
@@ -46,7 +55,7 @@ describe("admin", () => {
     const s = computeStats([a, b], new Date());
     // table rows carry counts only
     const row = familyRow(a);
-    expect(Object.keys(row).sort()).toEqual(["children", "country", "createdAt", "empty", "gmail", "id", "items", "language", "monthUsage", "open", "plan", "push", "rooms", "sources", "updatedAt"]);
+    expect(Object.keys(row).sort()).toEqual(["blocked", "children", "country", "createdAt", "empty", "gmail", "id", "items", "language", "monthUsage", "note", "open", "plan", "push", "rooms", "sources", "updatedAt"]);
     expect(JSON.stringify(row)).not.toContain(a.keyHash);
     // "abandoned" needs both: nothing on it and a month old
     const { record: idle } = createFamily();

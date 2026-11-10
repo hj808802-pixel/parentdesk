@@ -1,4 +1,5 @@
 import Anthropic from "@anthropic-ai/sdk";
+import { isPaused } from "@/lib/ops";
 import { contextOf, extractNotice, ExtractError, type ImageMediaType, type InputFile } from "@/lib/extract";
 import { todayIn } from "@/lib/dates";
 import { canExtract } from "@/lib/plan";
@@ -22,6 +23,7 @@ const MAX_TEXT_CHARS = 20000;
 export async function POST(req: Request) {
   const requestId = crypto.randomUUID();
   let rec = await familyFromRequest(req);
+  if (rec && (await isPaused(rec.id))) return Response.json({ ok: false, error: "blocked" }, { status: 403 });
 
   const gate = allowRequest({ ip: clientIp(req), family: rec?.id ?? null });
   if (!gate.ok) {

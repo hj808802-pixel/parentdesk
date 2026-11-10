@@ -171,6 +171,7 @@ export const vi: Dict = {
       upstream_unavailable: "Dịch vụ đang bận. Vui lòng thử lại sau một phút.",
       generic: "Có lỗi xảy ra. Vui lòng thử lại.",
       plan_limit: "Bạn đã dùng hết số thông báo miễn phí tháng này. Nâng cấp lên gói Gia đình để không giới hạn.",
+      blocked: "Bên vận hành đã tạm dừng gia đình này. Danh sách của bạn vẫn còn; hãy liên hệ hỗ trợ để tiếp tục.",
     },
   },
   item: {

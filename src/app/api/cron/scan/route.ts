@@ -1,4 +1,5 @@
 import { timingSafeEqual } from "node:crypto";
+import { isPaused } from "@/lib/ops";
 import { gmailEnabled, scanFamily } from "@/lib/gmail";
 import { recordRun } from "@/lib/ops";
 import { canUse } from "@/lib/plan";
@@ -39,6 +40,7 @@ export async function GET(req: Request) {
       }
       const rec = await loadFamily(id);
       if (!rec?.gmail || rec.gmail.paused || !canUse(rec, "gmail")) continue;
+      if (await isPaused(rec.id)) continue; // paused by the operator: no classification, no extraction
       summary.connected++;
       const r = await scanFamily(rec, { budgetMs: PER_FAMILY_MS });
       await saveFamily(rec);
