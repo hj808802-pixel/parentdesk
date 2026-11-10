@@ -85,6 +85,9 @@ expect("items bulk: no family", await call("POST", "/api/items/bulk", { json: { 
 expect("reply: no family", await call("POST", "/api/items/abc/reply", { json: { intent: "yes" } }), 404);
 expect("explain: no family", await call("POST", "/api/items/abc/explain"), 404);
 expect("ask: no family", await call("POST", "/api/ask", { json: { question: "what is due?" } }), 404);
+expect("backup: export without family", await call("GET", "/api/family/export"), 404);
+expect("backup: import without family", await call("POST", "/api/family/import", { json: {} }), 404);
+expect("push: no family", await call("POST", "/api/push", { json: { test: true } }), 404);
 expect("setup: no family", await call("POST", "/api/family/assist-settings", { json: { text: "add a child" } }), 404);
 expect("source delete: no family", await call("DELETE", "/api/sources/abc"), 404);
 expect("calendar: garbage token", await call("GET", "/api/calendar/nope.ics"), 404);
@@ -223,6 +226,13 @@ if (key) {
   expect("explain: unknown item", await call("POST", "/api/items/zzz/explain"), 404);
   expect("source delete: unknown id", await call("DELETE", "/api/sources/zzz"), 404);
   expect("ask: empty question", await call("POST", "/api/ask", { json: { question: "" } }), 400);
+  expect("backup: export is a file without secrets", await call("GET", "/api/family/export"), 200, (r) => r.data?.format === "parentdesk-backup" && Array.isArray(r.data.items) && !("keyHash" in r.data) && !("feedSecret" in r.data) && /attachment/.test(r.headers.get("content-disposition") ?? ""));
+  expect("backup: import rejects another shape", await call("POST", "/api/family/import", { json: { format: "nope" } }), 400);
+  expect("backup: fits check", await call("POST", "/api/family/import", { json: { check: { itemIds: ["111111aa"], sourceIds: [] } } }), 200, (r) => r.data.fits === true);
+  expect("backup: import not json", await call("POST", "/api/family/import", { json: "{" }), 400);
+  expect("backup: import of an empty backup adds nothing", await call("POST", "/api/family/import", { json: { format: "parentdesk-backup", version: 1, children: [], sources: [], items: [] } }), 200, (r) => r.data.restored.items === 0);
+  expect("push: bad subscription or push off", await call("POST", "/api/push", { json: { subscription: { endpoint: "http://x" } } }), [400, 503]);
+  expect("push: delete needs an endpoint", await call("DELETE", "/api/push", { json: {} }), 400);
   expect("setup: empty text", await call("POST", "/api/family/assist-settings", { json: { text: "" } }), 400);
   expect("setup: not json", await call("POST", "/api/family/assist-settings", { json: "nope" }), 400);
   expect("setup: too long", await call("POST", "/api/family/assist-settings", { json: { text: "x".repeat(700) } }), 400);

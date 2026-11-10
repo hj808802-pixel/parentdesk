@@ -108,13 +108,16 @@ export type Invite = { hash: string; createdAt: string; expiresAt: string; uses:
 
 // A class room this family follows (lib/rooms.ts). The teacher's posts land on the list
 // tagged with these children. Only the room's id and name are kept here.
-export type RoomSubscription = { roomId: string; name: string; teacherName: string; school?: string; childIds: string[]; joinedAt: string; lastPostId: string | null };
+// One device's web-push address (lib/push.ts). Never sent to the browser.
+export type PushSub = { endpoint: string; p256dh: string; auth: string; createdAt: string };
+
+export type RoomSubscription = { roomId: string; name: string; teacherName: string; school?: string; place?: string; childIds: string[]; joinedAt: string; lastPostId: string | null };
 
 // Weekly summary e-mail state.
 export type DigestState = { lastSentAt: string | null; lastWeeklyAt: string | null; lastError: string | null };
 
 // Which optional channels this server has switched on.
-export type Features = { gmail: boolean; inbound: boolean; billing: boolean; digest: boolean };
+export type Features = { gmail: boolean; inbound: boolean; billing: boolean; digest: boolean; push: boolean };
 
 // What the free plan allows while billing is on. Mirrored to the browser so the pricing
 // page and the settings can say the numbers.
@@ -140,10 +143,14 @@ export type FamilyRecord = {
   digest?: DigestState | null;
   counters?: Record<string, number>; // "ask", "reply", "gmail_scan", "digest" -> lifetime counts (ops only)
   rooms?: RoomSubscription[];
+  push?: PushSub[];
 };
 
 // What the browser sees: no hashes or secrets beyond the read-only feed token.
-export type FamilyView = Omit<FamilyRecord, "keyHash" | "memberHashes" | "feedSecret" | "hookSecret" | "inboundCode" | "gmail" | "billing" | "invites" | "counters"> & {
+export type FamilyView = Omit<FamilyRecord, "keyHash" | "memberHashes" | "feedSecret" | "hookSecret" | "inboundCode" | "gmail" | "billing" | "invites" | "counters" | "push"> & {
+  pushKey: string | null; // the server's public push key, null when push is off
+  pushDevices: number;
+  pushIds: string[]; // a short hash per registered device: a browser can tell whether its own subscription belongs to this family
   feedToken: string;
   hookToken: string;
   inboundAddress: string | null;

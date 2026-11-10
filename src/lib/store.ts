@@ -24,8 +24,8 @@ export const FAMILY_COOKIE = "pd_family";
 const ROOT = "parentdesk/";
 const FAMILIES = "families/";
 const OPS = "ops/";
-const MAX_ITEMS = 2000;
-const MAX_SOURCES = 400;
+export const MAX_ITEMS = 2000;
+export const MAX_SOURCES = 400;
 
 export function newId(bytes = 6): string {
   return randomBytes(bytes).toString("hex");
@@ -99,6 +99,7 @@ export function features(): Features {
     inbound: Boolean(inboundDomain() && process.env.INBOUND_SECRET),
     billing: billingEnabled(),
     digest: digestEnabled(),
+    push: Boolean(process.env.VAPID_PUBLIC_KEY && process.env.VAPID_PRIVATE_KEY),
   };
 }
 
@@ -403,6 +404,7 @@ function normalize(rec: FamilyRecord): FamilyRecord {
   rec.digest ??= null;
   rec.counters ??= {};
   rec.rooms ??= [];
+  rec.push ??= [];
   rec.settings = sanitizeSettings(rec.settings, defaultSettings());
   return rec;
 }
@@ -471,7 +473,7 @@ export function isHttps(req: Request): boolean {
 // ---- views ----
 
 export function toView(rec: FamilyRecord): FamilyView {
-  const { keyHash: _k, memberHashes: _m, feedSecret: _f, hookSecret: _h, inboundCode: _i, gmail, billing, invites: _inv, counters: _c, ...rest } = rec;
+  const { keyHash: _k, memberHashes: _m, feedSecret: _f, hookSecret: _h, inboundCode: _i, gmail, billing, invites: _inv, counters: _c, push, ...rest } = rec;
   void _k;
   void _m;
   void _f;
@@ -496,6 +498,9 @@ export function toView(rec: FamilyRecord): FamilyView {
     billing: billingView,
     limits: planLimits(),
     invites: liveInvites(rec).length,
+    pushKey: features().push ? (process.env.VAPID_PUBLIC_KEY as string) : null,
+    pushDevices: (push ?? []).length,
+    pushIds: (push ?? []).map((p) => createHash("sha256").update(p.endpoint).digest("hex").slice(0, 16)),
   };
 }
 

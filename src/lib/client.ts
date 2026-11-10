@@ -47,6 +47,11 @@ export const api = {
   deleteSource: (id: string) => call<{ ok: true; family: FamilyView }>(`/api/sources/${id}`, { method: "DELETE" }),
   ask: (question: string) => call<{ ok: true; answer: string; items: Item[]; mock: boolean }>("/api/ask", { method: "POST", body: JSON.stringify({ question }) }),
   assistSettings: (text: string, locale: string) => call<SettingsSuggestion & { ok: true; mock: boolean }>("/api/family/assist-settings", { method: "POST", body: JSON.stringify({ text, locale }) }),
+  importCheck: (itemIds: unknown[], sourceIds: unknown[]) => call<{ ok: true; fits: boolean }>("/api/family/import", { method: "POST", body: JSON.stringify({ check: { itemIds, sourceIds } }) }),
+  importBackup: (text: string) => call<FamilyResponse & { restored: { children: number; sources: number; items: number } }>("/api/family/import", { method: "POST", body: text }),
+  pushSubscribe: (subscription: unknown) => call<FamilyResponse>("/api/push", { method: "POST", body: JSON.stringify({ subscription }) }),
+  pushUnsubscribe: (endpoint: string) => call<FamilyResponse>("/api/push", { method: "DELETE", body: JSON.stringify({ endpoint }) }),
+  pushTest: () => call<{ ok: true; sent: number }>("/api/push", { method: "POST", body: JSON.stringify({ test: true }) }),
   explain: (id: string) => call<{ ok: true; explanation: string; what_to_do: string[]; context: string | null; ask_school: string | null; mock: boolean }>(`/api/items/${id}/explain`, { method: "POST" }),
   reply: (id: string, intent: string, note: string) =>
     call<{ ok: true; reply: string; translation: string | null; subject: string | null; mock: boolean }>(`/api/items/${id}/reply`, { method: "POST", body: JSON.stringify({ intent, note }) }),

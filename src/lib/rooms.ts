@@ -3,6 +3,7 @@ import { todayIn } from "./dates";
 import type { ExtractContext } from "./extract";
 import type { Extraction } from "./schema";
 import { translatePost } from "./assist";
+import { notifyFamily } from "./push";
 import { commitItems, defaultSettings, draftItem, listDocIds, loadFamily, newId, readDoc, removeDoc, sanitizeSettings, saveFamily, writeDoc, type ItemDraft } from "./store";
 import type { FamilyRecord, Item, RoomSubscription, Settings, Source } from "./types";
 
@@ -110,10 +111,10 @@ export type SchoolEntry = { id: string; country: string; region: string; city: s
 export type SchoolHit = SchoolEntry & { rooms: number };
 
 // Who a post comes from, as families see it. A TeacherRecord fits.
-export type Sender = { name: string; school: string };
+export type Sender = { name: string; school: string; place?: string };
 
-export function senderOf(teacher: Sender | null | undefined): Sender {
-  return { name: teacher?.name ?? "", school: teacher?.school ?? "" };
+export function senderOf(teacher: (Sender & { region?: string; city?: string }) | null | undefined): Sender {
+  return { name: teacher?.name ?? "", school: teacher?.school ?? "", place: teacher?.place ?? [teacher?.region, teacher?.city].filter(Boolean).join(" ") };
 }
 
 // "<school> · <room> · <teacher>", skipping what is empty.
@@ -672,15 +673,17 @@ export async function sendPost(teacher: TeacherRecord, rooms: RoomRecord[], post
   });
   let delivered = 0;
   let items = 0;
+  const toNotify: FamilyRecord[] = [];
   for (let i = 0; i < families.length; i += DELIVERY_BATCH) {
     await Promise.all(
       families.slice(i, i + DELIVERY_BATCH).map(async ({ fam, room }) => {
-        const res = deliverPost(fam, room, post, teacher);
+        const res = deliverPost(fam, room, post, senderOf(teacher));
         if (!res) return;
         try {
           await saveFamily(fam);
           delivered++;
           items += res.items.length;
+          if (res.items.length) toNotify.push(fam);
         } catch (e) {
           console.error("[room post] save failed", fam.id, e);
         }
@@ -695,6 +698,9 @@ export async function sendPost(teacher: TeacherRecord, rooms: RoomRecord[], post
   // "last notice" in the directory follows.
   const listed = rooms.filter((r) => r.listed);
   if (listed.length) await syncDirectory(teacher, listed);
+  // Last, after everything is saved: tell the devices that asked. Each send has its own
+  // time limit and a failure here changes nothing above.
+  await Promise.allSettled(toNotify.map((fam) => notifyFamily(fam, { title: post.sender, body: postForLanguage(post, fam.settings.language).title, url: "/week" })));
   return { delivered, items, languages, members: families.length };
 }
 
@@ -761,6 +767,7 @@ export function deliverPost(rec: FamilyRecord, room: RoomRecord, post: RoomPost,
   sub.name = room.name;
   sub.teacherName = sender.name;
   sub.school = sender.school;
+  if (sender.place !== undefined) sub.place = sender.place;
   return res;
 }
 
@@ -782,12 +789,13 @@ export function subscribe(rec: FamilyRecord, room: RoomRecord, sender: Sender, c
     existing.name = room.name;
     existing.teacherName = sender.name;
     existing.school = sender.school;
+    if (sender.place !== undefined) existing.place = sender.place;
     if (!room.members.some((m) => m.familyId === rec.id)) room.members.push({ familyId: rec.id, joinedAt: now });
     return { ok: true, subscription: existing, isNew: false };
   }
   if (rec.rooms.length >= MAX_ROOMS_PER_FAMILY) return { ok: false, reason: "too_many_rooms" };
   if (room.members.length >= MAX_MEMBERS_PER_ROOM) return { ok: false, reason: "room_full" };
-  const subscription: RoomSubscription = { roomId: room.id, name: room.name, teacherName: sender.name, school: sender.school, childIds, joinedAt: now, lastPostId: null };
+  const subscription: RoomSubscription = { roomId: room.id, name: room.name, teacherName: sender.name, school: sender.school, place: sender.place ?? "", childIds, joinedAt: now, lastPostId: null };
   rec.rooms.push(subscription);
   room.members.push({ familyId: rec.id, joinedAt: now });
   return { ok: true, subscription, isNew: true };

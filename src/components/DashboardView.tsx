@@ -9,6 +9,7 @@ import { useFamily } from "@/lib/family-context";
 import { useI18n } from "@/lib/i18n/context";
 import { fmt } from "@/lib/i18n";
 import { LOCALE_TAGS, localePath } from "@/lib/i18n/locales";
+import { schoolLabel } from "@/lib/rooms-ui";
 import { FLAG_CALENDAR, FLAG_SETUP_HIDDEN, isInstalled, readFlag, writeFlag } from "@/lib/setup";
 import { BTN_PRIMARY, BTN_SECONDARY, BTN_SMALL, CARD, TYPE_STYLES } from "@/lib/ui";
 import AskBox from "./AskBox";
@@ -355,7 +356,7 @@ export default function DashboardView() {
               return (
                 <li key={r.roomId} className="flex items-start justify-between gap-3 py-2 text-sm">
                   <div className="min-w-0">
-                    <p dir="auto" className="font-medium">{r.school ? `${r.school} · ${r.name}` : r.name}</p>
+                    <p dir="auto" className="font-medium">{r.school ? `${schoolLabel({ school: r.school, region: r.place })} · ${r.name}` : r.name}</p>
                     {r.teacherName && <p dir="auto" className="text-xs text-zinc-500">{r.teacherName}</p>}
                   </div>
                   <span className={`shrink-0 rounded-full px-2 py-0.5 text-xs ${n ? "bg-emerald-100 text-emerald-800 dark:bg-emerald-900/50 dark:text-emerald-200" : "text-zinc-500"}`}>

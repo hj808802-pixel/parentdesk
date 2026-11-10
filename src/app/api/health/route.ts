@@ -22,6 +22,7 @@ export async function GET() {
       cron: Boolean(process.env.CRON_SECRET),
       billing: features().billing,
       digest: features().digest,
+      push: features().push,
       admin: adminEnabled(),
       limits: planLimits(),
       assistModel: process.env.ASSIST_MODEL || "claude-sonnet-5-5",

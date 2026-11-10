@@ -10,11 +10,14 @@ import { useI18n } from "@/lib/i18n/context";
 import { fmt } from "@/lib/i18n";
 import { LOCALE_TAGS, localePath, regionName } from "@/lib/i18n/locales";
 import { OUTPUT_LANGUAGES, type SetupSection } from "@/lib/schema";
+import { schoolLabel } from "@/lib/rooms-ui";
 import { FLAG_CALENDAR, isInstalled, readFlag } from "@/lib/setup";
 import { CHILD_COLORS, MAX_CHILDREN, type Child, type Settings } from "@/lib/types";
 import { BTN_PRIMARY, BTN_SECONDARY, BTN_SMALL, CARD, INPUT } from "@/lib/ui";
 import CalendarLinks from "./CalendarLinks";
+import BackupCard from "./BackupCard";
 import ChildChips from "./ChildChips";
+import PushCard from "./PushCard";
 import InstallCard from "./InstallCard";
 import SetupHelper from "./SetupHelper";
 
@@ -467,6 +470,8 @@ export default function SettingsView() {
 
           <InstallCard onInstalled={setInstalled} />
 
+          <PushCard />
+
           <section id="family" className={`${CARD} mt-4`}>
             <h2 className="font-semibold">{t.settings.family}</h2>
             <label className="mt-3 grid gap-1 text-sm">
@@ -569,7 +574,7 @@ export default function SettingsView() {
                 <ul className="mt-3 grid gap-3">
                   {(family.rooms ?? []).map((r) => (
                     <li key={r.roomId} className="rounded-xl border border-zinc-200 p-3 dark:border-zinc-800">
-                      <p dir="auto" className="font-medium">{r.school ? `${r.school} · ${r.name}` : r.name}</p>
+                      <p dir="auto" className="font-medium">{r.school ? `${schoolLabel({ school: r.school, region: r.place })} · ${r.name}` : r.name}</p>
                       {r.teacherName && <p dir="auto" className="text-xs text-zinc-500">{r.teacherName}</p>}
                       {family.children.length > 0 && (
                         <div className="mt-2 flex flex-wrap items-center gap-2 text-xs">
@@ -767,6 +772,8 @@ export default function SettingsView() {
                 </div>
               ) : null}
               <p className="mt-2 text-xs text-zinc-500">{t.settings.keyNote}</p>
+
+              <BackupCard />
 
               <h3 className="mt-5 text-sm font-semibold">{t.settings.joinTitle}</h3>
               <p className="mt-1 text-sm text-zinc-600 dark:text-zinc-400">{t.settings.joinBody}</p>
