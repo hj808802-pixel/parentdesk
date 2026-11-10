@@ -7,12 +7,12 @@ import { useI18n } from "@/lib/i18n/context";
 // per announcement until it is closed on this device.
 
 export default function Announcement({ audience }: { audience: "teachers" | "families" }) {
-  const { t } = useI18n();
+  const { locale, t } = useI18n();
   const [a, setA] = useState<{ id: string; text: string } | null>(null);
 
   useEffect(() => {
     let live = true;
-    fetch(`/api/announcement?for=${audience}`)
+    fetch(`/api/announcement?for=${audience}&locale=${locale}`)
       .then((r) => r.json())
       .then((body: { announcement?: { id: string; text: string } | null }) => {
         const got = body.announcement;
@@ -28,7 +28,7 @@ export default function Announcement({ audience }: { audience: "teachers" | "fam
     return () => {
       live = false;
     };
-  }, [audience]);
+  }, [audience, locale]);
 
   if (!a) return null;
   return (

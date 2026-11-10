@@ -630,6 +630,7 @@ export const fr: Dict = {
     saved: "Enregistré",
     errors: {
       name_required: "Veuillez saisir un nom.",
+      blocked: "L'opérateur a mis ce bureau d'enseignant en pause. Vos salles sont toujours là ; contactez l'assistance pour reprendre.",
       too_many_rooms: "Vous avez atteint le nombre maximal d'espaces.",
       post_limit: "Vous avez utilisé les mots de ce mois ({used} sur {limit}). Davantage le mois prochain.",
       not_found: "Cet espace n'existe plus.",

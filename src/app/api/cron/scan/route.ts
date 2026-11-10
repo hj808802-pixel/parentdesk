@@ -1,4 +1,5 @@
 import { timingSafeEqual } from "node:crypto";
+import { compactUsage } from "@/lib/usage";
 import { isPaused } from "@/lib/ops";
 import { gmailEnabled, scanFamily } from "@/lib/gmail";
 import { recordRun } from "@/lib/ops";
@@ -52,6 +53,8 @@ export async function GET(req: Request) {
   }
   const ms = Date.now() - started;
   console.log(JSON.stringify({ event: "cron_scan", ms, ...summary }));
+  // Fold yesterday's per-call usage documents into one per day.
+  await compactUsage().catch((e) => console.error("[cron scan] usage", e));
   await recordRun("scan", ms, summary).catch((e) => console.error("[cron scan] record", e));
   return Response.json({ ok: true, ...summary, ms });
 }

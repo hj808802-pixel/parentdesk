@@ -630,6 +630,7 @@ export const ko: Dict = {
     saved: "저장됨",
     errors: {
       name_required: "이름을 입력하세요.",
+      blocked: "운영자가 이 선생님 데스크를 일시 중지했습니다. 알림방은 그대로 있으니, 다시 쓰려면 문의해 주세요.",
       too_many_rooms: "알림방을 더 만들 수 없습니다.",
       post_limit: "이번 달 안내문을 모두 사용했습니다({used} / {limit}). 다음 달에 다시 올릴 수 있습니다.",
       not_found: "이 알림방은 더 이상 없습니다.",

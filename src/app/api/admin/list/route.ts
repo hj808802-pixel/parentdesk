@@ -1,5 +1,5 @@
 import { adminEnabled, familyRow, isAdminRequest, systemChecklist } from "@/lib/admin";
-import { readAdminActions, readAnnouncement, readFamilyAdmin } from "@/lib/ops";
+import { isTeacherPaused, readAdminActions, readAnnouncement, readFamilyAdmin } from "@/lib/ops";
 import { listRoomIds, listTeacherIds, loadDirectory, loadRoom, loadSchools, loadTeacher, schoolIdOf, type RoomRecord, type TeacherRecord } from "@/lib/rooms";
 import { listFamilyIds, loadFamily } from "@/lib/store";
 
@@ -34,8 +34,10 @@ export async function GET(req: Request) {
     const r = await loadRoom(id);
     if (r) roomRecs.push(r);
   }
+  const pausedTeachers = new Set<string>();
+  for (const t of teacherRecs) if (await isTeacherPaused(t.id)) pausedTeachers.add(t.id);
   const teachers = teacherRecs
-    .map((t) => ({ id: t.id, name: t.name, school: t.school, region: t.region, city: t.city, country: t.settings.country, rooms: roomRecs.filter((r) => r.teacherId === t.id).length, monthPosts: t.usage[month] ?? 0, createdAt: t.createdAt, schoolId: schoolIdOf(t) }))
+    .map((t) => ({ blocked: pausedTeachers.has(t.id), id: t.id, name: t.name, school: t.school, region: t.region, city: t.city, country: t.settings.country, rooms: roomRecs.filter((r) => r.teacherId === t.id).length, monthPosts: t.usage[month] ?? 0, createdAt: t.createdAt, schoolId: schoolIdOf(t) }))
     .sort((a, b) => (a.createdAt < b.createdAt ? 1 : -1));
   const rooms = roomRecs
     .map((r) => {

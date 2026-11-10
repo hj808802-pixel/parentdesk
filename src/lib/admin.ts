@@ -10,19 +10,29 @@ import type { FamilyRecord } from "./types";
 export const ADMIN_COOKIE = "pd_admin";
 const COOKIE_MAX_AGE = 12 * 3600;
 
+// Who may sign in. The owner is ADMIN_TOKEN (with ADMIN_TOTP_SECRET as its second step).
+// More people go in ADMIN_USERS as "name:role:token[:totpSecret]" separated by commas;
+// role is "owner" (everything) or "viewer" (may look, may not change anything).
+export type AdminRole = "owner" | "viewer";
+export type AdminUser = { name: string; role: AdminRole; token: string; totp: string | null };
+export type AdminIdentity = { name: string; role: AdminRole };
+
+export function adminUsers(): AdminUser[] {
+  const users: AdminUser[] = [];
+  const main = (process.env.ADMIN_TOKEN ?? "").trim();
+  const mainTotp = (process.env.ADMIN_TOTP_SECRET ?? "").trim();
+  if (main.length >= 16) users.push({ name: "owner", role: "owner", token: main, totp: mainTotp.length >= 16 ? mainTotp : null });
+  for (const part of (process.env.ADMIN_USERS ?? "").split(",")) {
+    const [name, role, token, totp] = part.trim().split(":").map((x) => x.trim());
+    if (!name || !/^[a-z0-9_-]{1,20}$/.test(name) || (role !== "owner" && role !== "viewer") || !token || token.length < 16) continue;
+    if (users.some((u) => u.name === name || u.token === token)) continue;
+    users.push({ name, role, token, totp: totp && totp.length >= 16 ? totp : null });
+  }
+  return users;
+}
+
 export function adminEnabled(): boolean {
-  return (process.env.ADMIN_TOKEN ?? "").trim().length >= 16;
-}
-
-// The session cookie is "<expiry>.<signature>". The signing key is derived from the token
-// AND the second step's secret, so knowing the token alone is not enough to forge a session
-// once two-step sign-in is on; the expiry is checked on the server.
-function sessionKey(): Buffer {
-  return createHash("sha256").update(`${(process.env.ADMIN_TOKEN ?? "").trim()}|${(process.env.ADMIN_TOTP_SECRET ?? "").trim()}`).digest();
-}
-
-function sign(expiry: string): string {
-  return createHmac("sha256", sessionKey()).update(`admin-session:${expiry}`).digest("hex");
+  return adminUsers().length > 0;
 }
 
 function same(a: string, b: string): boolean {
@@ -31,31 +41,58 @@ function same(a: string, b: string): boolean {
   return x.length === y.length && timingSafeEqual(x, y);
 }
 
-// The optional second step: a base32 secret in ADMIN_TOTP_SECRET (scripts/admin-2fa.mjs).
-export function adminTotpSecret(): string | null {
-  const s = (process.env.ADMIN_TOTP_SECRET ?? "").trim();
-  return s.length >= 16 ? s : null;
+// The account a token belongs to (every candidate is compared, in constant time each).
+export function adminByToken(given: unknown): AdminUser | null {
+  if (typeof given !== "string") return null;
+  let found: AdminUser | null = null;
+  for (const u of adminUsers()) if (same(given.trim(), u.token)) found = u;
+  return found;
 }
 
 export function checkAdminToken(given: unknown): boolean {
-  if (!adminEnabled() || typeof given !== "string") return false;
-  return same(given.trim(), (process.env.ADMIN_TOKEN ?? "").trim());
+  return adminByToken(given) !== null;
 }
 
-export function adminCookie(secure: boolean): string {
+// The owner's second-step secret (kept for the checklist and older callers).
+export function adminTotpSecret(): string | null {
+  return adminUsers().find((u) => u.name === "owner")?.totp ?? null;
+}
+
+// The session cookie is "<expiry>.<name>.<signature>". The signing key is derived from
+// that account's token AND its second-step secret, so the token alone cannot forge a
+// session once two-step sign-in is on; name, role and expiry are all inside the signature.
+function sign(u: AdminUser, expiry: string): string {
+  const key = createHash("sha256").update(`${u.token}|${u.totp ?? ""}`).digest();
+  return createHmac("sha256", key).update(`admin-session:${expiry}:${u.name}:${u.role}`).digest("hex");
+}
+
+export function adminCookieFor(u: AdminUser, secure: boolean): string {
   const expiry = String(Date.now() + COOKIE_MAX_AGE * 1000);
-  return `${ADMIN_COOKIE}=${expiry}.${sign(expiry)}; Path=/; Max-Age=${COOKIE_MAX_AGE}; HttpOnly; SameSite=Strict${secure ? "; Secure" : ""}`;
+  return `${ADMIN_COOKIE}=${expiry}.${u.name}.${sign(u, expiry)}; Path=/; Max-Age=${COOKIE_MAX_AGE}; HttpOnly; SameSite=Strict${secure ? "; Secure" : ""}`;
+}
+
+// The owner's cookie (tests and older callers).
+export function adminCookie(secure: boolean): string {
+  const owner = adminUsers().find((u) => u.name === "owner");
+  return owner ? adminCookieFor(owner, secure) : clearAdminCookie(secure);
 }
 
 export function clearAdminCookie(secure: boolean): string {
   return `${ADMIN_COOKIE}=; Path=/; Max-Age=0; HttpOnly; SameSite=Strict${secure ? "; Secure" : ""}`;
 }
 
-export function isAdminRequest(req: Request): boolean {
-  if (!adminEnabled()) return false;
+// Who is signed in on this request, or null. An account removed from the environment, or
+// whose token, secret or role changed, loses its sessions at once.
+export function adminOf(req: Request): AdminIdentity | null {
   const header = req.headers.get("cookie") ?? "";
-  const m = new RegExp(`(?:^|;\\s*)${ADMIN_COOKIE}=(\\d{10,16})\\.([0-9a-f]{64})`).exec(header);
-  return Boolean(m && Number(m[1]) > Date.now() && same(m[2], sign(m[1])));
+  const m = new RegExp(`(?:^|;\\s*)${ADMIN_COOKIE}=(\\d{10,16})\\.([a-z0-9_-]{1,20})\\.([0-9a-f]{64})`).exec(header);
+  if (!m || !(Number(m[1]) > Date.now())) return null;
+  const u = adminUsers().find((x) => x.name === m[2]);
+  return u && same(m[3], sign(u, m[1])) ? { name: u.name, role: u.role } : null;
+}
+
+export function isAdminRequest(req: Request): boolean {
+  return adminOf(req) !== null;
 }
 
 // The last n calendar days (UTC), oldest first.
@@ -247,7 +284,7 @@ export function systemChecklist(): { key: string; on: boolean }[] {
   const has = (...names: string[]) => names.every((n) => Boolean((process.env[n] ?? "").trim()));
   const f = features(); // the same switches the app itself uses
   return [
-    { key: "twostep", on: adminTotpSecret() !== null },
+    { key: "twostep", on: adminUsers().length > 0 && adminUsers().every((u) => u.totp !== null) },
     { key: "model", on: has("ANTHROPIC_API_KEY") || has("ANTHROPIC_AUTH_TOKEN") },
     { key: "storage", on: has("BLOB_READ_WRITE_TOKEN") || has("LOCAL_DATA_DIR") },
     { key: "admin", on: adminEnabled() },

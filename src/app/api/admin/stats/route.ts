@@ -1,4 +1,5 @@
-import { adminEnabled, computeStats, daysBack, familySummary, isAdminRequest } from "@/lib/admin";
+import { adminEnabled, adminOf, adminUsers, computeStats, daysBack, familySummary } from "@/lib/admin";
+import { readUsage } from "@/lib/usage";
 import { listRoomIds, listTeacherIds, loadDirectory, loadRoom, loadSchools, loadTeacher, roomStats, type RoomRecord } from "@/lib/rooms";
 import { features, listFamilyIds, loadFamily, readOps, storageMode, type FamilyRecord } from "@/lib/store";
 
@@ -12,7 +13,8 @@ const MAX_FAMILIES = 3000;
 
 export async function GET(req: Request) {
   if (!adminEnabled()) return Response.json({ ok: false, error: "admin_off" }, { status: 404 });
-  if (!isAdminRequest(req)) return Response.json({ ok: false, error: "unauthorized" }, { status: 401 });
+  const me = adminOf(req);
+  if (!me) return Response.json({ ok: false, error: "unauthorized" }, { status: 401 });
 
   const familyId = new URL(req.url).searchParams.get("family");
   if (familyId) {
@@ -61,6 +63,9 @@ export async function GET(req: Request) {
       search,
       teacherSignups,
       teacherPosts,
+      me,
+      admins: adminUsers().map((u) => ({ name: u.name, role: u.role, twoStep: u.totp !== null })),
+      usage: await readUsage(month),
       runs,
       server: {
         storage: storageMode(),

@@ -1,4 +1,5 @@
 import fs from "node:fs";
+import { noteUsage } from "./usage";
 import path from "node:path";
 import Anthropic from "@anthropic-ai/sdk";
 import { betaZodOutputFormat } from "@anthropic-ai/sdk/helpers/beta/zod";
@@ -185,6 +186,7 @@ export async function extractNotice(files: InputFile[], ctx: ExtractContext): Pr
       ? await client.beta.messages.parse(request)
       : await client.beta.messages.parse({ ...request, betas: ["server-side-fallback-2026-07-01"], fallbacks: "default" });
 
+  await noteUsage(response); // before anything can throw: a refusal used tokens too
   if (response.stop_reason === "refusal") {
     throw new ExtractError("refused", response.stop_details?.explanation ?? "The model declined this request.");
   }

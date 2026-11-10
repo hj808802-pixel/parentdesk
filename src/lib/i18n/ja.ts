@@ -630,6 +630,7 @@ export const ja: Dict = {
     saved: "保存しました",
     errors: {
       name_required: "名前を入力してください。",
+      blocked: "運営者がこの先生用デスクを一時停止しました。クラスはそのまま残っています。再開するにはお問い合わせください。",
       too_many_rooms: "ルーム数の上限に達しました。",
       post_limit: "今月のお知らせ枠を使い切りました（{used} / {limit}）。来月また投稿できます。",
       not_found: "このルームはもう存在しません。",

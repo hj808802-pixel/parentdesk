@@ -630,6 +630,7 @@ export const de: Dict = {
     saved: "Gespeichert",
     errors: {
       name_required: "Bitte geben Sie einen Namen ein.",
+      blocked: "Der Betreiber hat diesen Lehrer-Desk pausiert. Ihre Räume sind noch da; wenden Sie sich an den Support, um fortzufahren.",
       too_many_rooms: "Sie haben die Höchstzahl an Räumen erreicht.",
       post_limit: "Die Elternbriefe dieses Monats sind aufgebraucht ({used} von {limit}). Nächsten Monat gibt es neue.",
       not_found: "Diesen Raum gibt es nicht mehr.",

@@ -631,6 +631,7 @@ export const vi: Dict = {
     saved: "Đã lưu",
     errors: {
       name_required: "Vui lòng nhập tên.",
+      blocked: "Bên vận hành đã tạm dừng bàn giáo viên này. Các phòng của bạn vẫn còn; hãy liên hệ hỗ trợ để tiếp tục.",
       too_many_rooms: "Bạn đã đạt số phòng tối đa.",
       post_limit: "Bạn đã dùng hết thông báo tháng này ({used} / {limit}). Tháng sau sẽ có thêm.",
       not_found: "Phòng này không còn tồn tại.",

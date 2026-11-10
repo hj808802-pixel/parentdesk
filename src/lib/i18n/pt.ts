@@ -631,6 +631,7 @@ export const pt: Dict = {
     saved: "Salvo",
     errors: {
       name_required: "Digite um nome.",
+      blocked: "O operador pausou esta secretária de professor. As suas salas continuam aqui; contacte o suporte para retomar.",
       too_many_rooms: "Você atingiu o número máximo de salas.",
       post_limit: "Você usou os comunicados deste mês ({used} de {limit}). Mais no mês que vem.",
       not_found: "Esta sala não existe mais.",

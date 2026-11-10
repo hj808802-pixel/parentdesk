@@ -631,6 +631,7 @@ export const it: Dict = {
     saved: "Salvato",
     errors: {
       name_required: "Inserisci un nome.",
+      blocked: "L'operatore ha messo in pausa questa scrivania dell'insegnante. Le tue stanze sono ancora qui; contatta l'assistenza per riprendere.",
       too_many_rooms: "Hai raggiunto il numero massimo di stanze.",
       post_limit: "Hai usato le comunicazioni di questo mese ({used} su {limit}). Altre il mese prossimo.",
       not_found: "Questa stanza non esiste più.",

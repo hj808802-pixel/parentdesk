@@ -630,6 +630,7 @@ export const zh: Dict = {
     saved: "已保存",
     errors: {
       name_required: "请输入姓名。",
+      blocked: "运营方已暂停此教师工作台。你的通知室仍在；如需恢复请联系支持。",
       too_many_rooms: "您已达到通知室数量上限。",
       post_limit: "本月的通知额度已用完（{used} / {limit}）。下月可继续发布。",
       not_found: "此通知室已不存在。",

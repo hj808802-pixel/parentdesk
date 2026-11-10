@@ -1,4 +1,5 @@
 import { dropItems, loadRoom, loadRooms, saveRoom, sendPost, takeDraft, teacherFromRequest, teacherView, type RoomRecord } from "@/lib/rooms";
+import { isTeacherPaused } from "@/lib/ops";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -10,6 +11,7 @@ export const maxDuration = 60;
 async function own(req: Request, params: Promise<{ id: string; draftId: string }>) {
   const teacher = await teacherFromRequest(req);
   if (!teacher) return { error: Response.json({ ok: false, error: "no_teacher" }, { status: 404 }) };
+  if (await isTeacherPaused(teacher.id)) return { error: Response.json({ ok: false, error: "blocked" }, { status: 403 }) };
   const { id, draftId } = await params;
   const room = await loadRoom(id);
   if (!room || room.teacherId !== teacher.id) return { error: Response.json({ ok: false, error: "not_found" }, { status: 404 }) };

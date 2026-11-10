@@ -14,14 +14,14 @@ export async function recordRun(name: string, ms: number, summary: Record<string
 }
 
 // What the operator did in the console (deletes, unlisting, clean-ups), newest first.
-export type AdminAction = { at: string; action: string; target: string; note: string };
+export type AdminAction = { at: string; action: string; target: string; note: string; by?: string };
 
 // One small document per action (adminlog/<id>), so two actions at once never lose one.
 const ADMIN_LOG = "adminlog/";
 const KEEP_ACTIONS = 200;
 
-export async function recordAdminAction(action: string, target: string, note = ""): Promise<void> {
-  const entry: AdminAction = { at: new Date().toISOString(), action, target, note };
+export async function recordAdminAction(action: string, target: string, note = "", by = ""): Promise<void> {
+  const entry: AdminAction = { at: new Date().toISOString(), action, target, note, by };
   await writeDoc(`${ADMIN_LOG}${newId(6)}`, JSON.stringify(entry));
 }
 
@@ -48,16 +48,16 @@ export async function readAdminActions(limit = 50): Promise<AdminAction[]> {
 }
 
 // The operator's announcement: one at a time, for teachers, families or both, until a date.
-export type AnnouncementDoc = { id: string; text: string; audience: "teachers" | "families" | "all"; until: string; at: string };
+export type AnnouncementDoc = { id: string; text: string; texts?: Record<string, string>; audience: "teachers" | "families" | "all"; until: string; at: string };
 
-export async function setAnnouncement(text: string, audience: AnnouncementDoc["audience"], days: number): Promise<AnnouncementDoc | null> {
+export async function setAnnouncement(text: string, audience: AnnouncementDoc["audience"], days: number, texts?: Record<string, string>): Promise<AnnouncementDoc | null> {
   const clean = text.replace(/\s+\n/g, "\n").trim().slice(0, 500);
   if (!clean) {
     await writeOps("announcement", null);
     return null;
   }
   const now = new Date();
-  const doc: AnnouncementDoc = { id: newId(4), text: clean, audience, until: new Date(now.getTime() + Math.min(60, Math.max(1, days)) * 86400000).toISOString(), at: now.toISOString() };
+  const doc: AnnouncementDoc = { id: newId(4), text: clean, ...(texts ? { texts } : {}), audience, until: new Date(now.getTime() + Math.min(60, Math.max(1, days)) * 86400000).toISOString(), at: now.toISOString() };
   await writeOps("announcement", doc);
   return doc;
 }
@@ -91,16 +91,40 @@ export async function readFamilyAdmin(id: string): Promise<FamilyAdmin> {
 
 export async function writeFamilyAdmin(id: string, patch: Partial<FamilyAdmin>): Promise<FamilyAdmin> {
   const next = { ...(await readFamilyAdmin(id)), ...patch };
-  if (!next.note && !next.blocked) await removeDoc(`${FAMILY_ADMIN}${id}`).catch(() => undefined);
+  if (!next.note && !next.blocked) await removeDoc(`${FAMILY_ADMIN}${id}`); // an error is passed on, as above
   else await writeDoc(`${FAMILY_ADMIN}${id}`, JSON.stringify(next));
   return next;
 }
 
 export async function removeFamilyAdmin(id: string): Promise<void> {
-  await removeDoc(`${FAMILY_ADMIN}${id}`).catch(() => undefined);
+  await removeDoc(`${FAMILY_ADMIN}${id}`);
 }
 
 // Paused families may read their list but not spend model calls.
 export async function isPaused(id: string): Promise<boolean> {
   return (await readFamilyAdmin(id)).blocked;
+}
+
+// The announcement's text for one UI language (the original when there is no translation).
+export function announcementText(doc: AnnouncementDoc, locale: string | null | undefined): string {
+  const t = locale ? doc.texts?.[locale] : undefined;
+  return typeof t === "string" && t.trim() ? t : doc.text;
+}
+
+// ---- pausing a teacher desk ----
+// Same idea as a family's pause, in a document of its own (teacheradmin/<teacher id>).
+const TEACHER_ADMIN = "teacheradmin/";
+
+export async function isTeacherPaused(id: string): Promise<boolean> {
+  const raw = await readDoc(`${TEACHER_ADMIN}${id}`);
+  if (raw === null) return false;
+  const a = JSON.parse(raw) as { blocked?: unknown } | null;
+  if (!a || typeof a !== "object" || typeof a.blocked !== "boolean") throw new Error(`teacheradmin/${id} is damaged`);
+  return a.blocked;
+}
+
+export async function setTeacherPaused(id: string, blocked: boolean): Promise<void> {
+  // A failed write or removal is passed on: the caller must not report (or log) a change that did not happen.
+  if (blocked) await writeDoc(`${TEACHER_ADMIN}${id}`, JSON.stringify({ blocked: true }));
+  else await removeDoc(`${TEACHER_ADMIN}${id}`);
 }

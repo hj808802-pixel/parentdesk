@@ -2,9 +2,10 @@ import Anthropic from "@anthropic-ai/sdk";
 import { betaZodOutputFormat } from "@anthropic-ai/sdk/helpers/beta/zod";
 import { weekday } from "./dates";
 import { ASSIST_MODEL, CLASSIFY_MODEL, LANGUAGE_NAMES, isMock } from "./extract";
-import { AskSchema, ClassifySchema, ComposeSchema, ExplainSchema, OUTPUT_LANGUAGES, ParentMessageSchema, ReplySchema, SettingsSuggestionSchema, TranslatedPostSchema, type Ask, type Classify, type Compose, type Explain, type NoticeKind, type ParentMessage, type Reply, type SettingsSuggestion } from "./schema";
+import { AskSchema, ClassifySchema, ComposeSchema, ExplainSchema, OUTPUT_LANGUAGES, ParentMessageSchema, ReplySchema, AnnouncementTextsSchema, SettingsSuggestionSchema, TranslatedPostSchema, type Ask, type Classify, type Compose, type Explain, type NoticeKind, type ParentMessage, type AnnouncementTexts, type Reply, type SettingsSuggestion } from "./schema";
 import { COUNTRIES, TIMEZONES, countryOf } from "./countries";
 import type { ItemDraft } from "./store";
+import { noteUsage } from "./usage";
 import type { FamilyRecord, Item, Settings, Source } from "./types";
 
 // The three smaller model jobs next to extraction: answering a parent's question from the
@@ -100,6 +101,7 @@ export async function askAssistant(rec: FamilyRecord, question: string, todayIso
     ],
     output_config: { effort: "low", format: betaZodOutputFormat(AskSchema) },
   });
+  await noteUsage(response);
   if (!response.parsed_output) throw new Error("no structured output");
   return { result: response.parsed_output, model: response.model, mock: false };
 }
@@ -152,6 +154,7 @@ export async function draftReply(
     messages: [{ role: "user", content: [{ type: "text", text: lines.join("\n") }] }],
     output_config: { effort: "low", format: betaZodOutputFormat(ReplySchema) },
   });
+  await noteUsage(response);
   if (!response.parsed_output) throw new Error("no structured output");
   return { result: response.parsed_output, model: response.model, mock: false };
 }
@@ -172,6 +175,7 @@ export async function classifyEmails(heads: MailHead[], fallback: (h: MailHead) 
     messages: [{ role: "user", content: [{ type: "text", text: `<emails>\n${listing}\n</emails>` }] }],
     output_config: { effort: "low", format: betaZodOutputFormat(ClassifySchema) },
   });
+  await noteUsage(response);
   const parsed: Classify | null = response.parsed_output;
   if (!parsed) throw new Error("no structured output");
   const picked = [...new Set(parsed.school.filter((i) => Number.isInteger(i) && i >= 0 && i < heads.length))];
@@ -216,6 +220,7 @@ export async function translatePost(post: PostText, fromLanguage: string, toLang
     ],
     output_config: { effort: "low", format: betaZodOutputFormat(TranslatedPostSchema) },
   });
+  await noteUsage(response);
   const parsed = response.parsed_output;
   if (!parsed) throw new Error("no structured output");
   const items = post.items.map((it, i) => {
@@ -269,6 +274,7 @@ export async function explainItem(rec: FamilyRecord, item: Item, source: Source 
     messages: [{ role: "user", content: [{ type: "text", text: lines.join("\n") }] }],
     output_config: { effort: "low", format: betaZodOutputFormat(ExplainSchema) },
   });
+  await noteUsage(response);
   if (!response.parsed_output) throw new Error("no structured output");
   const r = response.parsed_output;
   return { result: { ...r, what_to_do: r.what_to_do.slice(0, 4).map((x) => x.slice(0, 200)), explanation: r.explanation.slice(0, 1200) }, model: response.model, mock: false };
@@ -320,6 +326,7 @@ export async function composeNotice(teacher: TeacherLike, roomName: string, inpu
     ],
     output_config: { effort: "low", format: betaZodOutputFormat(ComposeSchema) },
   });
+  await noteUsage(response);
   if (!response.parsed_output) throw new Error("no structured output");
   const r = response.parsed_output;
   return { result: { title: r.title.slice(0, 160), notice: r.notice.slice(0, 6000), missing: r.missing.slice(0, 6).map((m) => m.slice(0, 80)) }, model: response.model, mock: false };
@@ -364,6 +371,7 @@ export async function helpParentMessage(teacher: TeacherLike, text: string, toda
     ],
     output_config: { effort: "low", format: betaZodOutputFormat(ParentMessageSchema) },
   });
+  await noteUsage(response);
   if (!response.parsed_output) throw new Error("no structured output");
   const r = response.parsed_output;
   return { result: { ...r, translation: r.translation.slice(0, 4000), reply: r.reply.slice(0, 3000), reply_translated: r.reply_translated.slice(0, 3000), summary: r.summary.slice(0, 400) }, model: response.model, mock: false };
@@ -423,6 +431,31 @@ export async function suggestSettings(rec: FamilyRecord, text: string, uiLocale:
     ],
     output_config: { effort: "low", format: betaZodOutputFormat(SettingsSuggestionSchema) },
   });
+  await noteUsage(response);
+  if (!response.parsed_output) throw new Error("no structured output");
+  return { result: response.parsed_output, model: response.model, mock: false };
+}
+
+// A short service announcement, written once by the operator, in every UI language.
+export async function translateAnnouncement(text: string): Promise<{ result: AnnouncementTexts; model: string; mock: boolean }> {
+  if (isMock()) {
+    const same = { en: text, ko: text, es: text, ja: text, zh: text, fr: text, de: text, pt: text, it: text, vi: text };
+    return { result: same, model: "mock", mock: true };
+  }
+  const client = new Anthropic();
+  const response = await client.beta.messages.parse({
+    model: ASSIST_MODEL,
+    max_tokens: 2500,
+    system: [
+      {
+        type: "text",
+        text: "You translate a short service announcement from the operator of ParentDesk (a school-notice planner for parents and teachers) into ten languages: en English, ko Korean, es Spanish, ja Japanese, zh Simplified Chinese, fr French, de German, pt Portuguese, it Italian, vi Vietnamese. Keep it as short and plain as the original, keep dates, times and numbers exactly, add nothing and leave nothing out. The field for the language the announcement is already written in gets the original text unchanged.",
+      },
+    ],
+    messages: [{ role: "user", content: [{ type: "text", text: `<announcement>\n${text}\n</announcement>` }] }],
+    output_config: { effort: "low", format: betaZodOutputFormat(AnnouncementTextsSchema) },
+  });
+  await noteUsage(response);
   if (!response.parsed_output) throw new Error("no structured output");
   return { result: response.parsed_output, model: response.model, mock: false };
 }

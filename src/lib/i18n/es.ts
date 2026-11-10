@@ -630,6 +630,7 @@ export const es: Dict = {
     saved: "Guardado",
     errors: {
       name_required: "Escribe un nombre.",
+      blocked: "El operador ha pausado este escritorio de profesor. Tus salas siguen aquí; contacta con soporte para reanudar.",
       too_many_rooms: "Has alcanzado el número máximo de salas.",
       post_limit: "Has usado los avisos de este mes ({used} de {limit}). Más el mes que viene.",
       not_found: "Esta sala ya no existe.",

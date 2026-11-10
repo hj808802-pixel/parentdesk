@@ -195,6 +195,21 @@ export const SettingsSuggestionSchema = z.object({
 });
 export type SettingsSuggestion = z.infer<typeof SettingsSuggestionSchema>;
 
+// The operator's announcement in every UI language (lib/assist.ts translateAnnouncement).
+export const AnnouncementTextsSchema = z.object({
+  en: z.string(),
+  ko: z.string(),
+  es: z.string(),
+  ja: z.string(),
+  zh: z.string(),
+  fr: z.string(),
+  de: z.string(),
+  pt: z.string(),
+  it: z.string(),
+  vi: z.string(),
+});
+export type AnnouncementTexts = z.infer<typeof AnnouncementTextsSchema>;
+
 export function isOutputLanguage(x: unknown): x is OutputLanguage {
   return typeof x === "string" && OUTPUT_LANGUAGES.some((l) => l.code === x);
 }

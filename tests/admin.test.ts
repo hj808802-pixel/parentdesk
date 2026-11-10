@@ -25,8 +25,9 @@ describe("admin", () => {
     expect(isAdminRequest(new Request("https://x/api/admin/stats", { headers: { cookie: "pd_admin=" + "0".repeat(64) } }))).toBe(false);
     // an expired session is refused, and a session made without the second step's secret
     // stops working once that secret is set (the token alone cannot forge one)
-    const [exp, sig] = value.split("=")[1].split(".");
-    expect(isAdminRequest(new Request("https://x/", { headers: { cookie: `pd_admin=${Date.now() - 1000}.${sig}` } }))).toBe(false);
+    const [exp, who, sig] = value.split("=")[1].split(".");
+    expect(who).toBe("owner");
+    expect(isAdminRequest(new Request("https://x/", { headers: { cookie: `pd_admin=${Date.now() - 1000}.owner.${sig}` } }))).toBe(false);
     expect(Number(exp)).toBeGreaterThan(Date.now());
     process.env.ADMIN_TOTP_SECRET = "JBSWY3DPEHPK3PXPJBSWY3DPEHPK3PXP";
     expect(isAdminRequest(new Request("https://x/", { headers: { cookie: value } }))).toBe(false);

@@ -1,5 +1,6 @@
-import { adminEnabled, hasLiveSubscription, isAbandoned, isAdminRequest } from "@/lib/admin";
-import { readFamilyAdmin, recordAdminAction, removeFamilyAdmin, setAnnouncement, writeFamilyAdmin } from "@/lib/ops";
+import { adminEnabled, adminOf, hasLiveSubscription, isAbandoned } from "@/lib/admin";
+import { translateAnnouncement } from "@/lib/assist";
+import { readFamilyAdmin, recordAdminAction as logAction, removeFamilyAdmin, setAnnouncement, setTeacherPaused, writeFamilyAdmin } from "@/lib/ops";
 import { deleteRoom, deleteTeacher, forgetSchoolIfUnused, loadRoom, loadRooms, loadTeacher, removeFromDirectory, saveRoom, saveTeacher, schoolIdOf, syncDirectory } from "@/lib/rooms";
 import { deleteFamily, loadFamily, saveFamily } from "@/lib/store";
 
@@ -16,11 +17,17 @@ export const maxDuration = 60;
 //   teacher_delete     removes a teacher desk and its rooms
 //   family_note        { id, note }: the operator's own note on a family
 //   family_block       { id, blocked }: pauses (or resumes) a family's model use: adding notices, asking, drafting
-//   announce           { text, audience, days }: the banner teachers and/or families see; empty text clears it
+//   announce           { text, audience, days, translate }: the banner teachers and/or families see, in ten
+//                      languages when translate is true; empty text clears it
+//   teacher_block      { id, blocked }: pauses (or resumes) a teacher desk: reading, writing and sending notices
 export async function POST(req: Request) {
   if (!adminEnabled()) return Response.json({ ok: false, error: "admin_off" }, { status: 404 });
-  if (!isAdminRequest(req)) return Response.json({ ok: false, error: "unauthorized" }, { status: 401 });
-  const body = (await req.json().catch(() => null)) as { action?: unknown; id?: unknown; ids?: unknown; note?: unknown; blocked?: unknown; text?: unknown; audience?: unknown; days?: unknown } | null;
+  const me = adminOf(req);
+  if (!me) return Response.json({ ok: false, error: "unauthorized" }, { status: 401 });
+  // Viewers may look at everything and change nothing.
+  if (me.role !== "owner") return Response.json({ ok: false, error: "forbidden" }, { status: 403 });
+  const recordAdminAction = (action: string, target: string, note = "") => logAction(action, target, note, me.name);
+  const body = (await req.json().catch(() => null)) as { action?: unknown; id?: unknown; ids?: unknown; note?: unknown; blocked?: unknown; text?: unknown; audience?: unknown; days?: unknown; translate?: unknown } | null;
   const action = typeof body?.action === "string" ? body.action : "";
   const id = typeof body?.id === "string" ? body.id.trim() : "";
   const needsId = action !== "families_purge" && action !== "announce";
@@ -58,9 +65,21 @@ export async function POST(req: Request) {
     }
     case "announce": {
       const audience = body?.audience === "teachers" || body?.audience === "families" ? body.audience : "all";
-      const doc = await setAnnouncement(typeof body?.text === "string" ? body.text : "", audience, typeof body?.days === "number" ? body.days : 7);
-      await recordAdminAction(action, "-", doc ? `${audience}, until ${doc.until.slice(0, 10)}` : "cleared");
-      return Response.json({ ok: true, announcement: doc });
+      const text = typeof body?.text === "string" ? body.text.trim().slice(0, 500) : "";
+      // One assistant call writes it in all ten UI languages; if that fails the original goes out as it is.
+      let texts: Record<string, string> | undefined;
+      let translated = false;
+      if (text && body?.translate === true) {
+        try {
+          texts = (await translateAnnouncement(text)).result;
+          translated = true;
+        } catch (e) {
+          console.warn("[announce] translation failed", e instanceof Error ? e.message : e);
+        }
+      }
+      const doc = await setAnnouncement(text, audience, typeof body?.days === "number" ? body.days : 7, texts);
+      await recordAdminAction(action, "-", doc ? `${audience}, until ${doc.until.slice(0, 10)}${translated ? ", 10 languages" : ""}` : "cleared");
+      return Response.json({ ok: true, announcement: doc, translated });
     }
     case "families_purge": {
       // Exactly the families the operator was shown, and only those still unused now.
@@ -99,12 +118,20 @@ export async function POST(req: Request) {
       await recordAdminAction(action, id, `${room.name} (${room.members.length} following)`);
       return Response.json({ ok: true });
     }
+    case "teacher_block": {
+      const teacher = await loadTeacher(id);
+      if (!teacher) return Response.json({ ok: false, error: "not_found" }, { status: 404 });
+      await setTeacherPaused(id, body?.blocked === true);
+      await recordAdminAction(action, id, body?.blocked === true ? "paused" : "resumed");
+      return Response.json({ ok: true });
+    }
     case "teacher_delete": {
       const teacher = await loadTeacher(id);
       if (!teacher) return Response.json({ ok: false, error: "not_found" }, { status: 404 });
       const rooms = await loadRooms(teacher);
       for (const room of rooms) await deleteRoom(room.id);
       await deleteTeacher(id);
+      await setTeacherPaused(id, false);
       await removeFromDirectory(rooms.map((r) => r.id));
       await forgetSchoolIfUnused(schoolIdOf(teacher));
       await recordAdminAction(action, id, `${rooms.length} rooms`);

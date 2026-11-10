@@ -1,4 +1,5 @@
 import { modelErrorResponse } from "@/lib/apierror";
+import { isTeacherPaused } from "@/lib/ops";
 import { helpParentMessage } from "@/lib/assist";
 import { todayIn } from "@/lib/dates";
 import { allowRequest, clientIp } from "@/lib/ratelimit";
@@ -12,6 +13,7 @@ export const maxDuration = 60;
 export async function POST(req: Request) {
   const teacher = await teacherFromRequest(req);
   if (!teacher) return Response.json({ ok: false, error: "no_teacher" }, { status: 404 });
+  if (await isTeacherPaused(teacher.id)) return Response.json({ ok: false, error: "blocked" }, { status: 403 });
   const gate = allowRequest({ ip: clientIp(req), family: `t:${teacher.id}` });
   if (!gate.ok) return Response.json({ ok: false, error: gate.reason, retry_after: gate.retryAfterSec }, { status: 429 });
 

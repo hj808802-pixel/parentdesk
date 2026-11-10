@@ -1,4 +1,5 @@
 import { modelErrorResponse } from "@/lib/apierror";
+import { isTeacherPaused } from "@/lib/ops";
 import { todayIn } from "@/lib/dates";
 import { extractNotice, type ImageMediaType, type InputFile } from "@/lib/extract";
 import { allowRequest, clientIp } from "@/lib/ratelimit";
@@ -25,6 +26,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
 
   const teacher = await teacherFromRequest(req);
   if (!teacher) return fail("no_teacher", 404);
+  if (await isTeacherPaused(teacher.id)) return fail("blocked", 403);
   const { id } = await params;
   const room = await loadRoom(id);
   if (!room || room.teacherId !== teacher.id) return fail("not_found", 404);

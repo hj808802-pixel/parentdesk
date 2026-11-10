@@ -1,4 +1,5 @@
 import { modelErrorResponse } from "@/lib/apierror";
+import { isTeacherPaused } from "@/lib/ops";
 import { composeNotice } from "@/lib/assist";
 import { NOTICE_KINDS, type NoticeKind } from "@/lib/schema";
 import { todayIn } from "@/lib/dates";
@@ -13,6 +14,7 @@ export const maxDuration = 60;
 export async function POST(req: Request, { params }: { params: Promise<{ id: string }> }) {
   const teacher = await teacherFromRequest(req);
   if (!teacher) return Response.json({ ok: false, error: "no_teacher" }, { status: 404 });
+  if (await isTeacherPaused(teacher.id)) return Response.json({ ok: false, error: "blocked" }, { status: 403 });
   const { id } = await params;
   const room = await loadRoom(id);
   if (!room || room.teacherId !== teacher.id) return Response.json({ ok: false, error: "not_found" }, { status: 404 });

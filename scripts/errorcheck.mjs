@@ -117,6 +117,9 @@ expect("digest unsubscribe: bad token (one-click)", await call("POST", "/api/dig
 expect("cron digest: no secret", await call("GET", "/api/cron/digest"), [401, 404]);
 expect("admin login: off or bad token", await call("POST", "/api/admin/login", { json: { token: "wrong" } }), [401, 404]);
 expect("admin login: not json", await call("POST", "/api/admin/login", { json: "{" }), [401, 404]);
+expect("announcement: a locale is accepted", await call("GET", "/api/announcement?for=families&locale=ko"), 200, (r) => r.data.ok === true);
+expect("admin stats: a session without an account name is refused", await call("GET", "/api/admin/stats", { headers: { cookie: `pd_admin=${Date.now() + 60000}.${"0".repeat(64)}` }, useCookie: false }), [401, 404]);
+expect("admin stats: a made-up account is refused", await call("GET", "/api/admin/stats", { headers: { cookie: `pd_admin=${Date.now() + 60000}.owner.${"0".repeat(64)}` }, useCookie: false }), [401, 404]);
 expect("announcement: public, nothing personal", await call("GET", "/api/announcement?for=teachers"), 200, (r) => r.data.ok === true && "announcement" in r.data);
 expect("admin login: says whether the second step is on", await call("GET", "/api/admin/login"), 200, (r) => typeof r.data.twoStep === "boolean");
 expect("admin action: announce needs a login", await call("POST", "/api/admin/action", { json: { action: "announce", text: "hi" } }), [401, 404]);

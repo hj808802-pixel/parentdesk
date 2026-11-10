@@ -632,6 +632,7 @@ export const en = {
     saved: "Saved",
     errors: {
       name_required: "Please enter a name.",
+      blocked: "This teacher desk has been paused by the operator. Your rooms are still here; contact support to resume.",
       too_many_rooms: "You have reached the maximum number of rooms.",
       post_limit: "You have used this month's notices ({used} of {limit}). More next month.",
       not_found: "This room no longer exists.",
