@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { adminCookie, adminEnabled, checkAdminToken, computeStats, familySummary, isAdminRequest } from "@/lib/admin";
+import { adminCookie, adminEnabled, checkAdminToken, computeStats, familyRow, familySummary, hasLiveSubscription, isAbandoned, isAdminRequest, systemChecklist } from "@/lib/admin";
 import { addExtraction, createFamily } from "@/lib/store";
 import { mockExtraction } from "@/lib/extract";
 
@@ -44,6 +44,32 @@ describe("admin", () => {
 
     a.push = [{ endpoint: "https://fcm.googleapis.com/x", p256dh: "k", auth: "a", createdAt: new Date().toISOString() }];
     const s = computeStats([a, b], new Date());
+    // table rows carry counts only
+    const row = familyRow(a);
+    expect(Object.keys(row).sort()).toEqual(["children", "country", "createdAt", "empty", "gmail", "id", "items", "language", "monthUsage", "open", "plan", "push", "rooms", "sources", "updatedAt"]);
+    expect(JSON.stringify(row)).not.toContain(a.keyHash);
+    // "abandoned" needs both: nothing on it and a month old
+    const { record: idle } = createFamily();
+    expect(isAbandoned(idle)).toBe(false);
+    idle.createdAt = new Date(Date.now() - 40 * 86400000).toISOString();
+    expect(isAbandoned(idle)).toBe(false); // touched recently
+    idle.updatedAt = idle.createdAt;
+    expect(isAbandoned(idle)).toBe(true);
+    for (const touch of [
+      (r: typeof idle) => (r.children = [{ id: "c", name: "x", color: "#000000" }]),
+      (r: typeof idle) => (r.push = [{ endpoint: "https://fcm.googleapis.com/x", p256dh: "k", auth: "a", createdAt: "" }]),
+      (r: typeof idle) => (r.usage = { "2026-10": 2 }),
+      (r: typeof idle) => (r.settings = { ...r.settings, familyName: "Kim" }),
+      (r: typeof idle) => (r.invites = [{ hash: "h", createdAt: "", expiresAt: new Date(Date.now() + 86400000).toISOString(), uses: 0, maxUses: 3 }]),
+    ]) {
+      const copy = structuredClone(idle);
+      touch(copy);
+      expect(isAbandoned(copy)).toBe(false);
+    }
+    expect(hasLiveSubscription(idle)).toBe(false);
+    expect(hasLiveSubscription({ ...idle, billing: { customerId: "c", subscriptionId: "s", status: "active", interval: "month", currentPeriodEnd: null, cancelAtPeriodEnd: false, updatedAt: "", lastEvent: null } })).toBe(true);
+    expect(hasLiveSubscription({ ...idle, billing: { customerId: "c", subscriptionId: "s", status: "canceled", interval: "month", currentPeriodEnd: null, cancelAtPeriodEnd: false, updatedAt: "", lastEvent: null } })).toBe(false);
+    expect(systemChecklist().map((c) => c.key)).toContain("push");
     expect(s.push).toEqual({ families: 1, devices: 1 });
     expect(s.following).toBe(0);
     expect(s.families.total).toBe(2);
