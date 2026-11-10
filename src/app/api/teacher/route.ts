@@ -1,3 +1,4 @@
+import { teacherPause } from "@/lib/ops";
 import { allowRequest, clientIp } from "@/lib/ratelimit";
 import { clearTeacherCookie, createTeacher, deleteRoom, deleteTeacher, forgetSchoolIfUnused, loadRooms, rememberSchool, removeFromDirectory, sanitizeName, sanitizePlace, sanitizeSchool, saveTeacher, schoolIdOf, syncDirectory, teacherCookie, teacherFromRequest, teacherView } from "@/lib/rooms";
 import { isHttps, sanitizeSettings } from "@/lib/store";
@@ -13,7 +14,8 @@ export async function GET(req: Request) {
   const teacher = await teacherFromRequest(req);
   if (!teacher) return Response.json({ ok: false, error: "no_teacher" }, { status: 404 });
   const rooms = await loadRooms(teacher);
-  return Response.json({ ok: true, teacher: teacherView(teacher, rooms) }, { headers: { "cache-control": "no-store" } });
+  const pause = await teacherPause(teacher.id);
+  return Response.json({ ok: true, teacher: teacherView(teacher, rooms), paused: pause.blocked ? { reason: pause.reason } : null }, { headers: { "cache-control": "no-store" } });
 }
 
 export async function POST(req: Request) {

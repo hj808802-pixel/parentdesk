@@ -660,6 +660,7 @@ export const ko: Dict = {
     listedAs: "검색에는 이렇게 보입니다: {school}",
     duplicate: "이 반의 알림방이 이미 공개돼 있습니다: {teacher}({n}가정). 같은 반을 함께 맡고 있다면 두 번째 방을 열지 말고 그 선생님의 링크를 쓰세요.",
     nameAuto: "비워 두면 학년·반이 이름이 됩니다.",
+    pausedReason: "사유: {reason}",
   },
   digest: {
     subject: "{name} 가족의 이번 주: {n}건",

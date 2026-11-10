@@ -661,6 +661,7 @@ export const it: Dict = {
     listedAs: "Nella ricerca appare come: {school}",
     duplicate: "Esiste già una stanza per questa classe: {teacher} ({n} famiglie). Se condividete la classe, usa il link di quell'insegnante invece di aprirne una seconda.",
     nameAuto: "Lascia vuoto per chiamarla con classe e sezione.",
+    pausedReason: "Motivo: {reason}",
   },
   digest: {
     subject: "Questa settimana per la famiglia {name}: {n} cose",

@@ -1,6 +1,6 @@
-import { createHash, createHmac, timingSafeEqual } from "node:crypto";
+import { createHash, createHmac, randomBytes, timingSafeEqual } from "node:crypto";
 import { planOf } from "./plan";
-import { features } from "./store";
+import { createDoc, features, listDocIds, readDoc, removeDoc } from "./store";
 import type { FamilyRecord } from "./types";
 
 // The operator's console: one shared token (ADMIN_TOKEN) exchanged for an HttpOnly cookie
@@ -10,29 +10,63 @@ import type { FamilyRecord } from "./types";
 export const ADMIN_COOKIE = "pd_admin";
 const COOKIE_MAX_AGE = 12 * 3600;
 
-// Who may sign in. The owner is ADMIN_TOKEN (with ADMIN_TOTP_SECRET as its second step).
-// More people go in ADMIN_USERS as "name:role:token[:totpSecret]" separated by commas;
+// Who may sign in.
+//  - The owner is ADMIN_TOKEN (with ADMIN_TOTP_SECRET as its second step). It is what
+//    switches the console on and can only be changed in the environment.
+//  - ADMIN_USERS adds accounts as "name:role:token[:totpSecret]" separated by commas.
+//  - Accounts added from the console itself live one document each (adminuser/<id>); only
+//    the hash of their token is kept, the token is shown once when the account is made.
 // role is "owner" (everything) or "viewer" (may look, may not change anything).
 export type AdminRole = "owner" | "viewer";
-export type AdminUser = { name: string; role: AdminRole; token: string; totp: string | null };
+export type AdminUser = { name: string; role: AdminRole; tokenHash: string; totp: string | null; source: "env" | "stored"; createdAt?: string };
 export type AdminIdentity = { name: string; role: AdminRole };
 
-export function adminUsers(): AdminUser[] {
+const STORED = "adminuser/";
+const NAME = /^[a-z0-9_-]{1,20}$/;
+const hashToken = (token: string) => createHash("sha256").update(token.trim()).digest("hex");
+const storedId = (name: string) => createHash("sha256").update(`admin:${name}`).digest("hex").slice(0, 12);
+
+export function envAdmins(): AdminUser[] {
   const users: AdminUser[] = [];
   const main = (process.env.ADMIN_TOKEN ?? "").trim();
   const mainTotp = (process.env.ADMIN_TOTP_SECRET ?? "").trim();
-  if (main.length >= 16) users.push({ name: "owner", role: "owner", token: main, totp: mainTotp.length >= 16 ? mainTotp : null });
+  if (main.length >= 16) users.push({ name: "owner", role: "owner", tokenHash: hashToken(main), totp: mainTotp.length >= 16 ? mainTotp : null, source: "env" });
   for (const part of (process.env.ADMIN_USERS ?? "").split(",")) {
     const [name, role, token, totp] = part.trim().split(":").map((x) => x.trim());
-    if (!name || !/^[a-z0-9_-]{1,20}$/.test(name) || (role !== "owner" && role !== "viewer") || !token || token.length < 16) continue;
-    if (users.some((u) => u.name === name || u.token === token)) continue;
-    users.push({ name, role, token, totp: totp && totp.length >= 16 ? totp : null });
+    if (!name || !NAME.test(name) || (role !== "owner" && role !== "viewer") || !token || token.length < 16) continue;
+    const tokenHash = hashToken(token);
+    if (users.some((u) => u.name === name || u.tokenHash === tokenHash)) continue;
+    users.push({ name, role, tokenHash, totp: totp && totp.length >= 16 ? totp : null, source: "env" });
   }
   return users;
 }
 
 export function adminEnabled(): boolean {
-  return adminUsers().length > 0;
+  return envAdmins().some((u) => u.name === "owner");
+}
+
+async function storedAdmins(): Promise<AdminUser[]> {
+  const out: AdminUser[] = [];
+  for (const id of await listDocIds(STORED)) {
+    try {
+      const raw = await readDoc(`${STORED}${id}`);
+      const u = raw ? (JSON.parse(raw) as Partial<AdminUser>) : null;
+      if (!u || typeof u.name !== "string" || !NAME.test(u.name) || storedId(u.name) !== id) continue;
+      if ((u.role !== "owner" && u.role !== "viewer") || typeof u.tokenHash !== "string" || !/^[0-9a-f]{64}$/.test(u.tokenHash)) continue;
+      out.push({ name: u.name, role: u.role, tokenHash: u.tokenHash, totp: typeof u.totp === "string" && u.totp.length >= 16 ? u.totp : null, source: "stored", createdAt: typeof u.createdAt === "string" ? u.createdAt : undefined });
+    } catch {
+      /* an unreadable account document is simply not an account */
+    }
+  }
+  return out.sort((x, y) => (x.name < y.name ? -1 : 1));
+}
+
+// Everyone, environment accounts first; a stored account never shadows an environment one.
+export async function adminUsers(): Promise<AdminUser[]> {
+  if (!adminEnabled()) return [];
+  const env = envAdmins();
+  const stored = (await storedAdmins()).filter((s) => !env.some((e) => e.name === s.name || e.tokenHash === s.tokenHash));
+  return [...env, ...stored];
 }
 
 function same(a: string, b: string): boolean {
@@ -41,28 +75,34 @@ function same(a: string, b: string): boolean {
   return x.length === y.length && timingSafeEqual(x, y);
 }
 
-// The account a token belongs to (every candidate is compared, in constant time each).
-export function adminByToken(given: unknown): AdminUser | null {
-  if (typeof given !== "string") return null;
+function match(users: AdminUser[], given: unknown): AdminUser | null {
+  if (typeof given !== "string" || !given.trim()) return null;
+  const h = hashToken(given);
   let found: AdminUser | null = null;
-  for (const u of adminUsers()) if (same(given.trim(), u.token)) found = u;
+  for (const u of users) if (same(h, u.tokenHash)) found = u;
   return found;
 }
 
-export function checkAdminToken(given: unknown): boolean {
-  return adminByToken(given) !== null;
+// The account a token belongs to.
+export async function adminByToken(given: unknown): Promise<AdminUser | null> {
+  return match(await adminUsers(), given);
 }
 
-// The owner's second-step secret (kept for the checklist and older callers).
+// Environment accounts only (no storage read).
+export function checkAdminToken(given: unknown): boolean {
+  return adminEnabled() && match(envAdmins(), given) !== null;
+}
+
+// The owner's second-step secret.
 export function adminTotpSecret(): string | null {
-  return adminUsers().find((u) => u.name === "owner")?.totp ?? null;
+  return envAdmins().find((u) => u.name === "owner")?.totp ?? null;
 }
 
 // The session cookie is "<expiry>.<name>.<signature>". The signing key is derived from
-// that account's token AND its second-step secret, so the token alone cannot forge a
-// session once two-step sign-in is on; name, role and expiry are all inside the signature.
+// that account's token hash AND its second-step secret, so neither alone can forge a
+// session; name, role and expiry are all inside the signature.
 function sign(u: AdminUser, expiry: string): string {
-  const key = createHash("sha256").update(`${u.token}|${u.totp ?? ""}`).digest();
+  const key = createHash("sha256").update(`${u.tokenHash}|${u.totp ?? ""}|${(process.env.ADMIN_TOKEN ?? "").trim()}`).digest();
   return createHmac("sha256", key).update(`admin-session:${expiry}:${u.name}:${u.role}`).digest("hex");
 }
 
@@ -73,7 +113,7 @@ export function adminCookieFor(u: AdminUser, secure: boolean): string {
 
 // The owner's cookie (tests and older callers).
 export function adminCookie(secure: boolean): string {
-  const owner = adminUsers().find((u) => u.name === "owner");
+  const owner = envAdmins().find((u) => u.name === "owner");
   return owner ? adminCookieFor(owner, secure) : clearAdminCookie(secure);
 }
 
@@ -81,18 +121,45 @@ export function clearAdminCookie(secure: boolean): string {
   return `${ADMIN_COOKIE}=; Path=/; Max-Age=0; HttpOnly; SameSite=Strict${secure ? "; Secure" : ""}`;
 }
 
-// Who is signed in on this request, or null. An account removed from the environment, or
-// whose token, secret or role changed, loses its sessions at once.
-export function adminOf(req: Request): AdminIdentity | null {
+// Who is signed in on this request, or null. An account that was removed, or whose token,
+// secret or role changed, loses its sessions at once.
+export async function adminOf(req: Request): Promise<AdminIdentity | null> {
   const header = req.headers.get("cookie") ?? "";
   const m = new RegExp(`(?:^|;\\s*)${ADMIN_COOKIE}=(\\d{10,16})\\.([a-z0-9_-]{1,20})\\.([0-9a-f]{64})`).exec(header);
   if (!m || !(Number(m[1]) > Date.now())) return null;
-  const u = adminUsers().find((x) => x.name === m[2]);
+  const u = (await adminUsers()).find((x) => x.name === m[2]);
   return u && same(m[3], sign(u, m[1])) ? { name: u.name, role: u.role } : null;
 }
 
-export function isAdminRequest(req: Request): boolean {
-  return adminOf(req) !== null;
+export async function isAdminRequest(req: Request): Promise<boolean> {
+  return (await adminOf(req)) !== null;
+}
+
+// Makes an account from the console. The token (and the second-step secret, when asked
+// for) is returned once and never stored in the clear.
+export async function createAdmin(name: unknown, role: unknown, twoStep: boolean, newSecret: () => string): Promise<{ ok: true; name: string; role: AdminRole; token: string; totp: string | null } | { ok: false; error: "bad_name" | "bad_role" | "exists" | "too_many" }> {
+  const clean = typeof name === "string" ? name.trim().toLowerCase() : "";
+  if (!NAME.test(clean)) return { ok: false, error: "bad_name" };
+  if (role !== "owner" && role !== "viewer") return { ok: false, error: "bad_role" };
+  const all = await adminUsers();
+  if (all.some((u) => u.name === clean)) return { ok: false, error: "exists" };
+  if (all.length >= 20) return { ok: false, error: "too_many" };
+  const token = randomBytes(24).toString("base64url");
+  const totp = twoStep ? newSecret() : null;
+  const doc: AdminUser = { name: clean, role, tokenHash: hashToken(token), totp, source: "stored", createdAt: new Date().toISOString() };
+  // Created, never overwritten: of two requests for the same name only one gets an account.
+  if (!(await createDoc(`${STORED}${storedId(clean)}`, JSON.stringify(doc)))) return { ok: false, error: "exists" };
+  return { ok: true, name: clean, role, token, totp };
+}
+
+// Takes an account made in the console away again (its sessions end with it). Accounts
+// from the environment are changed there.
+export async function removeAdmin(name: unknown): Promise<"removed" | "not_found" | "env"> {
+  const clean = typeof name === "string" ? name.trim().toLowerCase() : "";
+  if (envAdmins().some((u) => u.name === clean)) return "env";
+  if (!NAME.test(clean) || !(await storedAdmins()).some((u) => u.name === clean)) return "not_found";
+  await removeDoc(`${STORED}${storedId(clean)}`);
+  return "removed";
 }
 
 // The last n calendar days (UTC), oldest first.
@@ -280,11 +347,12 @@ export function familyRow(r: FamilyRecord, now: Date = new Date(), admin: { note
 }
 
 // What the server has and has not been given, for the "what is left to set up" list.
-export function systemChecklist(): { key: string; on: boolean }[] {
+export async function systemChecklist(): Promise<{ key: string; on: boolean }[]> {
+  const accounts = await adminUsers();
   const has = (...names: string[]) => names.every((n) => Boolean((process.env[n] ?? "").trim()));
   const f = features(); // the same switches the app itself uses
   return [
-    { key: "twostep", on: adminUsers().length > 0 && adminUsers().every((u) => u.totp !== null) },
+    { key: "twostep", on: accounts.length > 0 && accounts.every((u) => u.totp !== null) },
     { key: "model", on: has("ANTHROPIC_API_KEY") || has("ANTHROPIC_AUTH_TOKEN") },
     { key: "storage", on: has("BLOB_READ_WRITE_TOKEN") || has("LOCAL_DATA_DIR") },
     { key: "admin", on: adminEnabled() },

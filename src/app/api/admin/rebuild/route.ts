@@ -10,7 +10,7 @@ export const maxDuration = 60;
 // directory and the school list are caches) and folds finished days of model usage. Owners only.
 export async function POST(req: Request) {
   if (!adminEnabled()) return Response.json({ ok: false, error: "admin_off" }, { status: 404 });
-  const me = adminOf(req);
+  const me = await adminOf(req);
   if (!me) return Response.json({ ok: false, error: "unauthorized" }, { status: 401 });
   if (me.role !== "owner") return Response.json({ ok: false, error: "forbidden" }, { status: 403 });
   const started = Date.now();

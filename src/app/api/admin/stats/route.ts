@@ -13,7 +13,7 @@ const MAX_FAMILIES = 3000;
 
 export async function GET(req: Request) {
   if (!adminEnabled()) return Response.json({ ok: false, error: "admin_off" }, { status: 404 });
-  const me = adminOf(req);
+  const me = await adminOf(req);
   if (!me) return Response.json({ ok: false, error: "unauthorized" }, { status: 401 });
 
   const familyId = new URL(req.url).searchParams.get("family");
@@ -64,7 +64,7 @@ export async function GET(req: Request) {
       teacherSignups,
       teacherPosts,
       me,
-      admins: adminUsers().map((u) => ({ name: u.name, role: u.role, twoStep: u.totp !== null })),
+      admins: (await adminUsers()).map((u) => ({ name: u.name, role: u.role, twoStep: u.totp !== null, source: u.source, createdAt: u.createdAt ?? null })),
       usage: await readUsage(month),
       runs,
       server: {

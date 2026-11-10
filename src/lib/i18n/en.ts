@@ -662,6 +662,7 @@ export const en = {
     listedAs: "Shown in the search as: {school}",
     duplicate: "A room for this class is already listed: {teacher} ({n} families). If you share the class, use that teacher's link instead of opening a second room.",
     nameAuto: "Leave empty to name it after the grade and class.",
+    pausedReason: "Reason: {reason}",
   },
   digest: {
     subject: "This week for the {name} family: {n} things",

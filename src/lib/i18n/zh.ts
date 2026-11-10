@@ -660,6 +660,7 @@ export const zh: Dict = {
     listedAs: "搜索中显示为：{school}",
     duplicate: "这个班已经有公开的通知室：{teacher}（{n} 个家庭）。如果你们共同带这个班，请使用那位老师的链接，不要再开一个。",
     nameAuto: "留空则以年级和班命名。",
+    pausedReason: "原因：{reason}",
   },
   digest: {
     subject: "{name} 家本周：{n} 件事",

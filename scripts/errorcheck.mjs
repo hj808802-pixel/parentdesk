@@ -122,6 +122,7 @@ expect("admin stats: a session without an account name is refused", await call("
 expect("admin stats: a made-up account is refused", await call("GET", "/api/admin/stats", { headers: { cookie: `pd_admin=${Date.now() + 60000}.owner.${"0".repeat(64)}` }, useCookie: false }), [401, 404]);
 expect("announcement: public, nothing personal", await call("GET", "/api/announcement?for=teachers"), 200, (r) => r.data.ok === true && "announcement" in r.data);
 expect("admin login: says whether the second step is on", await call("GET", "/api/admin/login"), 200, (r) => typeof r.data.twoStep === "boolean");
+expect("admin action: adding an account needs a login", await call("POST", "/api/admin/action", { json: { action: "admin_add", name: "x", role: "owner" } }), [401, 404]);
 expect("admin action: announce needs a login", await call("POST", "/api/admin/action", { json: { action: "announce", text: "hi" } }), [401, 404]);
 expect("admin list: off or unauthorized", await call("GET", "/api/admin/list"), [401, 404]);
 expect("admin action: off or unauthorized", await call("POST", "/api/admin/action", { json: { action: "family_delete", id: "0".repeat(12) } }), [401, 404]);

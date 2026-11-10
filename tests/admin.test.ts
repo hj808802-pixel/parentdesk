@@ -13,7 +13,7 @@ describe("admin", () => {
     delete process.env.ADMIN_TOKEN;
   });
 
-  it("needs a long token and recognises its cookie", () => {
+  it("needs a long token and recognises its cookie", async () => {
     expect(adminEnabled()).toBe(true);
     expect(checkAdminToken("0123456789abcdef0123456789abcdef")).toBe(true);
     expect(checkAdminToken("nope")).toBe(false);
@@ -21,25 +21,25 @@ describe("admin", () => {
     expect(cookie).toContain("HttpOnly");
     expect(cookie).toContain("Secure");
     const value = cookie.split(";")[0];
-    expect(isAdminRequest(new Request("https://x/api/admin/stats", { headers: { cookie: value } }))).toBe(true);
-    expect(isAdminRequest(new Request("https://x/api/admin/stats", { headers: { cookie: "pd_admin=" + "0".repeat(64) } }))).toBe(false);
+    expect(await isAdminRequest(new Request("https://x/api/admin/stats", { headers: { cookie: value } }))).toBe(true);
+    expect(await isAdminRequest(new Request("https://x/api/admin/stats", { headers: { cookie: "pd_admin=" + "0".repeat(64) } }))).toBe(false);
     // an expired session is refused, and a session made without the second step's secret
     // stops working once that secret is set (the token alone cannot forge one)
     const [exp, who, sig] = value.split("=")[1].split(".");
     expect(who).toBe("owner");
-    expect(isAdminRequest(new Request("https://x/", { headers: { cookie: `pd_admin=${Date.now() - 1000}.owner.${sig}` } }))).toBe(false);
+    expect(await isAdminRequest(new Request("https://x/", { headers: { cookie: `pd_admin=${Date.now() - 1000}.owner.${sig}` } }))).toBe(false);
     expect(Number(exp)).toBeGreaterThan(Date.now());
     process.env.ADMIN_TOTP_SECRET = "JBSWY3DPEHPK3PXPJBSWY3DPEHPK3PXP";
-    expect(isAdminRequest(new Request("https://x/", { headers: { cookie: value } }))).toBe(false);
-    expect(isAdminRequest(new Request("https://x/", { headers: { cookie: adminCookie(true).split(";")[0] } }))).toBe(true);
+    expect(await isAdminRequest(new Request("https://x/", { headers: { cookie: value } }))).toBe(false);
+    expect(await isAdminRequest(new Request("https://x/", { headers: { cookie: adminCookie(true).split(";")[0] } }))).toBe(true);
     delete process.env.ADMIN_TOTP_SECRET;
-    expect(isAdminRequest(new Request("https://x/api/admin/stats"))).toBe(false);
+    expect(await isAdminRequest(new Request("https://x/api/admin/stats"))).toBe(false);
     process.env.ADMIN_TOKEN = "short";
     expect(adminEnabled()).toBe(false);
     expect(checkAdminToken("short")).toBe(false);
   });
 
-  it("aggregates families without exposing their content", () => {
+  it("aggregates families without exposing their content", async () => {
     const a = createFamily({ locale: "ko" }).record;
     const b = createFamily({ locale: "en" }).record;
     a.children = [{ id: "c1", name: "Mia", color: "#000000" }];
@@ -79,7 +79,7 @@ describe("admin", () => {
     expect(hasLiveSubscription(idle)).toBe(false);
     expect(hasLiveSubscription({ ...idle, billing: { customerId: "c", subscriptionId: "s", status: "active", interval: "month", currentPeriodEnd: null, cancelAtPeriodEnd: false, updatedAt: "", lastEvent: null } })).toBe(true);
     expect(hasLiveSubscription({ ...idle, billing: { customerId: "c", subscriptionId: "s", status: "canceled", interval: "month", currentPeriodEnd: null, cancelAtPeriodEnd: false, updatedAt: "", lastEvent: null } })).toBe(false);
-    expect(systemChecklist().map((c) => c.key)).toContain("push");
+    expect((await systemChecklist()).map((c) => c.key)).toContain("push");
     expect(s.push).toEqual({ families: 1, devices: 1 });
     expect(s.following).toBe(0);
     expect(s.families.total).toBe(2);

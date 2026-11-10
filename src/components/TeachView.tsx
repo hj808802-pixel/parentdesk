@@ -45,6 +45,7 @@ export default function TeachView() {
   const [profile, setProfile] = useState<{ name: string; school: string; region: string; city: string; language: string; country: string; timezone: string } | null>(null);
   const [schoolHits, setSchoolHits] = useState<SchoolHit[]>([]);
   const [dup, setDup] = useState<DirectoryHit | null>(null);
+  const [paused, setPaused] = useState<{ reason: string } | null>(null);
   const [profileSaved, setProfileSaved] = useState(false);
   const [showKey, setShowKey] = useState(false);
   const [copied, setCopied] = useState("");
@@ -60,7 +61,10 @@ export default function TeachView() {
     setStoredKey(readTeacherKey());
     api
       .teacher()
-      .then((res) => setTeacher(res.teacher))
+      .then((res) => {
+        setTeacher(res.teacher);
+        setPaused(res.paused ?? null);
+      })
       .catch(() => setTeacher(null))
       .finally(() => setLoading(false));
   }, []);
@@ -89,6 +93,7 @@ export default function TeachView() {
       rememberTeacherKey(res.key);
       setStoredKey(res.key ?? "");
       setTeacher(res.teacher);
+      setPaused(null);
     } catch (err) {
       setCreateError(errorText(err instanceof ApiFailure ? err.code : "generic"));
     } finally {
@@ -105,6 +110,8 @@ export default function TeachView() {
       setStoredKey(keyInput.trim());
       setTeacher(res.teacher);
       setKeyInput("");
+      // the pause notice belongs to the desk that was just opened
+      setPaused(await api.teacher().then((x) => x.paused ?? null).catch(() => null));
     } catch {
       setKeyError(true);
     }
@@ -191,6 +198,7 @@ export default function TeachView() {
     forgetTeacherKey();
     setStoredKey("");
     setTeacher(null);
+    setPaused(null);
   }
 
   async function destroy() {
@@ -199,6 +207,7 @@ export default function TeachView() {
     forgetTeacherKey();
     setStoredKey("");
     setTeacher(null);
+    setPaused(null);
   }
 
   if (loading) return <p className="p-8 text-center text-sm text-zinc-500">{t.common.loading}</p>;
@@ -250,6 +259,12 @@ export default function TeachView() {
     <main className="mx-auto w-full max-w-3xl px-4 py-6">
       <h1 className="text-2xl font-bold">{t.teach.title}</h1>
       <Announcement audience="teachers" />
+      {paused && (
+        <aside className="mt-3 rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-900 dark:border-red-900 dark:bg-red-950/40 dark:text-red-200" role="alert">
+          <p className="font-semibold">{t.teach.errors.blocked}</p>
+          {paused.reason && <p dir="auto" className="mt-1">{fmt(t.teach.pausedReason, { reason: paused.reason })}</p>}
+        </aside>
+      )}
       <p className="mt-1 text-sm text-zinc-600 dark:text-zinc-400">{fmt(t.teach.usage, { n: teacher.usage[month] ?? 0, limit: teacher.postCap })}</p>
 
       <section className="mt-6">

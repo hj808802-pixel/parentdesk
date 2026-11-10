@@ -12,7 +12,7 @@ const MAX_ROWS = 1000;
 // checklist. Counts, settings and what teachers chose to show; no item text, no child names.
 export async function GET(req: Request) {
   if (!adminEnabled()) return Response.json({ ok: false, error: "admin_off" }, { status: 404 });
-  if (!isAdminRequest(req)) return Response.json({ ok: false, error: "unauthorized" }, { status: 401 });
+  if (!(await isAdminRequest(req))) return Response.json({ ok: false, error: "unauthorized" }, { status: 401 });
   const now = new Date();
   const month = now.toISOString().slice(0, 7);
 
@@ -50,5 +50,5 @@ export async function GET(req: Request) {
     .map((s) => ({ ...s, rooms: directory.filter((e) => e.schoolId === s.id).length, teachers: teachers.filter((t) => t.schoolId === s.id).length }))
     .sort((a, b) => b.rooms - a.rooms || a.name.localeCompare(b.name));
   const log = await readAdminActions(50);
-  return Response.json({ ok: true, families, teachers, rooms, schools, log, announcement: await readAnnouncement(), checklist: systemChecklist(), abandoned: families.filter((f) => f.empty).map((f) => f.id) }, { headers: { "cache-control": "no-store" } });
+  return Response.json({ ok: true, families, teachers, rooms, schools, log, announcement: await readAnnouncement(), checklist: await systemChecklist(), abandoned: families.filter((f) => f.empty).map((f) => f.id) }, { headers: { "cache-control": "no-store" } });
 }

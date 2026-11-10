@@ -371,6 +371,36 @@ export async function writeDoc(key: string, body: string): Promise<void> {
   await writeRaw(key, body);
 }
 
+// Writes a document only when none exists under that key; false when one already does.
+// The check and the write are one step in every storage mode, so two callers racing for
+// the same key cannot both win.
+export async function createDoc(key: string, body: string): Promise<boolean> {
+  if (!DOC_KEY.test(key)) throw new Error("bad document key");
+  switch (storageMode()) {
+    case "local":
+      try {
+        fs.writeFileSync(localPath(key), body, { encoding: "utf8", flag: "wx" });
+        return true;
+      } catch (e) {
+        if ((e as NodeJS.ErrnoException).code === "EEXIST") return false;
+        throw e;
+      }
+    case "blob":
+      try {
+        await put(`${ROOT}${key}.json`, body, { access: "private", addRandomSuffix: false, allowOverwrite: false, contentType: "application/json" });
+        return true;
+      } catch (e) {
+        // the store refuses to overwrite: tell "already there" apart from a real failure
+        if ((await readRaw(key)) !== null) return false;
+        throw e;
+      }
+    default:
+      if (memory.has(key)) return false;
+      memory.set(key, body);
+      return true;
+  }
+}
+
 export async function removeDoc(key: string): Promise<void> {
   if (DOC_KEY.test(key)) await removeRaw(key);
 }

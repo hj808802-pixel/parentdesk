@@ -115,16 +115,21 @@ export function announcementText(doc: AnnouncementDoc, locale: string | null | u
 // Same idea as a family's pause, in a document of its own (teacheradmin/<teacher id>).
 const TEACHER_ADMIN = "teacheradmin/";
 
-export async function isTeacherPaused(id: string): Promise<boolean> {
+// The pause and the reason the operator gave (shown to the teacher on the desk).
+export async function teacherPause(id: string): Promise<{ blocked: boolean; reason: string }> {
   const raw = await readDoc(`${TEACHER_ADMIN}${id}`);
-  if (raw === null) return false;
-  const a = JSON.parse(raw) as { blocked?: unknown } | null;
+  if (raw === null) return { blocked: false, reason: "" };
+  const a = JSON.parse(raw) as { blocked?: unknown; reason?: unknown } | null;
   if (!a || typeof a !== "object" || typeof a.blocked !== "boolean") throw new Error(`teacheradmin/${id} is damaged`);
-  return a.blocked;
+  return { blocked: a.blocked, reason: typeof a.reason === "string" ? a.reason : "" };
 }
 
-export async function setTeacherPaused(id: string, blocked: boolean): Promise<void> {
+export async function isTeacherPaused(id: string): Promise<boolean> {
+  return (await teacherPause(id)).blocked;
+}
+
+export async function setTeacherPaused(id: string, blocked: boolean, reason = ""): Promise<void> {
   // A failed write or removal is passed on: the caller must not report (or log) a change that did not happen.
-  if (blocked) await writeDoc(`${TEACHER_ADMIN}${id}`, JSON.stringify({ blocked: true }));
+  if (blocked) await writeDoc(`${TEACHER_ADMIN}${id}`, JSON.stringify({ blocked: true, reason: reason.slice(0, 200) }));
   else await removeDoc(`${TEACHER_ADMIN}${id}`);
 }

@@ -9,7 +9,7 @@ export const runtime = "nodejs";
 // ADMIN_TOTP_SECRET is set; ten attempts an hour per address). DELETE → sign out.
 // GET → whether the second step is on, so the page knows to ask for the code.
 export async function GET() {
-  return Response.json({ ok: true, enabled: adminEnabled(), twoStep: adminUsers().some((u) => u.totp !== null) }, { headers: { "cache-control": "no-store" } });
+  return Response.json({ ok: true, enabled: adminEnabled(), twoStep: (await adminUsers()).some((u) => u.totp !== null) }, { headers: { "cache-control": "no-store" } });
 }
 
 export async function POST(req: Request) {
@@ -17,7 +17,7 @@ export async function POST(req: Request) {
   const gate = allowSignIn(clientIp(req));
   if (!gate.ok) return Response.json({ ok: false, error: gate.reason }, { status: 429 });
   const body = (await req.json().catch(() => null)) as Record<string, unknown> | null;
-  const user = adminByToken(body?.token);
+  const user = await adminByToken(body?.token);
   if (!user) return Response.json({ ok: false, error: "bad_token" }, { status: 401 });
   if (user.totp && !verifyTotp(user.totp, body?.code)) return Response.json({ ok: false, error: "bad_code" }, { status: 401 });
   return Response.json({ ok: true, me: { name: user.name, role: user.role } }, { headers: { "set-cookie": adminCookieFor(user, isHttps(req)) } });

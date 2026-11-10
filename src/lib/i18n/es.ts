@@ -660,6 +660,7 @@ export const es: Dict = {
     listedAs: "En la búsqueda se verá como: {school}",
     duplicate: "Ya hay una sala publicada para esta clase: {teacher} ({n} familias). Si compartís la clase, usa el enlace de ese profesor en lugar de abrir una segunda sala.",
     nameAuto: "Déjalo vacío para llamarla por el curso y la clase.",
+    pausedReason: "Motivo: {reason}",
   },
   digest: {
     subject: "Esta semana para la familia {name}: {n} cosas",

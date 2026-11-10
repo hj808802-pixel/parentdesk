@@ -1,4 +1,5 @@
-import { adminEnabled, adminOf, hasLiveSubscription, isAbandoned } from "@/lib/admin";
+import { adminEnabled, adminOf, createAdmin, hasLiveSubscription, isAbandoned, removeAdmin } from "@/lib/admin";
+import { newTotpSecret, totpUri } from "@/lib/totp";
 import { translateAnnouncement } from "@/lib/assist";
 import { readFamilyAdmin, recordAdminAction as logAction, removeFamilyAdmin, setAnnouncement, setTeacherPaused, writeFamilyAdmin } from "@/lib/ops";
 import { deleteRoom, deleteTeacher, forgetSchoolIfUnused, loadRoom, loadRooms, loadTeacher, removeFromDirectory, saveRoom, saveTeacher, schoolIdOf, syncDirectory } from "@/lib/rooms";
@@ -19,18 +20,21 @@ export const maxDuration = 60;
 //   family_block       { id, blocked }: pauses (or resumes) a family's model use: adding notices, asking, drafting
 //   announce           { text, audience, days, translate }: the banner teachers and/or families see, in ten
 //                      languages when translate is true; empty text clears it
-//   teacher_block      { id, blocked }: pauses (or resumes) a teacher desk: reading, writing and sending notices
+//   teacher_block      { id, blocked, reason }: pauses (or resumes) a teacher desk: reading, writing and sending
+//                      notices; the reason is shown to the teacher
+//   admin_add          { name, role, twoStep }: a new console account; its token (and secret) come back once
+//   admin_remove       { name }: takes a console-made account away; nobody can remove themselves
 export async function POST(req: Request) {
   if (!adminEnabled()) return Response.json({ ok: false, error: "admin_off" }, { status: 404 });
-  const me = adminOf(req);
+  const me = await adminOf(req);
   if (!me) return Response.json({ ok: false, error: "unauthorized" }, { status: 401 });
   // Viewers may look at everything and change nothing.
   if (me.role !== "owner") return Response.json({ ok: false, error: "forbidden" }, { status: 403 });
   const recordAdminAction = (action: string, target: string, note = "") => logAction(action, target, note, me.name);
-  const body = (await req.json().catch(() => null)) as { action?: unknown; id?: unknown; ids?: unknown; note?: unknown; blocked?: unknown; text?: unknown; audience?: unknown; days?: unknown; translate?: unknown } | null;
+  const body = (await req.json().catch(() => null)) as { action?: unknown; id?: unknown; ids?: unknown; note?: unknown; blocked?: unknown; text?: unknown; audience?: unknown; days?: unknown; translate?: unknown; name?: unknown; role?: unknown; twoStep?: unknown; reason?: unknown } | null;
   const action = typeof body?.action === "string" ? body.action : "";
   const id = typeof body?.id === "string" ? body.id.trim() : "";
-  const needsId = action !== "families_purge" && action !== "announce";
+  const needsId = !["families_purge", "announce", "admin_add", "admin_remove"].includes(action);
   if (!action || (needsId && !/^[0-9a-f]{12}$/.test(id))) return Response.json({ ok: false, error: "bad_request" }, { status: 400 });
 
   switch (action) {
@@ -118,11 +122,26 @@ export async function POST(req: Request) {
       await recordAdminAction(action, id, `${room.name} (${room.members.length} following)`);
       return Response.json({ ok: true });
     }
+    case "admin_add": {
+      const made = await createAdmin(body?.name, body?.role, body?.twoStep === true, newTotpSecret);
+      if (!made.ok) return Response.json({ ok: false, error: made.error }, { status: made.error === "exists" ? 409 : 400 });
+      await recordAdminAction(action, made.name, `${made.role}${made.totp ? ", two-step" : ""}`);
+      return Response.json({ ok: true, account: { name: made.name, role: made.role, token: made.token, totp: made.totp, totpUri: made.totp ? totpUri(made.totp, `ParentDesk admin (${made.name})`) : null } }, { headers: { "cache-control": "no-store" } });
+    }
+    case "admin_remove": {
+      const target = typeof body?.name === "string" ? body.name.trim().toLowerCase() : "";
+      if (target === me.name) return Response.json({ ok: false, error: "self" }, { status: 400 });
+      const res = await removeAdmin(target);
+      if (res !== "removed") return Response.json({ ok: false, error: res === "env" ? "env_account" : "not_found" }, { status: res === "env" ? 400 : 404 });
+      await recordAdminAction(action, target, "removed");
+      return Response.json({ ok: true });
+    }
     case "teacher_block": {
       const teacher = await loadTeacher(id);
       if (!teacher) return Response.json({ ok: false, error: "not_found" }, { status: 404 });
-      await setTeacherPaused(id, body?.blocked === true);
-      await recordAdminAction(action, id, body?.blocked === true ? "paused" : "resumed");
+      const reason = typeof body?.reason === "string" ? body.reason.replace(/\s+/g, " ").trim().slice(0, 200) : "";
+      await setTeacherPaused(id, body?.blocked === true, reason);
+      await recordAdminAction(action, id, body?.blocked === true ? `paused${reason ? `: ${reason}` : ""}` : "resumed");
       return Response.json({ ok: true });
     }
     case "teacher_delete": {

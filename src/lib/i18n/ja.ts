@@ -660,6 +660,7 @@ export const ja: Dict = {
     listedAs: "検索ではこう表示されます: {school}",
     duplicate: "このクラスはすでに公開されています: {teacher}（{n}家庭）。同じクラスを担当しているなら、2つ目を作らずその先生のリンクを使ってください。",
     nameAuto: "空のままなら学年と組が名前になります。",
+    pausedReason: "理由: {reason}",
   },
   digest: {
     subject: "{name}家の今週: {n}件",

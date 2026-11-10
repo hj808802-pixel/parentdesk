@@ -17,7 +17,7 @@ type Payload = {
   teacherSignups?: { day: string; n: number }[];
   teacherPosts?: number;
   me?: { name: string; role: "owner" | "viewer" };
-  admins?: { name: string; role: string; twoStep: boolean }[];
+  admins?: { name: string; role: string; twoStep: boolean; source: string; createdAt: string | null }[];
   usage?: { month: string; models: Record<string, { calls: number; input: number; output: number; cacheRead: number; cacheWrite: number }>; byDay: { day: string; calls: number }[] };
   runs: Record<string, Run[]>;
   server: { storage: string; features: Record<string, boolean>; extractModel: string; assistModel: string; classifyModel: string; dailyCap: number };
@@ -62,11 +62,19 @@ const ACTION_KO: Record<string, string> = {
   family_block: "가족 일시 중지/해제",
   announce: "공지",
   teacher_block: "선생님 일시 중지/해제",
+  admin_add: "관리자 계정 추가",
+  admin_remove: "관리자 계정 회수",
   rebuild: "반 찾기·사용량 정리",
 };
 
 async function getJson<T>(path: string, init?: RequestInit): Promise<{ status: number; body: T | null }> {
-  const res = await fetch(path, { ...init, headers: { "content-type": "application/json", ...(init?.headers ?? {}) } });
+  let res: Response;
+  try {
+    res = await fetch(path, { ...init, headers: { "content-type": "application/json", ...(init?.headers ?? {}) } });
+  } catch {
+    // No answer at all (offline, server restarting): say so instead of leaving the screen stuck.
+    return { status: 0, body: { ok: false, error: "서버에 연결하지 못했습니다. 잠시 뒤 새로 고침 하세요." } as T };
+  }
   const body = (await res.json().catch(() => null)) as T | null;
   return { status: res.status, body };
 }
@@ -129,6 +137,8 @@ export default function AdminPage() {
   const [annDays, setAnnDays] = useState(7);
   const [price, setPrice] = useState<Record<string, { in: string; out: string }>>({});
   const [annTranslate, setAnnTranslate] = useState(true);
+  const [newAdmin, setNewAdmin] = useState({ name: "", role: "viewer", twoStep: false });
+  const [issued, setIssued] = useState<{ name: string; role: string; token: string; totp: string | null; totpUri: string | null } | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -139,6 +149,7 @@ export default function AdminPage() {
       setLoading(false);
       setOff(r.status === 404);
       setAuthed(false);
+      setIssued(null);
       return;
     }
     if (!r.body?.ok) {
@@ -185,6 +196,10 @@ export default function AdminPage() {
     setAuthed(false);
     setData(null);
     setLists(null);
+    setIssued(null);
+    setNote("");
+    // an account made in this session may have switched the second step on
+    void getJson<{ twoStep?: boolean }>("/api/admin/login").then((x) => setTwoStep(x.body?.twoStep === true));
   }
 
   // Every action asks first, says what happened, and reloads the numbers.
@@ -202,6 +217,25 @@ export default function AdminPage() {
     }
     setNote(`완료: ${ACTION_KO[action] ?? action}${r.body.removed !== undefined ? ` (${r.body.removed}개)` : ""}`);
     setFamily(null);
+    await load();
+  }
+
+  // A new account: its token (and second-step secret) are shown once, here, and nowhere else.
+  async function addAdmin() {
+    if (!canAct) {
+      setNote("읽기 전용 계정입니다. 변경은 owner 계정으로만 할 수 있습니다.");
+      return;
+    }
+    setIssued(null);
+    const r = await getJson<{ ok: boolean; error?: string; account?: { name: string; role: string; token: string; totp: string | null; totpUri: string | null } }>("/api/admin/action", { method: "POST", body: JSON.stringify({ action: "admin_add", ...newAdmin }) });
+    if (!r.body?.ok || !r.body.account) {
+      const why: Record<string, string> = { bad_name: "이름은 영문 소문자·숫자·-·_ 로 20자까지입니다.", exists: "이미 있는 이름입니다.", too_many: "계정이 너무 많습니다(최대 20)." };
+      setNote(`실패: ${why[r.body?.error ?? ""] ?? r.body?.error ?? `HTTP ${r.status}`}`);
+      return;
+    }
+    setIssued(r.body.account);
+    setNewAdmin({ name: "", role: "viewer", twoStep: false });
+    setNote("완료: 관리자 계정 추가. 아래 토큰을 지금 복사해 전달하세요. 다시 볼 수 없습니다.");
     await load();
   }
 
@@ -233,7 +267,17 @@ export default function AdminPage() {
     URL.revokeObjectURL(a.href);
   }
 
-  if (authed === null) return <p className="p-8 text-sm text-zinc-500">불러오는 중…</p>;
+  if (authed === null)
+    return error ? (
+      <div className="p-8 text-sm">
+        <p className="text-red-600">{error}</p>
+        <button type="button" className={`${BTN_SECONDARY} mt-3`} onClick={() => void load()}>
+          다시 시도
+        </button>
+      </div>
+    ) : (
+      <p className="p-8 text-sm text-zinc-500">불러오는 중…</p>
+    );
 
   if (!authed) {
     return (
@@ -243,13 +287,13 @@ export default function AdminPage() {
           <p className="mt-3 text-sm text-zinc-600">콘솔이 꺼져 있습니다. 서버에 ADMIN_TOKEN을 설정하세요.</p>
         ) : (
           <form onSubmit={login} className="mt-4 grid gap-3">
-            <input className={INPUT} type="password" placeholder="관리자 토큰 (ADMIN_TOKEN)" value={token} onChange={(e) => setToken(e.target.value)} autoComplete="off" />
+            <input className={INPUT} type="password" placeholder="관리자 토큰" value={token} onChange={(e) => setToken(e.target.value)} autoComplete="off" />
             {twoStep && <input className={INPUT} inputMode="numeric" placeholder="인증 앱의 6자리 코드 (2단계를 켠 계정만)" value={code} onChange={(e) => setCode(e.target.value)} autoComplete="one-time-code" maxLength={7} />}
             <button type="submit" className={BTN_PRIMARY} disabled={!token.trim()}>
               로그인
             </button>
             {error && <p className="text-sm text-red-600">{error}</p>}
-            <p className="text-xs text-zinc-500">토큰은 Vercel 환경 변수 ADMIN_TOKEN과 같습니다. 로그인은 12시간 유지됩니다.</p>
+            <p className="text-xs text-zinc-500">운영자는 Vercel 환경 변수 ADMIN_TOKEN, 그 밖의 계정은 발급받은 토큰을 넣으세요. 로그인은 12시간 유지됩니다.</p>
           </form>
         )}
       </main>
@@ -426,6 +470,19 @@ export default function AdminPage() {
                     ))}
                   </tbody>
                 </table>
+              </div>
+            )}
+            {(data.usage?.byDay.length ?? 0) > 0 && (
+              <div className="mt-3">
+                <p className="text-xs text-zinc-500">하루 호출 수 (이번 달)</p>
+                <div className="mt-2 flex h-20 items-end gap-0.5">
+                  {(data.usage?.byDay ?? []).map((d) => (
+                    <div key={d.day} className="flex flex-1 flex-col items-center gap-1" title={`${d.day}: ${d.calls}회`}>
+                      <div className="w-full max-w-6 rounded-t bg-indigo-500" style={{ height: `${Math.max(3, (d.calls / Math.max(1, ...(data.usage?.byDay ?? []).map((x) => x.calls))) * 64)}px` }} />
+                      <span className="text-[9px] text-zinc-500">{d.day.slice(8)}</span>
+                    </div>
+                  ))}
+                </div>
               </div>
             )}
             <p className="mt-2 text-sm font-semibold">{totalCost === null ? "모든 모델의 단가를 넣으면 합계가 나옵니다." : `이번 달 합계 약 ${totalCost.toFixed(2)}`}</p>
@@ -623,7 +680,15 @@ export default function AdminPage() {
                       <td className={`${TD} font-mono text-xs`}>{t.id}</td>
                       <td className={TD}>
                         <span className="flex gap-1">
-                          <button type="button" className={BTN_SMALL} onClick={() => act("teacher_block", t.id, t.blocked ? `선생님 "${t.name}"의 일시 중지를 풉니다. 계속할까요?` : `선생님 "${t.name}"의 안내문 읽기·작성·보내기를 일시 중지합니다. 방과 구독은 그대로입니다. 계속할까요?`, undefined, { blocked: !t.blocked })}>
+                          <button
+                            type="button"
+                            className={BTN_SMALL}
+                            onClick={() => {
+                              if (t.blocked) return void act("teacher_block", t.id, `선생님 "${t.name}"의 일시 중지를 풉니다. 계속할까요?`, undefined, { blocked: false });
+                              const reason = window.prompt(`선생님 "${t.name}"의 안내문 읽기·작성·보내기를 일시 중지합니다. 방과 구독은 그대로입니다.\n선생님에게 보여 줄 사유를 적으세요(비워도 됩니다).`, "");
+                              if (reason !== null) void act("teacher_block", t.id, "", undefined, { blocked: true, reason });
+                            }}
+                          >
                             {t.blocked ? "중지 해제" : "일시 중지"}
                           </button>
                         <button type="button" className={DANGER} onClick={() => act("teacher_delete", t.id, `선생님 "${t.name}"의 데스크와 방 ${t.rooms}개를 삭제합니다. 되돌릴 수 없습니다. 계속할까요?`)}>
@@ -692,15 +757,55 @@ export default function AdminPage() {
 
           <section className={`${CARD} mt-4`}>
             <h3 className="text-sm font-semibold">관리자 계정 {data.admins?.length ?? 0}</h3>
-            <ul className="mt-2 grid gap-1 text-sm">
+            <ul className="mt-2 grid gap-2 text-sm">
               {(data.admins ?? []).map((u) => (
-                <li key={u.name}>
-                  <span className="font-mono">{u.name}</span> · {u.role === "owner" ? "owner(전체 권한)" : "viewer(읽기 전용)"} · 2단계 {u.twoStep ? "켜짐" : "꺼짐"}
+                <li key={u.name} className="flex flex-wrap items-center gap-2">
+                  <span>
+                    <span className="font-mono">{u.name}</span> · {u.role === "owner" ? "owner(전체 권한)" : "viewer(읽기 전용)"} · 2단계 {u.twoStep ? "켜짐" : "꺼짐"} · {u.source === "env" ? "환경 변수" : `화면에서 추가${u.createdAt ? ` ${u.createdAt.slice(0, 10)}` : ""}`}
+                  </span>
+                  {u.source === "stored" && u.name !== data.me?.name && (
+                    <button type="button" className={DANGER} onClick={() => act("admin_remove", "", `관리자 계정 "${u.name}"을 회수합니다. 그 계정은 즉시 로그아웃됩니다. 계속할까요?`, undefined, { name: u.name })}>
+                      회수
+                    </button>
+                  )}
                 </li>
               ))}
             </ul>
+            <div className="mt-3 flex flex-wrap items-center gap-2 text-sm">
+              <input className={`${INPUT} w-40`} placeholder="새 계정 이름 (영문)" value={newAdmin.name} maxLength={20} onChange={(e) => setNewAdmin({ ...newAdmin, name: e.target.value })} />
+              <select className={`${INPUT} w-auto`} value={newAdmin.role} onChange={(e) => setNewAdmin({ ...newAdmin, role: e.target.value })} aria-label="역할">
+                <option value="viewer">viewer (읽기 전용)</option>
+                <option value="owner">owner (전체 권한)</option>
+              </select>
+              <label className="inline-flex items-center gap-2">
+                <input type="checkbox" checked={newAdmin.twoStep} onChange={(e) => setNewAdmin({ ...newAdmin, twoStep: e.target.checked })} />
+                2단계 로그인
+              </label>
+              <button type="button" className={BTN_PRIMARY} disabled={!newAdmin.name.trim()} onClick={addAdmin}>
+                계정 추가
+              </button>
+            </div>
+            {issued && (
+              <div className="mt-3 rounded-xl border border-amber-300 bg-amber-50 p-3 text-sm dark:border-amber-800 dark:bg-amber-950/40" role="status">
+                <p className="font-semibold">
+                  {issued.name} ({issued.role}) 의 로그인 정보입니다. 지금만 보입니다.
+                </p>
+                <p className="mt-2 text-xs text-zinc-600 dark:text-zinc-400">토큰</p>
+                <code className="block select-all break-all rounded bg-white px-2 py-1 text-xs dark:bg-zinc-900">{issued.token}</code>
+                {issued.totp && (
+                  <>
+                    <p className="mt-2 text-xs text-zinc-600 dark:text-zinc-400">2단계 비밀값 (인증 앱에 등록)</p>
+                    <code className="block select-all break-all rounded bg-white px-2 py-1 text-xs dark:bg-zinc-900">{issued.totp}</code>
+                    <code className="mt-1 block select-all break-all rounded bg-white px-2 py-1 text-xs dark:bg-zinc-900">{issued.totpUri}</code>
+                  </>
+                )}
+                <button type="button" className={`${BTN_SMALL} mt-2`} onClick={() => setIssued(null)}>
+                  복사했습니다. 닫기
+                </button>
+              </div>
+            )}
             <p className="mt-2 text-xs text-zinc-500">
-              계정을 더하려면 Vercel 환경 변수 ADMIN_USERS에 <span className="font-mono">이름:역할:토큰[:2단계비밀값]</span>을 쉼표로 이어 넣고 재배포하세요. 역할은 owner 또는 viewer, 토큰은 16자 이상입니다. viewer는 모든 화면을 보지만 삭제·중지·공지·재구성은 할 수 없습니다.
+              viewer는 모든 화면을 보지만 삭제·중지·공지·재구성·계정 관리는 할 수 없습니다. 서버에는 토큰의 해시만 저장되어, 잃어버리면 회수하고 새로 만들어야 합니다. 환경 변수(ADMIN_TOKEN, ADMIN_USERS)의 계정은 Vercel에서만 바꿀 수 있습니다.
             </p>
           </section>
 

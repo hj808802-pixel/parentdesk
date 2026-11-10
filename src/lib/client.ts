@@ -6,7 +6,7 @@ import type { FamilyView, Item, PlanLimits } from "./types";
 
 export type ApiError = { ok: false; error: string; retry_after?: number };
 export type FamilyResponse = { ok: true; family: FamilyView; key?: string };
-export type TeacherResponse = { ok: true; teacher: TeacherView; key?: string };
+export type TeacherResponse = { ok: true; teacher: TeacherView; key?: string; paused?: { reason: string } | null };
 export type RoomInfoResponse = { ok: true; room: RoomPublic; following: boolean; childIds: string[] };
 export type RoomJoinResponse = FamilyResponse & { room: RoomPublic; backfilled: { posts: number; items: number } };
 export type RoomPostResponse = { ok: true; saved: boolean; school_related: boolean; preview?: boolean; summary?: string; draft?: RoomPost; post?: RoomPost; delivered?: number; members?: number; languages?: string[]; teacher?: TeacherView; mock: boolean };

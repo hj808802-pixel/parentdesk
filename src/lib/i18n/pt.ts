@@ -661,6 +661,7 @@ export const pt: Dict = {
     listedAs: "Na pesquisa aparece como: {school}",
     duplicate: "Já existe uma sala publicada para esta turma: {teacher} ({n} famílias). Se partilham a turma, use a ligação desse professor em vez de abrir uma segunda sala.",
     nameAuto: "Deixe vazio para a nomear pelo ano e turma.",
+    pausedReason: "Motivo: {reason}",
   },
   digest: {
     subject: "Esta semana para a família {name}: {n} itens",

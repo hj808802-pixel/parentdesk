@@ -661,6 +661,7 @@ export const vi: Dict = {
     listedAs: "Trong tìm kiếm sẽ hiện là: {school}",
     duplicate: "Lớp này đã có phòng công khai: {teacher} ({n} gia đình). Nếu cùng phụ trách lớp, hãy dùng liên kết của giáo viên đó thay vì mở phòng thứ hai.",
     nameAuto: "Để trống thì tên phòng là khối và lớp.",
+    pausedReason: "Lý do: {reason}",
   },
   digest: {
     subject: "Tuần này của gia đình {name}: {n} việc",
