@@ -1,5 +1,5 @@
 import { adminEnabled, computeStats, familySummary, isAdminRequest } from "@/lib/admin";
-import { listRoomIds, listTeacherIds, loadRoom, roomStats, type RoomRecord } from "@/lib/rooms";
+import { listRoomIds, listTeacherIds, loadDirectory, loadRoom, loadSchools, roomStats, type RoomRecord } from "@/lib/rooms";
 import { features, listFamilyIds, loadFamily, readOps, storageMode, type FamilyRecord } from "@/lib/store";
 
 export const runtime = "nodejs";
@@ -37,12 +37,17 @@ export async function GET(req: Request) {
     if (room) rooms.push(room);
   }
   const roomNumbers = roomStats(teacherIds.length, rooms);
+  // The class search: what the rooms say, and what the directory and the school list hold
+  // (they should agree; "rebuild" puts them back in step).
+  const [directory, schools] = await Promise.all([loadDirectory(true), loadSchools(true)]);
+  const search = { listedRooms: rooms.filter((r) => r.listed).length, directoryEntries: directory.length, schools: schools.length };
   const runs = (await readOps<Record<string, unknown>>("runs")) ?? {};
   return Response.json(
     {
       ok: true,
       stats,
       rooms: roomNumbers,
+      search,
       runs,
       server: {
         storage: storageMode(),

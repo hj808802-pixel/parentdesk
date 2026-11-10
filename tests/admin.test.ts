@@ -42,7 +42,10 @@ describe("admin", () => {
     b.counters = { ask: 3 };
     a.counters = { ask: 1, reply: 2 };
 
+    a.push = [{ endpoint: "https://fcm.googleapis.com/x", p256dh: "k", auth: "a", createdAt: new Date().toISOString() }];
     const s = computeStats([a, b], new Date());
+    expect(s.push).toEqual({ families: 1, devices: 1 });
+    expect(s.following).toBe(0);
     expect(s.families.total).toBe(2);
     expect(s.families.created7d).toBe(2);
     expect(s.families.withChildren).toBe(1);

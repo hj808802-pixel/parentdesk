@@ -117,6 +117,7 @@ expect("digest unsubscribe: bad token (one-click)", await call("POST", "/api/dig
 expect("cron digest: no secret", await call("GET", "/api/cron/digest"), [401, 404]);
 expect("admin login: off or bad token", await call("POST", "/api/admin/login", { json: { token: "wrong" } }), [401, 404]);
 expect("admin login: not json", await call("POST", "/api/admin/login", { json: "{" }), [401, 404]);
+expect("admin rebuild: off or unauthorized", await call("POST", "/api/admin/rebuild"), [401, 404]);
 expect("admin stats: off or unauthorized", await call("GET", "/api/admin/stats"), [401, 404]);
 expect("admin stats: forged cookie", await call("GET", "/api/admin/stats", { headers: { cookie: `pd_admin=${"0".repeat(64)}` }, useCookie: false }), [401, 404]);
 expect("teacher: get without cookie", await call("GET", "/api/teacher"), 404);

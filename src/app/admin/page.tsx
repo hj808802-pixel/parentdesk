@@ -11,6 +11,7 @@ import { BTN_PRIMARY, BTN_SECONDARY, BTN_SMALL, CARD, INPUT } from "@/lib/ui";
 type Payload = {
   stats: Stats;
   rooms?: RoomStats;
+  search?: { listedRooms: number; directoryEntries: number; schools: number };
   runs: Record<string, Run[]>;
   server: { storage: string; features: Record<string, boolean>; extractModel: string; assistModel: string; classifyModel: string; dailyCap: number };
   ms: number;
@@ -64,6 +65,7 @@ export default function AdminPage() {
   const [lookup, setLookup] = useState("");
   const [family, setFamily] = useState<FamilyInfo | null>(null);
   const [loading, setLoading] = useState(false);
+  const [rebuild, setRebuild] = useState("");
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -108,6 +110,13 @@ export default function AdminPage() {
     await fetch("/api/admin/login", { method: "DELETE" });
     setAuthed(false);
     setData(null);
+  }
+
+  async function rebuildSearch() {
+    setRebuild("Rebuilding…");
+    const r = await getJson<{ ok: boolean; listed?: number; schools?: number; ms?: number; error?: string }>("/api/admin/rebuild", { method: "POST" });
+    setRebuild(r.body?.ok ? `Rebuilt: ${r.body.listed} listed rooms, ${r.body.schools} schools (${r.body.ms} ms)` : (r.body?.error ?? `HTTP ${r.status}`));
+    if (r.body?.ok) await load();
   }
 
   async function find(e: React.FormEvent) {
@@ -182,6 +191,21 @@ export default function AdminPage() {
             {data.rooms && (
               <Kpi label="Class rooms" value={`${data.rooms.rooms} / ${data.rooms.teachers}`} sub={`rooms / teachers · ${data.rooms.members} following · ${data.rooms.posts} posts (${data.rooms.posts7d} this week) · ${data.rooms.delivered} deliveries`} />
             )}
+            {data.search && (
+              <Kpi
+                label="Class search"
+                value={`${data.search.listedRooms} / ${data.search.schools}`}
+                sub={`listed rooms / schools · directory holds ${data.search.directoryEntries}${data.search.directoryEntries !== data.search.listedRooms ? " (OUT OF STEP: rebuild)" : ""} · ${s.following} families follow a room`}
+              />
+            )}
+            <Kpi label="Notifications on" value={s.push.devices} sub={`devices · ${s.push.families} families`} />
+          </div>
+
+          <div className="mt-3 flex flex-wrap items-center gap-3">
+            <button type="button" className={BTN_SMALL} onClick={rebuildSearch}>
+              Rebuild class search
+            </button>
+            {rebuild && <span className="text-xs text-zinc-500">{rebuild}</span>}
           </div>
 
           <section className={`${CARD} mt-4`}>

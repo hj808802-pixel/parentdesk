@@ -56,6 +56,8 @@ export type Stats = {
   gmail: { connected: number; paused: number };
   digest: { on: number };
   invites: { live: number };
+  push: { families: number; devices: number }; // notifications switched on
+  following: number; // families that follow at least one class room
   top: { countries: [string, number][]; languages: [string, number][]; locales: [string, number][] };
   counters: Record<string, number>;
 };
@@ -84,6 +86,8 @@ export function computeStats(records: FamilyRecord[], now: Date = new Date(), tr
     gmail: { connected: 0, paused: 0 },
     digest: { on: 0 },
     invites: { live: 0 },
+    push: { families: 0, devices: 0 },
+    following: 0,
     top: { countries: [], languages: [], locales: [] },
     counters: {},
   };
@@ -121,6 +125,11 @@ export function computeStats(records: FamilyRecord[], now: Date = new Date(), tr
       if (r.gmail.paused) s.gmail.paused++;
     }
     if (r.settings.digest && r.settings.digestEmail) s.digest.on++;
+    if ((r.push ?? []).length) {
+      s.push.families++;
+      s.push.devices += (r.push ?? []).length;
+    }
+    if ((r.rooms ?? []).length) s.following++;
     s.invites.live += (r.invites ?? []).filter((i) => i.expiresAt > nowIso && i.uses < i.maxUses).length;
     bump(countries, r.settings.country);
     bump(languages, r.settings.language);

@@ -1,7 +1,7 @@
 import { backupFits, importBackup } from "@/lib/backup";
 import { maxChildrenFor } from "@/lib/plan";
 import { allowRequest, clientIp } from "@/lib/ratelimit";
-import { MAX_CHILDREN, MAX_ITEMS, MAX_SOURCES, familyFromRequest, saveFamily, toView } from "@/lib/store";
+import { MAX_CHILDREN, MAX_ITEMS, MAX_SOURCES, bumpCounter, familyFromRequest, saveFamily, toView } from "@/lib/store";
 
 export const runtime = "nodejs";
 
@@ -28,6 +28,7 @@ export async function POST(req: Request) {
   if (check) return backupFits(rec, check.itemIds, check.sourceIds) ? Response.json({ ok: true, fits: true }) : Response.json({ ok: false, error: "too_many_items" }, { status: 409 });
   const res = importBackup(rec, data, { children: maxChildrenFor(rec, MAX_CHILDREN), items: MAX_ITEMS, sources: MAX_SOURCES });
   if (!res.ok) return res.reason === "too_many" ? Response.json({ ok: false, error: "too_many_items" }, { status: 409 }) : Response.json({ ok: false, error: "bad_request" }, { status: 400 });
+  if (res.items || res.sources || res.children) bumpCounter(rec, "restore");
   await saveFamily(rec);
   return Response.json({ ok: true, restored: { children: res.children, sources: res.sources, items: res.items }, family: toView(rec) });
 }
