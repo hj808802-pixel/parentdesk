@@ -51,3 +51,6 @@ next-env.d.ts
 
 # local secrets kept next to the code (never committed)
 *.local
+
+# graphify knowledge graph (local only)
+/graphify-out
