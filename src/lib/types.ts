@@ -126,6 +126,7 @@ export type PlanLimits = { freeNotices: number; freeChildren: number; priceMonth
 export type FamilyRecord = {
   id: string;
   keyHash: string;
+  rev?: number; // storage version, bumped on every save; used to merge concurrent writes (lib/merge.ts)
   memberHashes?: string[]; // keys handed to partners through invite links (hashes)
   feedSecret: string;
   hookSecret: string; // the device-automation address (/api/hook/<id>_<secret>) carries it

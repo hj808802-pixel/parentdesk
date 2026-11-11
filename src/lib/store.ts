@@ -5,6 +5,7 @@ import { del, get, list, put } from "@vercel/blob";
 import { countryOf, guessCountry, isCountry, isTimezone } from "./countries";
 import { cryptoReady } from "./crypto";
 import { findDuplicate } from "./dedupe";
+import { mergeFamily } from "./merge";
 import { addDays, isHhMm, isIsoDate } from "./dates";
 import { isLocale } from "./i18n/locales";
 import { billingEnabled, canUse, planLimits, planOf } from "./plan";
@@ -191,6 +192,7 @@ export function createFamily(init: { settings?: Partial<Settings>; locale?: stri
   const record: FamilyRecord = {
     id,
     keyHash: hashSecret(secret),
+    rev: 0,
     feedSecret: newId(8),
     hookSecret: newId(8),
     inboundCode: newId(4),
@@ -405,13 +407,31 @@ export async function removeDoc(key: string): Promise<void> {
   if (DOC_KEY.test(key)) await removeRaw(key);
 }
 
+// The version this request loaded, kept off the record on a Symbol so it is never written to
+// storage (JSON.stringify skips symbols) nor sent to the browser (toView spreads only string
+// keys). saveFamily reads it to tell a clean write from one that landed on top of a
+// concurrent change and must be merged (lib/merge.ts).
+const BASELINE = Symbol("pdBaseline");
+type Baseline = { rev: number; raw: string };
+
+function setBaseline(rec: FamilyRecord, rev: number, raw: string) {
+  Object.defineProperty(rec, BASELINE, { value: { rev, raw } as Baseline, enumerable: false, configurable: true, writable: true });
+}
+
+function baselineOf(rec: FamilyRecord): Baseline | undefined {
+  return (rec as { [BASELINE]?: Baseline })[BASELINE];
+}
+
 export async function loadFamily(id: string): Promise<FamilyRecord | null> {
   if (!/^[0-9a-f]{12}$/.test(id)) return null;
   const raw = await readRaw(`${FAMILIES}${id}`);
   if (!raw) return null;
   try {
-    const rec = JSON.parse(raw) as FamilyRecord;
-    return rec && rec.id === id && rec.keyHash ? normalize(rec) : null;
+    const parsed = JSON.parse(raw) as FamilyRecord;
+    if (!parsed || parsed.id !== id || !parsed.keyHash) return null;
+    const rec = normalize(parsed);
+    setBaseline(rec, rec.rev ?? 0, raw);
+    return rec;
   } catch {
     return null;
   }
@@ -419,6 +439,7 @@ export async function loadFamily(id: string): Promise<FamilyRecord | null> {
 
 // Fills in fields added after a record was first written.
 function normalize(rec: FamilyRecord): FamilyRecord {
+  rec.rev ??= 0;
   rec.children ??= [];
   rec.sources ??= [];
   rec.items ??= [];
@@ -439,11 +460,70 @@ function normalize(rec: FamilyRecord): FamilyRecord {
   return rec;
 }
 
-export async function saveFamily(rec: FamilyRecord): Promise<void> {
-  rec.updatedAt = new Date().toISOString();
+function trimFamily(rec: FamilyRecord) {
   if (rec.items.length > MAX_ITEMS) rec.items = rec.items.slice(-MAX_ITEMS);
   if (rec.sources.length > MAX_SOURCES) rec.sources = rec.sources.slice(-MAX_SOURCES);
-  await writeRaw(`${FAMILIES}${rec.id}`, JSON.stringify(rec));
+}
+
+// Writes the family document. Because the whole JSON is rewritten, two devices in one family
+// (no accounts — a parent and their partner) can each load it, change it, and save; the later
+// save would blindly drop the earlier one's work. So before writing we re-read what is stored
+// now: if it moved on since this request loaded it, we replay this request's change onto the
+// latest version (lib/merge.ts) instead of overwriting it. The re-read cannot be atomic with
+// the write on Blob, so a true simultaneous write is still last-one-wins; what this removes is
+// the human-scale loss, where one phone held the page for a while before saving.
+export async function saveFamily(rec: FamilyRecord): Promise<void> {
+  rec.updatedAt = new Date().toISOString();
+  trimFamily(rec);
+  const key = `${FAMILIES}${rec.id}`;
+  const base = baselineOf(rec);
+
+  let stored: FamilyRecord | null = null;
+  try {
+    const raw = await readRaw(key);
+    stored = raw ? (JSON.parse(raw) as FamilyRecord) : null;
+  } catch {
+    stored = null; // unreadable: fall through to a plain write
+  }
+
+  // No baseline (a brand-new family, or a test fixture) or nothing stored yet: write as before.
+  // No baseline + something stored is a deliberate blind write; keep the version climbing.
+  if (!base || !stored) {
+    rec.rev = (stored?.rev ?? -1) + 1;
+    const body = JSON.stringify(rec);
+    await writeRaw(key, body);
+    setBaseline(rec, rec.rev, body);
+    return;
+  }
+
+  // Nobody wrote since this request loaded: a normal save.
+  if ((stored.rev ?? 0) === base.rev) {
+    rec.rev = base.rev + 1;
+    const body = JSON.stringify(rec);
+    await writeRaw(key, body);
+    setBaseline(rec, rec.rev, body);
+    return;
+  }
+
+  // A concurrent write landed. Replay this request's change onto it.
+  const theirs = normalize(stored);
+  let merged: FamilyRecord;
+  try {
+    merged = mergeFamily(normalize(JSON.parse(base.raw) as FamilyRecord), rec, theirs);
+  } catch {
+    merged = rec; // baseline unreadable: keep this request's version
+  }
+  merged.id = rec.id;
+  merged.updatedAt = rec.updatedAt;
+  merged.rev = (theirs.rev ?? 0) + 1;
+  trimFamily(merged);
+  const body = JSON.stringify(merged);
+  await writeRaw(key, body);
+  // Make the in-memory record match what was stored, so the route's response reflects the
+  // merge and a second save in the same request starts from a clean baseline.
+  for (const k of Object.keys(rec)) delete (rec as Record<string, unknown>)[k];
+  Object.assign(rec, merged);
+  setBaseline(rec, merged.rev, body);
 }
 
 export async function deleteFamily(id: string): Promise<void> {
