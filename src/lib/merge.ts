@@ -120,11 +120,18 @@ function mergeSettings(base: Settings, mine: Settings, theirs: Settings): Settin
   return out;
 }
 
-// Invite links: keep every live link from either side, and the higher use count for a link
-// both sides have, so a use is never uncounted.
-function mergeInvites(mine: Invite[] = [], theirs: Invite[] = []): Invite[] {
+// Invite links grant access, so a revoked or fully-spent link must stay gone: a link that
+// was in `base` but is missing from a side (consumed past its uses, expired, or rotated out)
+// is dropped, exactly like a removed notice. Of the links that survive, keep the higher use
+// count so a use is never uncounted and a spent link is not handed a fresh one.
+function mergeInvites(base: Invite[] = [], mine: Invite[] = [], theirs: Invite[] = []): Invite[] {
+  const mk = new Set(mine.map((i) => i.hash));
+  const tk = new Set(theirs.map((i) => i.hash));
+  const removed = new Set<string>();
+  for (const inv of base) if (!mk.has(inv.hash) || !tk.has(inv.hash)) removed.add(inv.hash);
   const map = new Map<string, Invite>();
   for (const inv of [...theirs, ...mine]) {
+    if (removed.has(inv.hash)) continue;
     const ex = map.get(inv.hash);
     map.set(inv.hash, ex ? { ...inv, uses: Math.max(ex.uses, inv.uses) } : inv);
   }
@@ -139,7 +146,9 @@ export function mergeFamily(base: FamilyRecord, mine: FamilyRecord, theirs: Fami
     id: theirs.id,
     keyHash: theirs.keyHash,
     createdAt: theirs.createdAt,
-    memberHashes: [...new Set([...(theirs.memberHashes ?? []), ...(mine.memberHashes ?? [])])].slice(-10),
+    // Member keys grant access too: honour a revocation (a hash dropped by a side) instead of
+    // letting a stale device resurrect it; otherwise union, newest kept, capped at 10.
+    memberHashes: mergeUnion<string>(base.memberHashes ?? [], mine.memberHashes ?? [], theirs.memberHashes ?? [], (h) => h).slice(-10),
     feedSecret: pick("feedSecret") as string,
     hookSecret: pick("hookSecret") as string,
     inboundCode: pick("inboundCode") as string,
@@ -149,7 +158,7 @@ export function mergeFamily(base: FamilyRecord, mine: FamilyRecord, theirs: Fami
     items: mergeStamped<Item>(base.items, mine.items, theirs.items, (i) => i.id),
     usage: mergeCounts(base.usage, mine.usage, theirs.usage),
     counters: mergeCounts(base.counters, mine.counters, theirs.counters),
-    invites: mergeInvites(mine.invites, theirs.invites),
+    invites: mergeInvites(base.invites, mine.invites, theirs.invites),
     rooms: mergeKeyed<RoomSubscription>(base.rooms ?? [], mine.rooms ?? [], theirs.rooms ?? [], (r) => r.roomId),
     push: mergeUnion<PushSub>(base.push ?? [], mine.push ?? [], theirs.push ?? [], (p) => p.endpoint),
     gmail: pick("gmail") as GmailLink | null | undefined,

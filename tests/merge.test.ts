@@ -87,6 +87,27 @@ describe("mergeFamily", () => {
     expect(ids).toContain("keep"); // their edit beats my delete
     expect(ids).not.toContain("drop"); // untouched on their side: my delete stands
   });
+
+  it("honours a revoked member key and a spent invite instead of resurrecting them", () => {
+    const b = base();
+    const live = { hash: "inv-live", createdAt: "2026-11-10T00:00:00.000Z", expiresAt: "2026-11-20T00:00:00.000Z", uses: 0, maxUses: 3 };
+    const spent = { hash: "inv-spent", createdAt: "2026-11-10T00:00:00.000Z", expiresAt: "2026-11-20T00:00:00.000Z", uses: 2, maxUses: 3 };
+    b.memberHashes = ["m-keep", "m-revoke"];
+    b.invites = [live, spent];
+    // This device revoked a partner key and used up an invite (liveInvites pruned it).
+    const mine = clone(b);
+    mine.memberHashes = ["m-keep"];
+    mine.invites = [live];
+    // The other device is stale (still has both) and added a new partner key.
+    const theirs = clone(b);
+    theirs.memberHashes = ["m-keep", "m-revoke", "m-new"];
+    const out = mergeFamily(b, mine, theirs);
+    expect(out.memberHashes).toEqual(expect.arrayContaining(["m-keep", "m-new"])); // genuine add kept
+    expect(out.memberHashes).not.toContain("m-revoke"); // revocation honoured, not resurrected
+    const invHashes = (out.invites ?? []).map((i) => i.hash);
+    expect(invHashes).toContain("inv-live");
+    expect(invHashes).not.toContain("inv-spent"); // a spent link is not handed back
+  });
 });
 
 describe("saveFamily concurrency", () => {
