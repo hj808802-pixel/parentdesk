@@ -12,6 +12,10 @@ const eslintConfig = defineConfig([
     "out/**",
     "build/**",
     "next-env.d.ts",
+    // Build output anywhere (e.g. agent worktrees under .claude keep their own .next), and
+    // the local-only .claude scratch directory itself. Untracked; never lint it.
+    "**/.next/**",
+    ".claude/**",
   ]),
 ]);
 
