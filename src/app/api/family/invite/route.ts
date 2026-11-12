@@ -13,7 +13,7 @@ export async function POST(req: Request) {
   const rec = await familyFromRequest(req);
   if (!rec) return Response.json({ ok: false, error: "no_family" }, { status: 404 });
   if (!canUse(rec, "invite")) return Response.json({ ok: false, error: "plan_limit" }, { status: 402 });
-  const gate = allowRequest({ ip: clientIp(req), family: rec.id });
+  const gate = await allowRequest({ ip: clientIp(req), family: rec.id });
   if (!gate.ok) return Response.json({ ok: false, error: gate.reason, retry_after: gate.retryAfterSec }, { status: 429 });
 
   const body = (await req.json().catch(() => ({}))) as Record<string, unknown>;

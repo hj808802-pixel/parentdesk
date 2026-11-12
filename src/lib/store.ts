@@ -407,6 +407,124 @@ export async function removeDoc(key: string): Promise<void> {
   if (DOC_KEY.test(key)) await removeRaw(key);
 }
 
+// ---- marks ----
+// Tiny entries grouped in buckets (the rate limiter's counters, lib/ratelimit.ts): one
+// entry per counted event, added and removed but never rewritten, counted by listing the
+// bucket. They hold no content: the name is all there is.
+const MARKS = "marks/";
+const MARK_BUCKET = /^[a-z][0-9]{1,12}-[0-9a-f]{24}$/;
+const MARK_NAME = /^[0-9a-z]{8,40}$/;
+const memoryMarks = new Map<string, Set<string>>();
+
+function marksDir(bucket?: string): string {
+  return path.join(process.env.LOCAL_DATA_DIR as string, "marks", bucket ?? "");
+}
+
+export async function addMark(bucket: string, name: string): Promise<void> {
+  if (!MARK_BUCKET.test(bucket) || !MARK_NAME.test(name)) throw new Error("bad mark");
+  switch (storageMode()) {
+    case "local":
+      fs.mkdirSync(marksDir(bucket), { recursive: true });
+      fs.writeFileSync(path.join(marksDir(bucket), name), "", "utf8");
+      return;
+    case "blob":
+      await put(`${ROOT}${MARKS}${bucket}/${name}`, "1", { access: "private", addRandomSuffix: false, allowOverwrite: false, contentType: "text/plain" });
+      return;
+    default: {
+      const set = memoryMarks.get(bucket) ?? new Set<string>();
+      set.add(name);
+      memoryMarks.set(bucket, set);
+    }
+  }
+}
+
+export async function listMarks(bucket: string): Promise<string[]> {
+  if (!MARK_BUCKET.test(bucket)) throw new Error("bad mark");
+  switch (storageMode()) {
+    case "local":
+      return fs.existsSync(marksDir(bucket)) ? fs.readdirSync(marksDir(bucket)).filter((f) => MARK_NAME.test(f)) : [];
+    case "blob": {
+      const prefix = `${ROOT}${MARKS}${bucket}/`;
+      const names: string[] = [];
+      let cursor: string | undefined;
+      do {
+        const page = await list({ prefix, cursor, limit: 1000 });
+        for (const b of page.blobs) {
+          const name = b.pathname.slice(prefix.length);
+          if (MARK_NAME.test(name)) names.push(name);
+        }
+        cursor = page.hasMore ? page.cursor : undefined;
+      } while (cursor);
+      return names;
+    }
+    default:
+      return [...(memoryMarks.get(bucket) ?? [])];
+  }
+}
+
+export async function removeMark(bucket: string, name: string): Promise<void> {
+  if (!MARK_BUCKET.test(bucket) || !MARK_NAME.test(name)) return;
+  switch (storageMode()) {
+    case "local": {
+      const p = path.join(marksDir(bucket), name);
+      if (fs.existsSync(p)) fs.unlinkSync(p);
+      return;
+    }
+    case "blob":
+      await del(`${ROOT}${MARKS}${bucket}/${name}`);
+      return;
+    default:
+      memoryMarks.get(bucket)?.delete(name);
+  }
+}
+
+// Removes every bucket `keep` says no to; returns how many entries went.
+export async function sweepMarks(keep: (bucket: string) => boolean): Promise<number> {
+  let gone = 0;
+  switch (storageMode()) {
+    case "local": {
+      if (!fs.existsSync(marksDir())) return 0;
+      for (const bucket of fs.readdirSync(marksDir())) {
+        if (keep(bucket)) continue;
+        gone += fs.readdirSync(marksDir(bucket)).length;
+        fs.rmSync(marksDir(bucket), { recursive: true, force: true });
+      }
+      return gone;
+    }
+    case "blob": {
+      const prefix = `${ROOT}${MARKS}`;
+      let cursor: string | undefined;
+      const old: string[] = [];
+      do {
+        const page = await list({ prefix, cursor, limit: 1000 });
+        for (const b of page.blobs) {
+          const bucket = b.pathname.slice(prefix.length).split("/")[0];
+          if (!keep(bucket)) old.push(b.pathname);
+        }
+        cursor = page.hasMore ? page.cursor : undefined;
+      } while (cursor);
+      for (let i = 0; i < old.length; i += 200) {
+        await del(old.slice(i, i + 200));
+        gone += Math.min(200, old.length - i);
+      }
+      return gone;
+    }
+    default:
+      for (const [bucket, set] of memoryMarks) {
+        if (keep(bucket)) continue;
+        gone += set.size;
+        memoryMarks.delete(bucket);
+      }
+      return gone;
+  }
+}
+
+// Development and tests only: the shared store is never emptied from here.
+export function wipeMarks(): void {
+  if (storageMode() === "local") fs.rmSync(marksDir(), { recursive: true, force: true });
+  else if (storageMode() === "memory") memoryMarks.clear();
+}
+
 // The version this request loaded, kept off the record on a Symbol so it is never written to
 // storage (JSON.stringify skips symbols) nor sent to the browser (toView spreads only string
 // keys). saveFamily reads it to tell a clean write from one that landed on top of a
@@ -549,6 +667,7 @@ export async function writeOps(name: string, value: unknown): Promise<void> {
 
 // Test hook.
 export function resetMemoryStore() {
+  memoryMarks.clear();
   memory.clear();
 }
 

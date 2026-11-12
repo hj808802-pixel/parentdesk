@@ -30,7 +30,7 @@ export async function POST(req: Request) {
   const body = (await req.json().catch(() => ({}))) as Record<string, unknown>;
   const existing = await familyFromRequest(req);
   if (existing) return Response.json({ ok: true, family: toView(existing) });
-  const gate = allowSignup(clientIp(req));
+  const gate = await allowSignup(clientIp(req));
   if (!gate.ok) return Response.json({ ok: false, error: gate.reason, retry_after: gate.retryAfterSec }, { status: 429 });
   const { record, key } = createFamily({
     locale: typeof body.locale === "string" ? body.locale : null,

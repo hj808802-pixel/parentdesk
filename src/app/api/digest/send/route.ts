@@ -18,7 +18,7 @@ export async function POST(req: Request) {
   if (!rec) return Response.json({ ok: false, error: "no_family" }, { status: 404 });
   if (!canUse(rec, "digest")) return Response.json({ ok: false, error: "plan_limit" }, { status: 402 });
   if (!rec.settings.digestEmail) return Response.json({ ok: false, error: "no_email" }, { status: 400 });
-  const gate = allowRequest({ ip: clientIp(req), family: rec.id });
+  const gate = await allowRequest({ ip: clientIp(req), family: rec.id });
   if (!gate.ok) return Response.json({ ok: false, error: gate.reason, retry_after: gate.retryAfterSec }, { status: 429 });
   const last = rec.digest?.lastSentAt ? Date.parse(rec.digest.lastSentAt) : 0;
   if (Date.now() - last < MIN_GAP_MS) return Response.json({ ok: false, error: "rate_limited", retry_after: Math.ceil((MIN_GAP_MS - (Date.now() - last)) / 1000) }, { status: 429 });

@@ -1,5 +1,6 @@
 import { timingSafeEqual } from "node:crypto";
 import { compactUsage } from "@/lib/usage";
+import { sweepLimiter } from "@/lib/ratelimit";
 import { isPaused } from "@/lib/ops";
 import { gmailEnabled, scanFamily } from "@/lib/gmail";
 import { recordRun } from "@/lib/ops";
@@ -55,6 +56,8 @@ export async function GET(req: Request) {
   console.log(JSON.stringify({ event: "cron_scan", ms, ...summary }));
   // Fold yesterday's per-call usage documents into one per day.
   await compactUsage().catch((e) => console.error("[cron scan] usage", e));
+  // The rate limiter's counters of hours and days that are over.
+  await sweepLimiter().catch((e) => console.error("[cron scan] limiter", e));
   await recordRun("scan", ms, summary).catch((e) => console.error("[cron scan] record", e));
   return Response.json({ ok: true, ...summary, ms });
 }

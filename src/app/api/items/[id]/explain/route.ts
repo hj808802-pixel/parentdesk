@@ -17,7 +17,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
   const { id } = await params;
   const item = rec.items.find((it) => it.id === id);
   if (!item) return Response.json({ ok: false, error: "not_found" }, { status: 404 });
-  const gate = allowRequest({ ip: clientIp(req), family: rec.id });
+  const gate = await allowRequest({ ip: clientIp(req), family: rec.id });
   if (!gate.ok) return Response.json({ ok: false, error: gate.reason, retry_after: gate.retryAfterSec }, { status: 429, headers: { "Retry-After": String(gate.retryAfterSec) } });
 
   const source = rec.sources.find((s) => s.id === item.sourceId) ?? null;

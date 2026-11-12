@@ -25,7 +25,7 @@ Next.js 16 App Router + Turbopack, React 19, Tailwind 4, TypeScript, zod 4, `@an
 npm run dev -- -p 3002        # local, with the API key in the environment (see Secrets)
 npm test                      # vitest (about 100 tests; i18n parity, store, rooms, qr, dashboard, plan, stripe, digest, admin, gmail, dedupe, dates, ics)
 npm run lint && npm run typecheck && npm run build
-node scripts/errorcheck.mjs --url http://localhost:3002   # about 200 API error-path checks, no model calls (restart the dev server first if a previous run hit the 60/hour IP limiter)
+node scripts/errorcheck.mjs --url http://localhost:3002   # about 200 API error-path checks, no model calls (restart the dev server first if a previous run hit the 60/hour IP limiter: locally a restart empties the stored counters under `data/marks/`; on production they are shared by every instance and last the hour, so run it there once per hour at most)
 node scripts/linkcheck.mjs  --url http://localhost:3002   # every page in every locale, internal links, API status codes
 node scripts/e2e.mjs --url http://localhost:3002 --admin <local test token>   # launch test: family, teacher/rooms, admin end to end (about 90 steps). LOCAL ONLY (refuses other hosts and non-local storage), needs a fresh dev server started with a throwaway ADMIN_TOKEN; real model calls when the key is set
 ```
@@ -34,7 +34,7 @@ Run both scripts against production too after a deploy (default URL is productio
 ## Conventions
 - New UI text goes into all 10 dictionaries in one patch (write a Node script with the Write tool; Korean on the command line garbles and commands over ~8 KB truncate on this machine).
 - New optional features are env-gated and reported by `/api/health`; the UI hides what the server has not configured.
-- API errors are `{ ok: false, error: "<code>" }` with codes mapped in `add.errors` of the dictionaries; 402 `plan_limit` is the plan gate, 429 the rate limiter.
+- API errors are `{ ok: false, error: "<code>" }` with codes mapped in `add.errors` of the dictionaries; 402 `plan_limit` is the plan gate, 429 the rate limiter (`lib/ratelimit.ts`: a memory layer first, then the same caps counted in storage as append-only "marks" under `marks/<hour-or-day bucket>/`, swept by the daily cron; `RATE_LIMIT_STORE=off` falls back to memory only; `/api/health` reports `rateLimit`; directory lookups stay memory-only).
 - Keep `scripts/errorcheck.mjs` and `scripts/linkcheck.mjs` in step with new routes and pages, and add a vitest file per new lib module.
 - Verify in the browser pane (viewport 375 px for phone checks) before declaring UI work done.
 

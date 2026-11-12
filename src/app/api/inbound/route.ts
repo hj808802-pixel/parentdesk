@@ -47,7 +47,7 @@ export async function POST(req: Request) {
   if (rec && (await isPaused(rec.id))) return Response.json({ ok: false, error: "blocked" }, { status: 403 });
   if (!rec || rec.inboundCode !== addr.code) return Response.json({ ok: false, error: "unknown_address" }, { status: 404 });
 
-  const gate = allowRequest({ ip: clientIp(req), family: rec.id });
+  const gate = await allowRequest({ ip: clientIp(req), family: rec.id });
   if (!gate.ok) return Response.json({ ok: false, error: gate.reason }, { status: 429 });
   if (!canExtract(rec, new Date().toISOString().slice(0, 7)).ok) return Response.json({ ok: false, error: "plan_limit" }, { status: 402 });
 

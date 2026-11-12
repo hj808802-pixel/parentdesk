@@ -14,7 +14,7 @@ const MAX_BYTES = 3 * 1024 * 1024;
 export async function POST(req: Request) {
   const rec = await familyFromRequest(req);
   if (!rec) return Response.json({ ok: false, error: "no_family" }, { status: 404 });
-  const gate = allowRequest({ ip: clientIp(req), family: rec.id });
+  const gate = await allowRequest({ ip: clientIp(req), family: rec.id });
   if (!gate.ok) return Response.json({ ok: false, error: gate.reason, retry_after: gate.retryAfterSec }, { status: 429 });
   const text = await req.text().catch(() => "");
   if (!text || text.length > MAX_BYTES) return Response.json({ ok: false, error: text ? "too_large" : "bad_request" }, { status: text ? 413 : 400 });

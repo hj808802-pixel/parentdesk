@@ -7,7 +7,7 @@ export const runtime = "nodejs";
 export async function POST(req: Request) {
   const teacher = await teacherFromRequest(req);
   if (!teacher) return Response.json({ ok: false, error: "no_teacher" }, { status: 404 });
-  const gate = allowRequest({ ip: clientIp(req), family: `t:${teacher.id}` });
+  const gate = await allowRequest({ ip: clientIp(req), family: `t:${teacher.id}` });
   if (!gate.ok) return Response.json({ ok: false, error: gate.reason }, { status: 429 });
   const body = (await req.json().catch(() => null)) as Record<string, unknown> | null;
   if (!body || !sanitizeName(body.name)) return Response.json({ ok: false, error: "name_required" }, { status: 400 });

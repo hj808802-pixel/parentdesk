@@ -49,15 +49,23 @@ export async function POST(req: Request) {
   let rec = await familyFromRequest(req);
   // Joining may translate recent posts: a paused family does not get to spend that.
   if (rec && (await isPaused(rec.id))) return Response.json({ ok: false, error: "blocked" }, { status: 403 });
-  const gate = allowRequest({ ip: clientIp(req), family: rec?.id ?? null });
+  const gate = await allowRequest({ ip: clientIp(req), family: rec?.id ?? null });
   if (!gate.ok) return Response.json({ ok: false, error: gate.reason }, { status: 429 });
   const body = (await req.json().catch(() => null)) as Record<string, unknown> | null;
   if (!body) return Response.json({ ok: false, error: "bad_request" }, { status: 400 });
   const byCode = body.roomId !== undefined;
   const guessed = byCode && typeof body.roomId === "string" && /^[0-9a-f]{12}$/.test(body.roomId) ? body.roomId : null;
-  if (guessed && !takeCodeGuess(guessed)) return Response.json({ ok: false, error: "rate_limited" }, { status: 429 });
-  const found = byCode ? await listedRoom(body.roomId, body.code ?? "") : await roomFor(body.token);
-  if (guessed && found.status !== 403) returnCodeGuess(guessed);
+  const guess = guessed ? await takeCodeGuess(guessed) : null;
+  if (guessed && !guess) return Response.json({ ok: false, error: "rate_limited" }, { status: 429 });
+  let found: Found;
+  try {
+    found = byCode ? await listedRoom(body.roomId, body.code ?? "") : await roomFor(body.token);
+  } catch (e) {
+    // not a wrong code: the guess goes back
+    if (guess) await returnCodeGuess(guess);
+    throw e;
+  }
+  if (guess && found.status !== 403) await returnCodeGuess(guess);
   if (found.status !== 200) return Response.json({ ok: false, error: found.status === 403 ? "bad_code" : "bad_token" }, { status: found.status });
   const { room, teacher } = found;
 

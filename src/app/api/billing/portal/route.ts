@@ -15,7 +15,7 @@ export async function POST(req: Request) {
   const rec = await familyFromRequest(req);
   if (!rec) return Response.json({ ok: false, error: "no_family" }, { status: 404 });
   if (!rec.billing?.customerId) return Response.json({ ok: false, error: "no_subscription" }, { status: 400 });
-  const gate = allowRequest({ ip: clientIp(req), family: rec.id });
+  const gate = await allowRequest({ ip: clientIp(req), family: rec.id });
   if (!gate.ok) return Response.json({ ok: false, error: gate.reason, retry_after: gate.retryAfterSec }, { status: 429 });
   try {
     const url = await createPortal({ customerId: rec.billing.customerId, returnUrl: `${siteOrigin(req)}${localePath(localeOf(req), "/settings")}` });

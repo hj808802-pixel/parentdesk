@@ -16,7 +16,7 @@ export async function POST(req: Request) {
   if (await isPaused(rec.id)) return Response.json({ ok: false, error: "blocked" }, { status: 403 });
   if (!rec.gmail) return Response.json({ ok: false, error: "not_connected" }, { status: 400 });
   if (!canUse(rec, "gmail")) return Response.json({ ok: false, error: "plan_limit" }, { status: 402 });
-  const gate = allowRequest({ ip: clientIp(req), family: rec.id });
+  const gate = await allowRequest({ ip: clientIp(req), family: rec.id });
   if (!gate.ok) return Response.json({ ok: false, error: gate.reason, retry_after: gate.retryAfterSec }, { status: 429 });
 
   rec.gmail.paused = false;

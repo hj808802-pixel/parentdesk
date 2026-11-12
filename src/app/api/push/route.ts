@@ -14,7 +14,7 @@ export async function POST(req: Request) {
   const body = (await req.json().catch(() => null)) as Record<string, unknown> | null;
   if (!body) return Response.json({ ok: false, error: "bad_request" }, { status: 400 });
   if (body.test === true) {
-    const gate = allowRequest({ ip: clientIp(req), family: rec.id });
+    const gate = await allowRequest({ ip: clientIp(req), family: rec.id });
     if (!gate.ok) return Response.json({ ok: false, error: gate.reason }, { status: 429 });
     const sent = await notifyFamily(rec, { title: "ParentDesk", body: "✓", url: "/" });
     return Response.json({ ok: true, sent });

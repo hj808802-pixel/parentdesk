@@ -15,7 +15,7 @@ export async function POST(req: Request) {
   if (!billingEnabled()) return Response.json({ ok: false, error: "billing_off" }, { status: 404 });
   const rec = await familyFromRequest(req);
   if (!rec) return Response.json({ ok: false, error: "no_family" }, { status: 404 });
-  const gate = allowRequest({ ip: clientIp(req), family: rec.id });
+  const gate = await allowRequest({ ip: clientIp(req), family: rec.id });
   if (!gate.ok) return Response.json({ ok: false, error: gate.reason, retry_after: gate.retryAfterSec }, { status: 429 });
 
   const body = (await req.json().catch(() => ({}))) as Record<string, unknown>;

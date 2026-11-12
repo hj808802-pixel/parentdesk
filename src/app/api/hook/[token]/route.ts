@@ -47,7 +47,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ token: 
   if (!rec || !verifyHookSecret(rec, parsed.secret)) return Response.json({ ok: false, error: "bad_token" }, { status: 404 });
   if (await isPaused(rec.id)) return Response.json({ ok: false, error: "blocked" }, { status: 403 });
 
-  const gate = allowRequest({ ip: clientIp(req), family: rec.id });
+  const gate = await allowRequest({ ip: clientIp(req), family: rec.id });
   if (!gate.ok) return Response.json({ ok: false, error: gate.reason, retry_after: gate.retryAfterSec }, { status: 429 });
 
   const body = await readBody(req);

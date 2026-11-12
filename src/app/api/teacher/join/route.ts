@@ -6,7 +6,7 @@ export const runtime = "nodejs";
 
 // Opens a teacher's desk on another device with the teacher key ({ key }).
 export async function POST(req: Request) {
-  const gate = allowRequest({ ip: clientIp(req), family: null });
+  const gate = await allowRequest({ ip: clientIp(req), family: null });
   if (!gate.ok) return Response.json({ ok: false, error: gate.reason }, { status: 429 });
   const body = (await req.json().catch(() => null)) as Record<string, unknown> | null;
   const parsed = parseTeacherKey(body?.key);

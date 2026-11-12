@@ -21,7 +21,7 @@ export async function POST(req: Request) {
   const text = body && typeof body.text === "string" ? body.text.trim() : "";
   if (!body || !text || text.length > 600) return Response.json({ ok: false, error: "bad_request" }, { status: 400 });
   const locale = typeof body.locale === "string" && isLocale(body.locale) ? body.locale : rec.settings.locale || "en";
-  const gate = allowRequest({ ip: clientIp(req), family: rec.id });
+  const gate = await allowRequest({ ip: clientIp(req), family: rec.id });
   if (!gate.ok) return Response.json({ ok: false, error: gate.reason, retry_after: gate.retryAfterSec }, { status: 429, headers: { "Retry-After": String(gate.retryAfterSec) } });
 
   const started = Date.now();

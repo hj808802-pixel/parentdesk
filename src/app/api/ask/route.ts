@@ -15,7 +15,7 @@ export async function POST(req: Request) {
   const rec = await familyFromRequest(req);
   if (!rec) return Response.json({ ok: false, error: "no_family" }, { status: 404 });
   if (await isPaused(rec.id)) return Response.json({ ok: false, error: "blocked" }, { status: 403 });
-  const gate = allowRequest({ ip: clientIp(req), family: rec.id });
+  const gate = await allowRequest({ ip: clientIp(req), family: rec.id });
   if (!gate.ok) return Response.json({ ok: false, error: gate.reason, retry_after: gate.retryAfterSec }, { status: 429, headers: { "Retry-After": String(gate.retryAfterSec) } });
 
   const body = (await req.json().catch(() => null)) as { question?: unknown } | null;

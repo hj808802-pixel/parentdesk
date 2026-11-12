@@ -31,7 +31,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
   const room = await loadRoom(id);
   if (!room || room.teacherId !== teacher.id) return fail("not_found", 404);
 
-  const gate = allowRequest({ ip: clientIp(req), family: `t:${teacher.id}` });
+  const gate = await allowRequest({ ip: clientIp(req), family: `t:${teacher.id}` });
   if (!gate.ok) return fail(gate.reason, 429, { retry_after: gate.retryAfterSec });
   const month = todayIn(teacher.settings.timezone).slice(0, 7);
   const cap = canPost(teacher, month);

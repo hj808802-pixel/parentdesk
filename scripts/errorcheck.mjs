@@ -127,6 +127,7 @@ expect("origin: so is one the browser marks cross-site", await call("DELETE", "/
 expect("origin: a garbled origin is refused", await call("PATCH", "/api/family", { json: {}, headers: { origin: "null" }, useCookie: false }), 403);
 expect("origin: the admin action route is covered too", await call("POST", "/api/admin/action", { json: { action: "announce" }, headers: { origin: "https://evil.example" } }), 403);
 expect("origin: reads from elsewhere are plain reads", await call("GET", "/api/health", { headers: { origin: "https://evil.example" }, useCookie: false }), 200);
+expect("limiter: the caps are counted in storage, not only in this server's memory", await call("GET", "/api/health", { useCookie: false }), 200, (r) => r.data.rateLimit === "stored");
 expect("origin: the device hook is not a browser address", await call("POST", "/api/hook/nope", { json: {}, headers: { origin: "https://evil.example" }, useCookie: false }), 404);
 expect("origin: our own origin passes", await call("POST", "/api/family/join", { json: { key: "pd_short" }, headers: { origin: BASE } }), 400);
 {

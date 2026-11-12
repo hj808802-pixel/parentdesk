@@ -18,7 +18,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
   const { id } = await params;
   const room = await loadRoom(id);
   if (!room || room.teacherId !== teacher.id) return Response.json({ ok: false, error: "not_found" }, { status: 404 });
-  const gate = allowRequest({ ip: clientIp(req), family: `t:${teacher.id}` });
+  const gate = await allowRequest({ ip: clientIp(req), family: `t:${teacher.id}` });
   if (!gate.ok) return Response.json({ ok: false, error: gate.reason, retry_after: gate.retryAfterSec }, { status: 429 });
 
   const body = (await req.json().catch(() => null)) as Record<string, unknown> | null;

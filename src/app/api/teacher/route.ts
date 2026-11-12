@@ -21,7 +21,7 @@ export async function GET(req: Request) {
 export async function POST(req: Request) {
   const existing = await teacherFromRequest(req);
   if (existing) return Response.json({ ok: true, teacher: teacherView(existing, await loadRooms(existing)) });
-  const gate = allowRequest({ ip: clientIp(req), family: null });
+  const gate = await allowRequest({ ip: clientIp(req), family: null });
   if (!gate.ok) return Response.json({ ok: false, error: gate.reason, retry_after: gate.retryAfterSec }, { status: 429 });
   const body = (await req.json().catch(() => null)) as Record<string, unknown> | null;
   if (!body) return Response.json({ ok: false, error: "bad_request" }, { status: 400 });
