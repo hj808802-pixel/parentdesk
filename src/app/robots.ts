@@ -4,7 +4,7 @@ const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL || "https://parentdesk-app.ver
 
 export default function robots(): MetadataRoute.Robots {
   return {
-    rules: [{ userAgent: "*", allow: "/", disallow: ["/api/", "/items", "/*/items", "/sources", "/*/sources", "/settings", "/*/settings"] }],
+    rules: [{ userAgent: "*", allow: "/", disallow: ["/api/", "/admin", "/items", "/*/items", "/sources", "/*/sources", "/settings", "/*/settings"] }],
     sitemap: `${SITE_URL}/sitemap.xml`,
   };
 }

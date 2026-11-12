@@ -18,7 +18,15 @@ self.addEventListener("push", (event) => {
 });
 self.addEventListener("notificationclick", (event) => {
   event.notification.close();
-  const url = (event.notification.data && event.notification.data.url) || "/";
+  const given = (event.notification.data && event.notification.data.url) || "/";
+  // only pages of this app, whatever the message said
+  let url = "/";
+  try {
+    const parsed = new URL(String(given), self.location.origin);
+    if (parsed.origin === self.location.origin) url = parsed.href;
+  } catch {
+    url = "/";
+  }
   event.waitUntil(
     self.clients.matchAll({ type: "window", includeUncontrolled: true }).then((list) => {
       for (const c of list) if ("focus" in c) return c.navigate(url).then((w) => (w || c).focus());

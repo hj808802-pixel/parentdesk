@@ -121,6 +121,21 @@ expect("announcement: a locale is accepted", await call("GET", "/api/announcemen
 expect("admin stats: a session without an account name is refused", await call("GET", "/api/admin/stats", { headers: { cookie: `pd_admin=${Date.now() + 60000}.${"0".repeat(64)}` }, useCookie: false }), [401, 404]);
 expect("admin stats: a made-up account is refused", await call("GET", "/api/admin/stats", { headers: { cookie: `pd_admin=${Date.now() + 60000}.owner.${"0".repeat(64)}` }, useCookie: false }), [401, 404]);
 expect("announcement: public, nothing personal", await call("GET", "/api/announcement?for=teachers"), 200, (r) => r.data.ok === true && "announcement" in r.data);
+// cross-site writes never reach a route; the addresses other servers post to are exempt
+expect("origin: a write from another site is refused", await call("POST", "/api/family", { json: {}, headers: { origin: "https://evil.example" }, useCookie: false }), 403, (r) => r.data.error === "bad_origin");
+expect("origin: so is one the browser marks cross-site", await call("DELETE", "/api/family", { headers: { "sec-fetch-site": "cross-site" }, useCookie: false }), 403);
+expect("origin: a garbled origin is refused", await call("PATCH", "/api/family", { json: {}, headers: { origin: "null" }, useCookie: false }), 403);
+expect("origin: the admin action route is covered too", await call("POST", "/api/admin/action", { json: { action: "announce" }, headers: { origin: "https://evil.example" } }), 403);
+expect("origin: reads from elsewhere are plain reads", await call("GET", "/api/health", { headers: { origin: "https://evil.example" }, useCookie: false }), 200);
+expect("origin: the device hook is not a browser address", await call("POST", "/api/hook/nope", { json: {}, headers: { origin: "https://evil.example" }, useCookie: false }), 404);
+expect("origin: our own origin passes", await call("POST", "/api/family/join", { json: { key: "pd_short" }, headers: { origin: BASE } }), 400);
+{
+  const page = await fetch(`${BASE}/ko`, { redirect: "manual" });
+  const csp = page.headers.get("content-security-policy") ?? "";
+  results.push({ name: "headers: content security policy on pages", ok: /frame-ancestors 'none'/.test(csp) && /object-src 'none'/.test(csp), status: page.status, expect: "csp", body: csp.slice(0, 80) });
+  const adminPage = await fetch(`${BASE}/admin`);
+  results.push({ name: "headers: the console is not indexed or cached", ok: /noindex/.test(adminPage.headers.get("x-robots-tag") ?? "") && /no-store/.test(adminPage.headers.get("cache-control") ?? ""), status: adminPage.status, expect: "noindex+no-store", body: adminPage.headers.get("cache-control") });
+}
 expect("admin login: says whether the second step is on", await call("GET", "/api/admin/login"), 200, (r) => typeof r.data.twoStep === "boolean");
 expect("admin action: adding an account needs a login", await call("POST", "/api/admin/action", { json: { action: "admin_add", name: "x", role: "owner" } }), [401, 404]);
 expect("admin action: announce needs a login", await call("POST", "/api/admin/action", { json: { action: "announce", text: "hi" } }), [401, 404]);

@@ -1,4 +1,4 @@
-import { adminEnabled, adminOf, createAdmin, hasLiveSubscription, isAbandoned, removeAdmin } from "@/lib/admin";
+import { adminEnabled, adminOf, createAdmin, hasLiveSubscription, isAbandoned, removeAdmin, rotateAdmin } from "@/lib/admin";
 import { newTotpSecret, totpUri } from "@/lib/totp";
 import { translateAnnouncement } from "@/lib/assist";
 import { readFamilyAdmin, recordAdminAction as logAction, removeFamilyAdmin, setAnnouncement, setTeacherPaused, writeFamilyAdmin } from "@/lib/ops";
@@ -23,6 +23,7 @@ export const maxDuration = 60;
 //   teacher_block      { id, blocked, reason }: pauses (or resumes) a teacher desk: reading, writing and sending
 //                      notices; the reason is shown to the teacher
 //   admin_add          { name, role, twoStep }: a new console account; its token (and secret) come back once
+//   admin_rotate       { name }: a new token for a console-made account (the old one stops working)
 //   admin_remove       { name }: takes a console-made account away; nobody can remove themselves
 export async function POST(req: Request) {
   if (!adminEnabled()) return Response.json({ ok: false, error: "admin_off" }, { status: 404 });
@@ -34,7 +35,7 @@ export async function POST(req: Request) {
   const body = (await req.json().catch(() => null)) as { action?: unknown; id?: unknown; ids?: unknown; note?: unknown; blocked?: unknown; text?: unknown; audience?: unknown; days?: unknown; translate?: unknown; name?: unknown; role?: unknown; twoStep?: unknown; reason?: unknown } | null;
   const action = typeof body?.action === "string" ? body.action : "";
   const id = typeof body?.id === "string" ? body.id.trim() : "";
-  const needsId = !["families_purge", "announce", "admin_add", "admin_remove"].includes(action);
+  const needsId = !["families_purge", "announce", "admin_add", "admin_remove", "admin_rotate"].includes(action);
   if (!action || (needsId && !/^[0-9a-f]{12}$/.test(id))) return Response.json({ ok: false, error: "bad_request" }, { status: 400 });
 
   switch (action) {
@@ -127,6 +128,14 @@ export async function POST(req: Request) {
       if (!made.ok) return Response.json({ ok: false, error: made.error }, { status: made.error === "exists" ? 409 : 400 });
       await recordAdminAction(action, made.name, `${made.role}${made.totp ? ", two-step" : ""}`);
       return Response.json({ ok: true, account: { name: made.name, role: made.role, token: made.token, totp: made.totp, totpUri: made.totp ? totpUri(made.totp, `ParentDesk admin (${made.name})`) : null } }, { headers: { "cache-control": "no-store" } });
+    }
+    case "admin_rotate": {
+      const target = typeof body?.name === "string" ? body.name.trim().toLowerCase() : "";
+      if (target === me.name) return Response.json({ ok: false, error: "self" }, { status: 400 });
+      const res = await rotateAdmin(target);
+      if (!res.ok) return Response.json({ ok: false, error: res.error === "env" ? "env_account" : res.error }, { status: res.error === "env" ? 400 : res.error === "conflict" ? 409 : 404 });
+      await recordAdminAction(action, target, "new token");
+      return Response.json({ ok: true, account: { name: res.name, role: res.role, token: res.token, totp: null, totpUri: null } }, { headers: { "cache-control": "no-store" } });
     }
     case "admin_remove": {
       const target = typeof body?.name === "string" ? body.name.trim().toLowerCase() : "";

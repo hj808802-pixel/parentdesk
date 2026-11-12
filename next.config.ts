@@ -1,6 +1,27 @@
 import type { NextConfig } from "next";
 
+const dev = process.env.NODE_ENV !== "production";
+// Everything the app loads comes from its own origin (fonts are self-hosted, images are its
+// own or picked by the user). Inline scripts stay allowed because the framework emits them;
+// the rest shuts out foreign scripts, frames, plugins and form targets.
+const csp = [
+  "default-src 'self'",
+  `script-src 'self' 'unsafe-inline'${dev ? " 'unsafe-eval' https://va.vercel-scripts.com" : ""}`,
+  "style-src 'self' 'unsafe-inline'",
+  "img-src 'self' data: blob:",
+  "font-src 'self' data:",
+  `connect-src 'self'${dev ? " ws: wss:" : ""}`,
+  "worker-src 'self'",
+  "manifest-src 'self'",
+  "object-src 'none'",
+  "base-uri 'self'",
+  "form-action 'self'",
+  "frame-ancestors 'none'",
+].join("; ");
+
 const securityHeaders = [
+  { key: "Content-Security-Policy", value: csp },
+  { key: "Cross-Origin-Opener-Policy", value: "same-origin" },
   { key: "X-Content-Type-Options", value: "nosniff" },
   { key: "X-Frame-Options", value: "DENY" },
   { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
@@ -32,7 +53,17 @@ const nextConfig: NextConfig = {
     "/api/health": ["./knowledge/**/*"],
   },
   async headers() {
-    return [{ source: "/(.*)", headers: securityHeaders }];
+    const hidden = [
+      { key: "X-Robots-Tag", value: "noindex, nofollow" },
+      { key: "Cache-Control", value: "no-store" },
+    ];
+    return [
+      { source: "/(.*)", headers: securityHeaders },
+      // The operator console is never for search engines or shared caches.
+      { source: "/admin/:path*", headers: hidden },
+      { source: "/admin", headers: hidden },
+      { source: "/api/:path*", headers: [{ key: "X-Robots-Tag", value: "noindex, nofollow" }] },
+    ];
   },
 };
 

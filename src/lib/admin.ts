@@ -1,6 +1,6 @@
 import { createHash, createHmac, randomBytes, timingSafeEqual } from "node:crypto";
 import { planOf } from "./plan";
-import { createDoc, features, listDocIds, readDoc, removeDoc } from "./store";
+import { createDoc, features, listDocIds, newId, readDoc, removeDoc } from "./store";
 import type { FamilyRecord } from "./types";
 
 // The operator's console: one shared token (ADMIN_TOKEN) exchanged for an HttpOnly cookie
@@ -22,6 +22,11 @@ export type AdminUser = { name: string; role: AdminRole; tokenHash: string; totp
 export type AdminIdentity = { name: string; role: AdminRole };
 
 const STORED = "adminuser/";
+// A re-issued token is a new document of its own (never a rewrite of the account), tied
+// to the account by name and creation time: one written after the account was removed, or
+// left over from an earlier account of the same name, matches nothing.
+const TOKENS = "admintoken/";
+type Reissue = { name: string; createdAt: string; tokenHash: string; at: string };
 const NAME = /^[a-z0-9_-]{1,20}$/;
 const hashToken = (token: string) => createHash("sha256").update(token.trim()).digest("hex");
 const storedId = (name: string) => createHash("sha256").update(`admin:${name}`).digest("hex").slice(0, 12);
@@ -45,6 +50,21 @@ export function adminEnabled(): boolean {
   return envAdmins().some((u) => u.name === "owner");
 }
 
+async function reissues(): Promise<(Reissue & { id: string })[]> {
+  const out: (Reissue & { id: string })[] = [];
+  for (const id of await listDocIds(TOKENS)) {
+    // Not being able to read one must not quietly bring an older token back to life: any
+    // failure here is thrown, and the caller treats console-made accounts as absent.
+    const raw = await readDoc(`${TOKENS}${id}`);
+    // Listed but gone: only an account being removed does that. Refuse rather than guess.
+    if (raw === null) throw new Error(`re-issue record ${id} disappeared`);
+    const r = JSON.parse(raw) as Partial<Reissue>;
+    if (!r || typeof r.name !== "string" || typeof r.createdAt !== "string" || typeof r.at !== "string" || typeof r.tokenHash !== "string" || !/^[0-9a-f]{64}$/.test(r.tokenHash)) throw new Error(`damaged re-issue record ${id}`);
+    out.push({ id, name: r.name, createdAt: r.createdAt, tokenHash: r.tokenHash, at: r.at });
+  }
+  return out;
+}
+
 async function storedAdmins(): Promise<AdminUser[]> {
   const out: AdminUser[] = [];
   for (const id of await listDocIds(STORED)) {
@@ -58,6 +78,19 @@ async function storedAdmins(): Promise<AdminUser[]> {
       /* an unreadable account document is simply not an account */
     }
   }
+  // the newest re-issued token of each account replaces the one it was made with
+  if (out.length > 0) {
+    const newest = new Map<string, Reissue & { id: string }>();
+    for (const r of await reissues()) {
+      const seen = newest.get(r.name);
+      if (r.createdAt !== out.find((u) => u.name === r.name)?.createdAt) continue; // another account of that name
+      if (!seen || seen.at < r.at || (seen.at === r.at && seen.id < r.id)) newest.set(r.name, r);
+    }
+    for (const u of out) {
+      const r = newest.get(u.name);
+      if (r) u.tokenHash = r.tokenHash;
+    }
+  }
   return out.sort((x, y) => (x.name < y.name ? -1 : 1));
 }
 
@@ -65,7 +98,13 @@ async function storedAdmins(): Promise<AdminUser[]> {
 export async function adminUsers(): Promise<AdminUser[]> {
   if (!adminEnabled()) return [];
   const env = envAdmins();
-  const stored = (await storedAdmins()).filter((s) => !env.some((e) => e.name === s.name || e.tokenHash === s.tokenHash));
+  let all: AdminUser[] = [];
+  try {
+    all = await storedAdmins();
+  } catch (e) {
+    console.error("[admin] console-made accounts unavailable", e instanceof Error ? e.message : e);
+  }
+  const stored = all.filter((s) => !env.some((e) => e.name === s.name || e.tokenHash === s.tokenHash));
   return [...env, ...stored];
 }
 
@@ -157,9 +196,37 @@ export async function createAdmin(name: unknown, role: unknown, twoStep: boolean
 export async function removeAdmin(name: unknown): Promise<"removed" | "not_found" | "env"> {
   const clean = typeof name === "string" ? name.trim().toLowerCase() : "";
   if (envAdmins().some((u) => u.name === clean)) return "env";
-  if (!NAME.test(clean) || !(await storedAdmins()).some((u) => u.name === clean)) return "not_found";
+  const gone = NAME.test(clean) ? (await storedAdmins()).find((u) => u.name === clean) : undefined;
+  if (!gone) return "not_found";
+  // Removing the account document is the whole removal. Its re-issue records are left
+  // behind on purpose: they are tied to this account's creation time, so they match no
+  // later account, and deleting them while a sign-in is being checked could let the
+  // account's first token through for that one request.
   await removeDoc(`${STORED}${storedId(clean)}`);
   return "removed";
+}
+
+// A fresh token for an account made in the console: the old one, and every session signed
+// with it, stops working at once. Returned once, like the first.
+export async function rotateAdmin(name: unknown): Promise<{ ok: true; name: string; role: AdminRole; token: string } | { ok: false; error: "not_found" | "env" | "conflict" }> {
+  const clean = typeof name === "string" ? name.trim().toLowerCase() : "";
+  if (envAdmins().some((u) => u.name === clean)) return { ok: false, error: "env" };
+  const u = NAME.test(clean) ? (await storedAdmins()).find((x) => x.name === clean) : undefined;
+  if (!u || !u.createdAt) return { ok: false, error: "not_found" };
+  const token = randomBytes(24).toString("base64url");
+  // later than every re-issue this account already has, whatever the clock says
+  const last = (await reissues()).filter((r) => r.name === u.name && r.createdAt === u.createdAt).reduce((m, r) => (r.at > m ? r.at : m), "");
+  const at = new Date(Math.max(Date.now(), last ? Date.parse(last) + 1 : 0)).toISOString();
+  const doc: Reissue = { name: u.name, createdAt: u.createdAt, tokenHash: hashToken(token), at };
+  await createDoc(`${TOKENS}${newId(6)}`, JSON.stringify(doc));
+  // The account may have been removed meanwhile, or another re-issue may have won: the
+  // token is handed out only when it is the one that signs in.
+  const now = (await storedAdmins()).find((x) => x.name === u.name && x.createdAt === u.createdAt);
+  if (!now) return { ok: false, error: "not_found" };
+  if (now.tokenHash !== doc.tokenHash) return { ok: false, error: "conflict" };
+  // Earlier re-issues stay where they are (they are tiny, and removing one while a sign-in
+  // is reading the list could let an older token through).
+  return { ok: true, name: u.name, role: u.role, token };
 }
 
 // The last n calendar days (UTC), oldest first.

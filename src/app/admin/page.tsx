@@ -64,6 +64,9 @@ const ACTION_KO: Record<string, string> = {
   teacher_block: "선생님 일시 중지/해제",
   admin_add: "관리자 계정 추가",
   admin_remove: "관리자 계정 회수",
+  admin_rotate: "관리자 토큰 재발급",
+  login: "로그인",
+  login_failed: "로그인 실패(코드 틀림)",
   rebuild: "반 찾기·사용량 정리",
 };
 
@@ -220,6 +223,24 @@ export default function AdminPage() {
     await load();
   }
 
+  // A new token for an account: the old one stops working, the new one is shown once.
+  async function rotateAdmin(name: string) {
+    if (!canAct) {
+      setNote("읽기 전용 계정입니다. 변경은 owner 계정으로만 할 수 있습니다.");
+      return;
+    }
+    if (!window.confirm(`"${name}" 계정의 토큰을 새로 만듭니다. 지금 토큰은 즉시 못 쓰게 되고 그 계정은 로그아웃됩니다. 계속할까요?`)) return;
+    setIssued(null);
+    const r = await getJson<{ ok: boolean; error?: string; account?: { name: string; role: string; token: string; totp: string | null; totpUri: string | null } }>("/api/admin/action", { method: "POST", body: JSON.stringify({ action: "admin_rotate", name }) });
+    if (!r.body?.ok || !r.body.account) {
+      setNote(`실패: ${r.body?.error ?? `HTTP ${r.status}`}`);
+      return;
+    }
+    setIssued(r.body.account);
+    setNote("완료: 토큰 재발급. 아래 새 토큰을 지금 복사해 전달하세요. 다시 볼 수 없습니다.");
+    await load();
+  }
+
   // A new account: its token (and second-step secret) are shown once, here, and nowhere else.
   async function addAdmin() {
     if (!canAct) {
@@ -259,7 +280,12 @@ export default function AdminPage() {
   function downloadCsv() {
     if (!lists) return;
     const head = ["id", "createdAt", "updatedAt", "country", "language", "children", "items", "open", "sources", "monthUsage", "plan", "rooms", "push", "gmail"] as const;
-    const csv = [head.join(","), ...lists.families.map((f) => head.map((k) => String(f[k])).join(","))].join("\n");
+    // quoted, and never starting with a character a spreadsheet would run as a formula
+    const cell = (v: unknown) => {
+      const s = String(v ?? "");
+      return `"${(/^[=+\-@\t\r]/.test(s) ? `'${s}` : s).replace(/"/g, '""')}"`;
+    };
+    const csv = [head.join(","), ...lists.families.map((f) => head.map((k) => cell(f[k])).join(","))].join("\n");
     const a = document.createElement("a");
     a.href = URL.createObjectURL(new Blob([csv], { type: "text/csv" }));
     a.download = `parentdesk-families-${new Date().toISOString().slice(0, 10)}.csv`;
@@ -763,6 +789,11 @@ export default function AdminPage() {
                   <span>
                     <span className="font-mono">{u.name}</span> · {u.role === "owner" ? "owner(전체 권한)" : "viewer(읽기 전용)"} · 2단계 {u.twoStep ? "켜짐" : "꺼짐"} · {u.source === "env" ? "환경 변수" : `화면에서 추가${u.createdAt ? ` ${u.createdAt.slice(0, 10)}` : ""}`}
                   </span>
+                  {u.source === "stored" && u.name !== data.me?.name && (
+                    <button type="button" className={BTN_SMALL} onClick={() => void rotateAdmin(u.name)}>
+                      토큰 재발급
+                    </button>
+                  )}
                   {u.source === "stored" && u.name !== data.me?.name && (
                     <button type="button" className={DANGER} onClick={() => act("admin_remove", "", `관리자 계정 "${u.name}"을 회수합니다. 그 계정은 즉시 로그아웃됩니다. 계속할까요?`, undefined, { name: u.name })}>
                       회수

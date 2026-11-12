@@ -90,6 +90,35 @@ export function allowSignIn(ip: string): Gate {
   return { ok: true };
 }
 
+// New families from one address: creating one costs nothing but storage, so it has a cap
+// of its own and never touches the model budget.
+const HOURLY_SIGNUPS_PER_IP = Number(process.env.HOURLY_SIGNUPS_PER_IP ?? 40);
+export function allowSignup(ip: string): Gate {
+  const now = Date.now();
+  const key = `signup:${ip}`;
+  const g = check(key, HOURLY_SIGNUPS_PER_IP, now);
+  if (!g.ok) return { ok: false, reason: "rate_limited", retryAfterSec: g.retryAfterSec };
+  bump(key, now);
+  return { ok: true };
+}
+
+// Wrong class codes for one room, whoever sends them: after twenty in an hour the room
+// takes no more guesses for the rest of that hour (the link and QR keep working).
+const HOURLY_BAD_CODES_PER_ROOM = 20;
+// Taken before the code is looked at (so guesses sent side by side cannot all slip through)
+// and handed back when the code turns out right.
+export function takeCodeGuess(roomId: string): boolean {
+  const now = Date.now();
+  const key = `code:${roomId}`;
+  if (!check(key, HOURLY_BAD_CODES_PER_ROOM, now).ok) return false;
+  bump(key, now);
+  return true;
+}
+export function returnCodeGuess(roomId: string): void {
+  const w = buckets.get(`code:${roomId}`);
+  if (w && w.count > 0) w.count -= 1;
+}
+
 export function clientIp(req: Request): string {
   return req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || req.headers.get("x-real-ip") || "local";
 }

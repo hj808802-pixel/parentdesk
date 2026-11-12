@@ -1,6 +1,6 @@
 import { translatePost } from "@/lib/assist";
 import { isPaused } from "@/lib/ops";
-import { allowRequest, clientIp } from "@/lib/ratelimit";
+import { allowRequest, clientIp, returnCodeGuess, takeCodeGuess } from "@/lib/ratelimit";
 import { backfill, loadRoom, loadTeacher, parseJoinToken, postsNeedingTranslation, recentPosts, roomPublic, sanitizeChildIds, saveRoom, senderOf, subscribe, touchDirectory, verifyJoinCode, verifyJoinSecret } from "@/lib/rooms";
 import { createFamily, familyCookie, familyFromRequest, isHttps, saveFamily, toView } from "@/lib/store";
 
@@ -53,7 +53,11 @@ export async function POST(req: Request) {
   if (!gate.ok) return Response.json({ ok: false, error: gate.reason }, { status: 429 });
   const body = (await req.json().catch(() => null)) as Record<string, unknown> | null;
   if (!body) return Response.json({ ok: false, error: "bad_request" }, { status: 400 });
-  const found = body.roomId !== undefined ? await listedRoom(body.roomId, body.code ?? "") : await roomFor(body.token);
+  const byCode = body.roomId !== undefined;
+  const guessed = byCode && typeof body.roomId === "string" && /^[0-9a-f]{12}$/.test(body.roomId) ? body.roomId : null;
+  if (guessed && !takeCodeGuess(guessed)) return Response.json({ ok: false, error: "rate_limited" }, { status: 429 });
+  const found = byCode ? await listedRoom(body.roomId, body.code ?? "") : await roomFor(body.token);
+  if (guessed && found.status !== 403) returnCodeGuess(guessed);
   if (found.status !== 200) return Response.json({ ok: false, error: found.status === 403 ? "bad_code" : "bad_token" }, { status: found.status });
   const { room, teacher } = found;
 

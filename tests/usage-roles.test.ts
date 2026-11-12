@@ -1,7 +1,8 @@
+import { createHash } from "node:crypto";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { adminByToken, adminCookieFor, adminOf, adminUsers, createAdmin, removeAdmin, systemChecklist } from "@/lib/admin";
+import { adminByToken, adminCookieFor, adminOf, adminUsers, createAdmin, removeAdmin, rotateAdmin, systemChecklist } from "@/lib/admin";
 import { announcementText, isTeacherPaused, setAnnouncement, setTeacherPaused, teacherPause } from "@/lib/ops";
-import { listDocIds, readDoc, resetMemoryStore, writeDoc } from "@/lib/store";
+import { listDocIds, readDoc, removeDoc, resetMemoryStore, writeDoc } from "@/lib/store";
 import { compactUsage, noteUsage, readUsage } from "@/lib/usage";
 
 const OWNER = "0123456789abcdef0123456789abcdef";
@@ -126,12 +127,56 @@ describe("accounts made in the console", () => {
     expect(await createAdmin("owner", "owner", false, () => "")).toEqual({ ok: false, error: "exists" });
     expect(await createAdmin("Bad Name!", "owner", false, () => "")).toEqual({ ok: false, error: "bad_name" });
     expect(await createAdmin("ok", "boss", false, () => "")).toEqual({ ok: false, error: "bad_role" });
+    // a new token: the old one and its session stop working, the new one signs in
+    const turned = await rotateAdmin("jun");
+    if (!turned.ok) throw new Error("not rotated");
+    expect(await adminByToken(made.token)).toBeNull();
+    expect(await adminOf(req)).toBeNull();
+    expect((await adminByToken(turned.token))?.name).toBe("jun");
+    expect((await readDoc(`adminuser/${id}`))!).not.toContain(turned.token);
+    // a second re-issue replaces the first; only one re-issue document is kept
+    await new Promise((r) => setTimeout(r, 5));
+    const third = await rotateAdmin("jun");
+    if (!third.ok) throw new Error("not rotated");
+    expect(await adminByToken(turned.token)).toBeNull();
+    expect(await listDocIds("admintoken/")).toHaveLength(2); // kept, never rewritten
+    Object.assign(turned, third);
+    expect(await rotateAdmin("owner")).toEqual({ ok: false, error: "env" });
+    expect(await rotateAdmin("nobody")).toEqual({ ok: false, error: "not_found" });
+    const again = (await adminByToken(turned.token))!;
+    const req2 = new Request("https://x/", { headers: { cookie: adminCookieFor(again, true).split(";")[0] } });
     // the environment's accounts are not removable here; a removed account is gone at once
     expect(await removeAdmin("owner")).toBe("env");
     expect(await removeAdmin("nobody")).toBe("not_found");
+    expect(await adminOf(req2)).toEqual({ name: "jun", role: "viewer" });
     expect(await removeAdmin("jun")).toBe("removed");
-    expect(await adminOf(req)).toBeNull();
-    expect(await adminByToken(made.token)).toBeNull();
+    expect(await adminOf(req2)).toBeNull();
+    expect(await adminByToken(turned.token)).toBeNull();
+    // a re-issue that lands after the removal, or is left from the old account, opens nothing:
+    // not for the removed account and not for a new one of the same name
+    await writeDoc("admintoken/aaaaaaaaaaaa", JSON.stringify({ name: "jun", createdAt: again.createdAt, tokenHash: createHash("sha256").update("stale-token-stale-token-stale").digest("hex"), at: new Date(Date.now() + 60000).toISOString() }));
+    expect(await adminByToken("stale-token-stale-token-stale")).toBeNull();
+    await new Promise((r) => setTimeout(r, 5));
+    const reborn = await createAdmin("jun", "owner", false, () => "");
+    if (!reborn.ok) throw new Error("not made");
+    expect(await adminByToken("stale-token-stale-token-stale")).toBeNull();
+    expect((await adminByToken(reborn.token))?.role).toBe("owner");
+    // re-issues sent side by side: whoever is told "ok" holds the token that signs in
+    const both = await Promise.all([rotateAdmin("jun"), rotateAdmin("jun")]);
+    const told = both.filter((r) => r.ok);
+    expect(told.length).toBeGreaterThanOrEqual(1);
+    for (const r of told) if (r.ok) expect((await adminByToken(r.token))?.name).toBe("jun");
+    for (const r of both) if (!r.ok) expect(r.error).toBe("conflict");
+    // a re-issue record that cannot be read never revives an older token: console-made
+    // accounts stop signing in, the environment's owner still does
+    await writeDoc("admintoken/bbbbbbbbbbbb", "{broken");
+    expect(await adminByToken(reborn.token)).toBeNull();
+    for (const r of told) if (r.ok) expect(await adminByToken(r.token)).toBeNull();
+    expect((await adminByToken(OWNER))?.name).toBe("owner");
+    await removeDoc("admintoken/bbbbbbbbbbbb");
+    await removeAdmin("jun");
+    // what is left behind belongs to accounts that no longer exist and opens nothing
+    for (const r of told) if (r.ok) expect(await adminByToken(r.token)).toBeNull();
     // two requests for the same name at once: exactly one account, and its token works
     const race = await Promise.all([createAdmin("twin", "viewer", false, () => ""), createAdmin("twin", "owner", false, () => "")]);
     const won = race.filter((r) => r.ok);
